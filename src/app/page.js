@@ -1,189 +1,82 @@
-'use client';
+"use client";
+import React, { useState } from "react";
+import Image from "next/image";
 
-import { useState } from 'react';
+const Login = () => {
+  const [isLogin, setIsLogin] = useState(true);
 
-export default function Home() {
-  const [formData, setFormData] = useState({
-    project_name: '',
-    assigned_to: '',
-    created_by: '',
-    title: '',
-    description: '',
-    status: 'Pending',
-    priority: 'Medium',
-    due_date: '',
-  });
-
-  const [message, setMessage] = useState('');
-
-  const handleChange = (e) => {
-    setFormData(prev => ({
-      ...prev,
-      [e.target.name]: e.target.value,
-    }));
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    if (!formData.title || !formData.assigned_to) {
-      setMessage('❌ Title and Assigned To are required');
-      return;
-    }
-
-    try {
-      const res = await fetch('/api/tasks', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(formData),
-      });
-
-      const result = await res.json();
-
-      if (res.ok) {
-        setMessage(`✅ Task created successfully with ID: ${result.taskId}`);
-        setFormData({
-          project_name: '',
-          assigned_to: '',
-          created_by: '',
-          title: '',
-          description: '',
-          status: 'Pending',
-          priority: 'Medium',
-          due_date: '',
-        });
-      } else {
-        setMessage(`❌ ${result.error}`);
-      }
-    } catch (error) {
-      console.error(error);
-      setMessage('❌ Failed to create task');
-    }
-  };
+  const toggleForm = () => setIsLogin(!isLogin);
 
   return (
-    <div className="w-full bg-gradient-to-br from-green-600 to-blue-200 min-h-screen flex items-center justify-center">
-      <div className="w-[40%] mx-auto p-6 bg-gray-300 shadow-md rounded-lg">
-        <h1 className="text-2xl font-bold mb-6 text-center">Assign a Task</h1>
+    <div className="w-full min-h-screen font-sans bg-gradient-to-br from-green-600 to-blue-200 flex flex-col">
+      {/* Full-width header above the two columns */}
+      <div className="flex w-full py-6 md:pt-80 justify-center bg-opacity-20 backdrop-blur-sm">
+        <h1 className="text-white  text-4xl md:text-6xl font-extrabold max-w-4xl text-center select-none">
+          Task monitoring
+        </h1>
+      </div>
 
-        <form className="space-y-4" onSubmit={handleSubmit}>
-          <div>
-            <label className="block font-semibold">Project Name</label>
-            <input
-              type="text"
-              name="project_name"
-              value={formData.project_name}
-              onChange={handleChange}
-              placeholder="Enter project name"
-              className="w-full mt-1 p-2 border rounded"
+      {/* Two-column layout below */}
+      <div className="flex flex-1 flex-col md:flex-row items-center md:mb-80">
+        {/* Left: Image Section */}
+        <div className="w-full md:flex-1 flex items-center justify-center px-6 md:px-0 md:ml-32">
+          <div className="w-full max-w-xs md:max-w-sm lg:max-w-md aspect-square relative">
+            <Image
+              src="/login_image.png"
+              alt="Login Visual"
+              fill
+              className="object-contain"
+              priority
             />
           </div>
+        </div>
 
-          <div>
-            <label className="block font-semibold">Assigned To</label>
-            <input
-              type="text"
-              name="assigned_to"
-              value={formData.assigned_to}
-              onChange={handleChange}
-              placeholder="Enter assignee's name"
-              className="w-full mt-1 p-2 border rounded"
-              required
-            />
+        {/* Right: Login/Signup Form */}
+        <div className="w-full md:flex-1 flex items-center justify-center px-6 md:px-0 md:mr-32">
+          <div className="w-full max-w-md p-8 shadow-lg rounded-lg bg-opacity-20 backdrop-blur-sm">
+            <h2 className="text-3xl font-bold text-center mb-6 text-white">
+              {isLogin ? "Login" : "Sign Up"}
+            </h2>
+            <form className="space-y-4">
+              {!isLogin && (
+                <input
+                  type="text"
+                  placeholder="Full Name"
+                  className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-green-400"
+                />
+              )}
+              <input
+                type="email"
+                placeholder="Email"
+                className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-green-400"
+              />
+              <input
+                type="password"
+                placeholder="Password"
+                className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-green-400"
+              />
+              <button
+                type="submit"
+                className="w-full bg-green-500 text-white py-2 rounded-md hover:bg-green-600 transition"
+              >
+                {isLogin ? "Login" : "Sign Up"}
+              </button>
+            </form>
+
+            <p className="mt-4 text-center text-gray-200">
+              {isLogin ? "Don't have an account?" : "Already have an account?"}{" "}
+              <button
+                onClick={toggleForm}
+                className="text-green-300 font-semibold hover:underline"
+              >
+                {isLogin ? "Sign Up" : "Login"}
+              </button>
+            </p>
           </div>
-
-          <div>
-            <label className="block font-semibold">Created By</label>
-            <input
-              type="text"
-              name="created_by"
-              value={formData.created_by}
-              onChange={handleChange}
-              placeholder="Enter creator's name"
-              className="w-full mt-1 p-2 border rounded"
-            />
-          </div>
-
-          <div>
-            <label className="block font-semibold">Title</label>
-            <input
-              type="text"
-              name="title"
-              value={formData.title}
-              onChange={handleChange}
-              placeholder="Enter task title"
-              className="w-full mt-1 p-2 border rounded"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block font-semibold">Description</label>
-            <textarea
-              name="description"
-              value={formData.description}
-              onChange={handleChange}
-              placeholder="Enter task description"
-              className="w-full mt-1 p-2 border rounded"
-              rows="4"
-            />
-          </div>
-
-          <div>
-            <label className="block font-semibold">Status</label>
-            <select
-              name="status"
-              value={formData.status}
-              onChange={handleChange}
-              className="w-full mt-1 p-2 border rounded"
-            >
-              <option>Pending</option>
-              <option>In Progress</option>
-              <option>Completed</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block font-semibold">Priority</label>
-            <select
-              name="priority"
-              value={formData.priority}
-              onChange={handleChange}
-              className="w-full mt-1 p-2 border rounded"
-            >
-              <option>Low</option>
-              <option>Medium</option>
-              <option>High</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block font-semibold">Due Date</label>
-            <input
-              type="date"
-              name="due_date"
-              value={formData.due_date}
-              onChange={handleChange}
-              className="w-full mt-1 p-2 border rounded"
-            />
-          </div>
-
-          <div className="text-center">
-            <button
-              type="submit"
-              className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700"
-            >
-              Assign Task
-            </button>
-          </div>
-
-          {message && (
-            <p className="text-center mt-4 text-sm text-gray-700">{message}</p>
-          )}
-        </form>
+        </div>
       </div>
     </div>
   );
-}
+};
+
+export default Login;
