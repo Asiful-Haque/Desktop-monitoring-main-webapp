@@ -17,7 +17,7 @@ export async function POST(request) {
     }
 
     const result = await screenshotService.createScreenshotData(data);
-    return corsJson({ message: 'Screenshot data stored', insertedId: result.insertedId }, 201);
+    return corsJson({ message: 'Screenshot data stored', insertedId: result.insertId }, 201);
   } catch (error) {
     console.error('❌ Error saving screenshot data:', error);
     return corsJson({ error: 'Failed to save screenshot data' }, 500);

@@ -1,9 +1,32 @@
 "use client";
 import React, { useState } from "react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 
 const Login = () => {
   const [isLogin, setIsLogin] = useState(true);
+  const router = useRouter();
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const formDataToObject = Object.fromEntries(formData.entries());
+    console.log("data is ", formDataToObject);
+    const res = await fetch("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify({
+        email: formDataToObject.email,
+        password: formDataToObject.password,
+        role: formDataToObject.role,
+      }),
+    });
+    const data = await res.json();
+    console.log("Login response:", data);
+    localStorage.setItem('token', data.token);
+    router.push('/assign_task');
+    // Reset form fields after submission
+    e.target.reset();
+  };
 
   const toggleForm = () => setIsLogin(!isLogin);
 
@@ -37,24 +60,41 @@ const Login = () => {
             <h2 className="text-3xl font-bold text-center mb-6 text-white">
               {isLogin ? "Login" : "Sign Up"}
             </h2>
-            <form className="space-y-4">
+            <form onSubmit={handleLogin} className="space-y-4">
               {!isLogin && (
                 <input
                   type="text"
+                  name="fullName"
                   placeholder="Full Name"
-                  className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-green-400"
+                  className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-green-400 placeholder-black"
                 />
               )}
               <input
                 type="email"
+                name="email"
                 placeholder="Email"
-                className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-green-400"
+                className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-green-400 placeholder-black"
               />
               <input
                 type="password"
+                name="password"
                 placeholder="Password"
-                className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-green-400"
+                className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-green-400 placeholder-black"
               />
+              <select
+                name="role"
+                className="w-full px-2 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-green-400"
+                defaultValue=""
+              >
+                <option value="" disabled>
+                  Select Role
+                </option>
+                <option value="Admin">Admin</option>
+                <option value="Developer">Developer</option>
+                <option value="Product Manager">Product Manager</option>
+                <option value="Team Lead">Team Lead</option>
+              </select>
+
               <button
                 type="submit"
                 className="w-full bg-green-500 text-white py-2 rounded-md hover:bg-green-600 transition"
@@ -63,11 +103,11 @@ const Login = () => {
               </button>
             </form>
 
-            <p className="mt-4 text-center text-gray-200">
+            <p className="mt-4 text-center text-gray-100">
               {isLogin ? "Don't have an account?" : "Already have an account?"}{" "}
               <button
                 onClick={toggleForm}
-                className="text-green-300 font-semibold hover:underline"
+                className="text-green-600 font-semibold hover:underline"
               >
                 {isLogin ? "Sign Up" : "Login"}
               </button>

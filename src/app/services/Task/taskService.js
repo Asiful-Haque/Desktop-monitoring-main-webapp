@@ -1,35 +1,38 @@
-import clientPromise from "@/app/lib/mongodb";
-
+// app/services/Task/taskService.js
+import pool from "@/app/lib/sqlClient";
 
 export class TaskService {
-  constructor() {
-    this.collectionName = 'tasks'; // name of your MongoDB collection
-  }
-
-  async getCollection() {
-    const client = await clientPromise;
-    // console.log('MongoDB client connected',client);
-    const db = client.db('task_monitor'); // uses the default database from the URI
-    console.log('MongoDB database connected',db.databaseName);
-    return db.collection(this.collectionName);
-  }
-
   async getAllTasks() {
-    console.log('Fetching all tasks...');
-    const collection = await this.getCollection();
-    const tasks = await collection.find({}).toArray();
-    return tasks;
+    try {
+      const [rows] = await pool.query("SELECT * FROM tasks");
+      return rows;
+    } catch (error) {
+      console.error("Error fetching tasks:", error);
+      throw error;
+    }
   }
 
   async createTask(data) {
-    const collection = await this.getCollection();
-    const result = await collection.insertOne({
-      title: data.title,
-      description: data.description || '',
-      assigned_to: data.assigned_to,
-      created_at: new Date(),
-      status: 'pending',
-    });
-    return result;
+  try {
+    const [result] = await pool.query(
+      `INSERT INTO tasks 
+        (project_name, assigned_to, created_by, title, description, status, priority, due_date, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+      [
+        data.project_name,
+        data.assigned_to,
+        data.created_by,
+        data.title,
+        data.description || '',
+        data.status ? data.status.toLowerCase().replace(/\s/g, '-') : 'pending',
+        data.priority || null,
+        data.due_date || null
+      ]
+    );
+    return result; // contains insertId
+  } catch (error) {
+    console.error("Error creating task:", error);
+    throw error;
   }
+}
 }

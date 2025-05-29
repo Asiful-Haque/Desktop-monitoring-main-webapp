@@ -21,7 +21,7 @@ export async function POST(request) {
     }
 
     const result = await taskService.createTask(data);
-    return corsJson({ message: 'Task created', taskId: result.insertedId }, 201);
+    return corsJson({ message: 'Task created', taskId: result.insertId }, 201);
   } catch (error) {
     return corsJson({ error: 'Failed to create task' }, 500);
   }
