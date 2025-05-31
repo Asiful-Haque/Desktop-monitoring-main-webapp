@@ -20,6 +20,12 @@ const Login = () => {
         role: formDataToObject.role,
       }),
     });
+    if (!res.ok) {
+      const errorData = await res.json();
+      console.error("Login failed:", errorData);
+      alert(`Login failed: ${errorData.error || "Unknown error"}`);
+      return;
+    }
     const data = await res.json();
     console.log("Login response:", data);
     localStorage.setItem('token', data.token);

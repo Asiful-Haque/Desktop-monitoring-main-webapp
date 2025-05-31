@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export default function Home() {
   const [formData, setFormData] = useState({
@@ -13,8 +13,24 @@ export default function Home() {
     priority: 'Medium',
     due_date: '',
   });
+   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      console.log("localStorage value", localStorage.getItem('token'));
+    }
+  }, []);
 
   const [message, setMessage] = useState('');
+
+  //  useEffect(() => {
+  //   const intervalId = setInterval(() => {
+  //     if (typeof window !== 'undefined') {
+  //       console.log('LocalStorage token (every 3s):', localStorage.getItem('token'));
+  //     }
+  //   }, 3000);
+
+  //   // Cleanup on unmount
+  //   return () => clearInterval(intervalId);
+  // }, []);
 
   const handleChange = (e) => {
     setFormData(prev => ({
@@ -32,10 +48,12 @@ export default function Home() {
     }
 
     try {
-      const res = await fetch('/api/tasks', {
+      console.log("Submitting form data:", formData);
+      const res = await fetch('http://localhost:5000/api/tasks', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
         },
         body: JSON.stringify(formData),
       });
