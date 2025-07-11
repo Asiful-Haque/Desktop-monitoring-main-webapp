@@ -11,26 +11,52 @@ const Login = () => {
     e.preventDefault();
     const formData = new FormData(e.target);
     const formDataToObject = Object.fromEntries(formData.entries());
-    console.log("data is ", formDataToObject);
-    const res = await fetch("/api/auth/login", {
+
+    const endpoint = isLogin ? "/api/auth/login" : "/api/auth/signup";
+
+    const res = await fetch(endpoint, {
       method: "POST",
       body: JSON.stringify({
         email: formDataToObject.email,
         password: formDataToObject.password,
         role: formDataToObject.role,
+        ...(isLogin ? {} : { fullName: formDataToObject.fullName }),
       }),
     });
+    const data = await res.json();
+    console.log("Response data:", data);
+    console.log("token:", data.token);
     if (!res.ok) {
-      const errorData = await res.json();
-      console.error("Login failed:", errorData);
-      alert(`Login failed: ${errorData.error || "Unknown error"}`);
+      console.error(`${isLogin ? "Login" : "Signup"} failed:`, data);
+      alert(
+        `${isLogin ? "Login" : "Signup"} failed: ${
+          data.error || "Unknown error"
+        }`
+      );
       return;
     }
-    const data = await res.json();
-    console.log("Login response:", data);
-    localStorage.setItem('token', data.token);
-    router.push('/assign_task');
-    // Reset form fields after submission
+    if (isLogin) {
+      // decide route based on role
+      switch (data.role) {
+        case "Admin":
+          router.push("/adminDashboard");
+          break;
+        case "Developer":
+          router.push("/developerDashboard");
+          break;
+        case "Product Manager":
+          router.push("/pmDashboard");
+          break;
+        case "Team Lead":
+          router.push("/teamLeadDashboard");
+          break;
+        default:
+          alert("Unknown role");
+      }
+    } else {
+      alert("Signup successful! You can now log in.");
+      setIsLogin(true); // Switch to login form after successful signup
+    }
     e.target.reset();
   };
 

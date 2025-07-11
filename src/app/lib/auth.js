@@ -1,18 +1,23 @@
-import jwt from 'jsonwebtoken';
+// lib/auth.js (replace signToken and verifyToken)
 
-const SECRET = process.env.JWT_SECRET || 'your-secret';
+import { SignJWT, jwtVerify } from 'jose';
 
-export function signToken(payload) {
-  console.log("Signing token with payload:", payload);
-  return jwt.sign(payload, SECRET, { expiresIn: '1m' });
+const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'your-secret');
+
+export async function signToken(payload) {
+  return await new SignJWT(payload)
+    .setProtectedHeader({ alg: 'HS256' })
+    .setIssuedAt()
+    .setExpirationTime('1h')
+    .sign(secret);
 }
 
-export function verifyToken(token) {
-  console.log("Verifying token---------------------:", token);
+export async function verifyToken(token) {
   try {
-    return jwt.verify(token, SECRET);
+    const { payload } = await jwtVerify(token, secret);
+    return payload;
   } catch (err) {
-    console.error("Token verification failed:", err.message);
+    console.error('Token verification failed:', err.message);
     return null;
   }
 }

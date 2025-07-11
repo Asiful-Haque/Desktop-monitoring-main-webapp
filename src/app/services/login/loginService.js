@@ -4,7 +4,7 @@ import pool from '@/app/lib/sqlClient';
 export default class LoginService {
   async validateUser(email, password, role) {
     const [rows] = await pool.execute(
-      `SELECT * FROM credentials WHERE email = ? AND role = ? LIMIT 1`,
+      `SELECT * FROM users WHERE email = ? AND role = ? LIMIT 1`,
       [email, role]
     );
     if (rows.length === 0) return null;
