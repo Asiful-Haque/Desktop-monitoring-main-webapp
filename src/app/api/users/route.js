@@ -12,3 +12,18 @@ export async function GET() {
         return NextResponse.json({ error: 'Failed to fetch users' }, { status: 500 });
     }
 }
+
+export async function POST(request) {
+    try {
+        const { username, email, role } = await request.json();
+        if (!username || !email || !role) {
+            return NextResponse.json({ error: 'All fields are required' }, { status: 400 });
+        }
+
+        const newUser = await usersService.createUser(username, email, role);
+        return NextResponse.json({ user: newUser }, { status: 201 });
+    } catch (error) {
+        console.error('Error creating user:', error);
+        return NextResponse.json({ error: 'Failed to create user' }, { status: 500 });
+    }
+}

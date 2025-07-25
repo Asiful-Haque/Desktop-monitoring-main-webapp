@@ -21,6 +21,7 @@ function getRoleColor(role) {
 }
 
 export default function UserManagementCard({ users }) {
+    console.log("usesrs data:", users);
   return (
     <Card className="border-0 shadow-lg bg-white/70 backdrop-blur-sm h-196">
       <CardHeader>

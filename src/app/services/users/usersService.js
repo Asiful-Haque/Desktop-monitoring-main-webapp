@@ -7,4 +7,13 @@ export default class UsersService {
         `);
         return rows;
     }
+
+    async createUser( username, email, role ) {
+        const [result] = await pool.execute(`
+            INSERT INTO users (username, email, role)
+            VALUES (?, ?, ?)
+        `, [username, email, role]);
+
+        return { id: result.insertId, username, email, role };
+    }
 }
