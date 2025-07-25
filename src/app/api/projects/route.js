@@ -16,15 +16,25 @@ export async function GET() {
 
 export async function POST(req) {
   try {
-    const { title, description, status, created_by } = await req.json();
-    if (!title || !description || !status || !created_by) {
+    const { title, description, email, status, deadline } = await req.json();
+
+    if (!title || !description || !status || !deadline || !email) {
       return NextResponse.json({ error: 'All fields are required' }, { status: 400 });
     }
 
-    const newProject = await projectService.createProject({ title, description, status, created_by });
+    const newProject = await projectService.createProject({
+      title,
+      description,
+      deadline,
+      status,
+      email, 
+    });
+
     return NextResponse.json({ message: 'Project created', project: newProject }, { status: 201 });
   } catch (error) {
     console.error('Error creating project:', error);
     return NextResponse.json({ error: 'Failed to create project' }, { status: 500 });
   }
 }
+
+

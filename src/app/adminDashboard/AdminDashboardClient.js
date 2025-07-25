@@ -16,15 +16,18 @@ import {
   Shield,
   AlertTriangle,
   Plus,
+  FolderPlus,
   Settings,
 } from "lucide-react";
 
 import ProjectOverview from "@/components/ProjectOverview";
 import UserManagementCard from "@/components/UserManagementCard";
 import AddUserModal from "@/components/AddUserModal";
+import AddProjectModal from "@/components/addProjectModal";
 
 export default function AdminDashboardClient({ users, projects }) {
   const [addUserModalOpen, setAddUserModalOpen] = useState(false);
+  const [addProjectModalOpen, setAddProjectModalOpen] = useState(false);
 
   const systemStats = [
     { label: "Total Users", value: users.length, change: "+12%", icon: Users },
@@ -50,8 +53,10 @@ export default function AdminDashboardClient({ users, projects }) {
             <Plus className=" h-4 w-4" />
             Add User
           </Button>
-          <Button className="bg-red-600 hover:bg-red-700">
-            <Plus className=" h-4 w-4" />
+          <Button className="bg-red-600 hover:bg-red-700"
+            onClick={() => setAddProjectModalOpen(true)}
+          >
+            <FolderPlus className="mr-2 h-4 w-4" />
             Add Project
           </Button>
           <Button variant="outline">
@@ -134,6 +139,7 @@ export default function AdminDashboardClient({ users, projects }) {
       </Card>
 
       <AddUserModal addUserModalOpen={addUserModalOpen} setAddUserModalOpen={setAddUserModalOpen} />
+      <AddProjectModal addProjectModalOpen={addProjectModalOpen} setAddProjectModalOpen={setAddProjectModalOpen} />
     </div>
   );
 }
