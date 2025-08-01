@@ -69,18 +69,18 @@ function ProjectOverview({ projects }) {
           <div className="space-y-4">
             {projects.map((project) => (
               <div
-                key={project.id}
+                key={project.project_id}
                 className="p-4 border border-red-100 rounded-lg bg-red-50/50"
               >
                 <div className="flex items-center justify-between mb-2">
-                  <h4 className="font-medium text-gray-900">{project.title}</h4>
+                  <h4 className="font-medium text-gray-900">{project.project_name}</h4>
                   <Badge className={getStatusColor(project.status)}>
                     {project.status}
                   </Badge>
                 </div>
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm text-gray-600">
-                    <span>{project.team} team members</span>
+                    <span>{project.assigned_to.username}</span>
                     <span>{project.progress}% complete</span>
                   </div>
                   <Progress value={project.progress} className="h-2" />

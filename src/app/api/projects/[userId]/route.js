@@ -1,12 +1,19 @@
-// app/api/projects/route.ts
-import ProjectService from '@/app/services/projects/projectService';
+// app/api/projects/[userId]/route.ts
+
+import { ProjectService } from '@/app/services/projects/projectService';
 import { NextResponse } from 'next/server';
 
 const projectService = new ProjectService();
 
-export async function GET() {
+export async function GET(req, context) {
   try {
-    const projects = await projectService.getAllProjects();
+    const params = await context.params;
+    const userId = Number(params.userId);
+    if (isNaN(userId)) {
+      return NextResponse.json({ error: 'Invalid userId' }, { status: 400 });
+    }
+
+    const projects = await projectService.getAllProjects(userId);
     return NextResponse.json({ projects });
   } catch (error) {
     console.error('Error fetching projects:', error);
@@ -27,7 +34,7 @@ export async function POST(req) {
       description,
       deadline,
       status,
-      email, 
+      email,
     });
 
     return NextResponse.json({ message: 'Project created', project: newProject }, { status: 201 });
@@ -36,5 +43,3 @@ export async function POST(req) {
     return NextResponse.json({ error: 'Failed to create project' }, { status: 500 });
   }
 }
-
-

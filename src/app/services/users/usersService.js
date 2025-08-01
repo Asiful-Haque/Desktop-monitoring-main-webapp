@@ -1,19 +1,47 @@
-import pool from "@/app/lib/sqlClient";
+import { initDb } from "@/app/lib/typeorm/init-db";
+import { User } from "@/app/lib/typeorm/entities/User";
 
-export default class UsersService {
-    async getAllUsers() {
-        const [rows] = await pool.execute(`
-            SELECT username, email, role FROM users
-        `);
-        return rows;
+export class UsersService {
+  constructor() {
+    this.userRepo = null;
+  }
+
+  async initializeRepository() {
+    if (!this.userRepo) {
+      const dataSource = await initDb();
+      this.userRepo = dataSource.getRepository(User);
     }
+    return this.userRepo;
+  }
 
-    async createUser( username, email, role ) {
-        const [result] = await pool.execute(`
-            INSERT INTO users (username, email, role)
-            VALUES (?, ?, ?)
-        `, [username, email, role]);
+  async getUsers() {
+    const repo = await this.initializeRepository();
+    return repo.find({
+      take: 10,
+      select: ["user_id", "username", "email", "created_at"],
+      order: {
+        user_id: "ASC",
+      },
+    });
+  }
 
-        return { id: result.insertId, username, email, role };
-    }
+  async getUserById(userId) {
+    const repo = await this.initializeRepository();
+    return repo.findOne({
+      where: { user_id: userId },
+      select: ["user_id", "username", "email", "created_at"],
+    });
+  }
+
+  async createUser(data) {
+    const repo = await this.initializeRepository();
+
+    const user = repo.create({
+      username: data.username,
+      email: data.email,
+      password: data.password, // Remember to hash passwords in production!
+    });
+
+    return repo.save(user);
+  }
 }

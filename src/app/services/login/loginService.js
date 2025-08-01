@@ -1,16 +1,30 @@
-// app/services/login/loginService.ts
-import pool from '@/app/lib/sqlClient';
+import { initDb } from "@/app/lib/typeorm/init-db";
+import { User } from "@/app/lib/typeorm/entities/User";
 
-export default class LoginService {
-  async validateUser(email, password, role) {
-    const [rows] = await pool.execute(
-      `SELECT * FROM users WHERE email = ? AND role = ? LIMIT 1`,
-      [email, role]
-    );
-    if (rows.length === 0) return null;
-    const user = rows[0];
+export class LoginService {
+  constructor() {
+    this.userRepo = null;
+  }
 
-    if (user.password !== password) { //Here i will add hash later
+  async initializeRepository() {
+    if (!this.userRepo) {
+      const dataSource = await initDb(); // Use initDb here
+      this.userRepo = dataSource.getRepository(User);
+    }
+    return this.userRepo;
+  }
+
+  async validateUser(email, password) {
+    console.log("Validating user with email:", email);
+    const repo = await this.initializeRepository();
+
+    const user = await repo.findOne({
+      where: { email },
+    });
+
+    if (!user) return null;
+
+    if (user.password !== password) {
       return null;
     }
     return user;

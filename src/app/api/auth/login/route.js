@@ -1,38 +1,40 @@
 import { NextResponse } from "next/server";
-
-import LoginService from "@/app/services/login/loginService";
 import { signToken } from "@/app/lib/auth";
+import { LoginService } from "@/app/services/login/loginService";
 
 const loginService = new LoginService();
 
 export async function POST(req) {
   try {
-    const { email, password, role } = await req.json();
-    if (!email || !password || !role) {
+    const { email, password } = await req.json();
+    console.log("Received login request with email:", email);
+    if (!email || !password) {
       return NextResponse.json(
-        { error: "Email, password, and role are required" },
+        { error: "Email, password are required" },
         { status: 400 }
       );
     }
-    const user = await loginService.validateUser(email, password, role);
+    console.log("Hello");
+    const user = await loginService.validateUser(email, password);
     if (!user) {
       return NextResponse.json(
         { error: "Invalid credentials" },
         { status: 401 }
       );
     }
+    console.log("validated user:", user);
     // console.log("Calling for signing");
     const token = await signToken({
-      id: user.id,
+      id: user.user_id,
       email: user.email,
-      role: user.role,
+      name: user.username,
     });
     // console.log("Token signed successfully:", token);
 
     // ✅ Set the token as a secure HTTP-only cookie
     const response = NextResponse.json({
       message: "Login successful",
-      role: user.role, // ✅ sending only role
+      name: user.username,
     });
 
     // console.log("About to set cookie…");
