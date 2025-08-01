@@ -13,9 +13,9 @@ import { Progress } from "@/components/ui/progress";
 
 const getStatusColor = (status) => {
   switch (status) {
-    case "Active":
+    case "completed":
       return "bg-green-100 text-green-800";
-    case "Away":
+    case "pending":
       return "bg-yellow-100 text-yellow-800";
     case "On Track":
       return "bg-blue-100 text-blue-800";
@@ -80,7 +80,7 @@ function ProjectOverview({ projects }) {
                 </div>
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm text-gray-600">
-                    <span>{project.assigned_to.username}</span>
+                    <span>{project.assigned_to_rel.username}</span>
                     <span>{project.progress}% complete</span>
                   </div>
                   <Progress value={project.progress} className="h-2" />

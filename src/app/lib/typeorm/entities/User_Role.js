@@ -15,17 +15,17 @@ export const UserRoles = new EntitySchema({
     },
   },
   relations: {
-    user: {
+    user_rel: {
       type: "many-to-one",
       target: "User",
       joinColumn: { name: "user_id" },
-      inverseSide: "user_roles",
+      inverseSide: "user_roles_rel",
     },
-    role: {
+    role_rel: {
       type: "many-to-one",
       target: "Role",
       joinColumn: { name: "role_id" },
-      inverseSide: "user_roles",
+      inverseSide: "user_roles_rel",
     },
   },
 });

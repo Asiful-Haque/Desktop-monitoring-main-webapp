@@ -35,15 +35,20 @@ export const User = new EntitySchema({
     },
   },
   relations: {
-    user_roles: {
+    user_roles_rel: {
       type: "one-to-many",
       target: "UserRoles",
-      inverseSide: "user",
+      inverseSide: "user_rel",
     },
-    projects: {
+    projects_rel: {
       type: "one-to-many",
       target: "Project",
-      inverseSide: "assigned_to",
+      inverseSide: "assigned_to_rel",
+    },
+    tasks_rel: {
+      type: "one-to-many",
+      target: "Task",
+      inverseSide: "assigned_to_rel",
     },
   },
 });

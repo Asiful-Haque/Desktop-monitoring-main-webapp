@@ -16,10 +16,10 @@ export const Role = new EntitySchema({
     },
   },
   relations: {
-    user_roles: {
+    user_roles_rel: {
       type: "one-to-many",
       target: "UserRoles",
-      inverseSide: "role",
+      inverseSide: "role_rel",
     },
   },
 });

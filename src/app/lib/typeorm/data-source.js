@@ -4,6 +4,7 @@ import { User } from "./entities/User";
 import { Role } from "./entities/Role";
 import { UserRoles } from "./entities/User_Role";
 import { Project } from "./entities/Project";
+import { Task } from "./entities/Task";
 
 
 export const AppDataSource = new DataSource({
@@ -15,6 +16,6 @@ export const AppDataSource = new DataSource({
   database: "task_monitor",
   synchronize: false,
   logging: false,
-  entities: [User, Role, UserRoles, Project],
+  entities: [User, Role, UserRoles, Project, Task],
 });
 

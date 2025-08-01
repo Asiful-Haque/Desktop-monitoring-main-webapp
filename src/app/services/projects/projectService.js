@@ -23,9 +23,9 @@ export class ProjectService {
 
     return this.projectRepo.find({
       where: {
-        assigned_to: { user_id: userId }, // ✅ filtering based on assigned user
+        assigned_to_rel: { user_id: userId }, // filter on joined table
       },
-      relations: ["assigned_to"],
+      relations: ["assigned_to_rel"],         // JOIN performed here
       order: { project_id: "ASC" },
     });
   }

@@ -1,32 +1,25 @@
 import { EntitySchema } from "typeorm";
 
-export const Project = new EntitySchema({
-  name: "Project",
-  tableName: "projects",
+export const Task = new EntitySchema({
+  name: "Task",
+  tableName: "tasks",
   columns: {
-    project_id: {
+    task_id: {
       primary: true,
       type: "bigint",
       generated: true,
     },
-    project_name: {
+    task_name: {
       type: "varchar",
       length: 255,
     },
-    project_description: {
+    task_description: {
       type: "varchar",
       length: 1000,
       nullable: true,
     },
-    status: {
-      type: "varchar",
-      length: 50,
-    },
-    created_at: {
-      type: "datetime",
-    },
-    updated_at: {
-      type: "datetime",
+    assigned_to: {
+      type: "bigint",
     },
     start_date: {
       type: "datetime",
@@ -34,7 +27,15 @@ export const Project = new EntitySchema({
     deadline: {
       type: "datetime",
     },
-    assigned_to: {
+    end_date: {
+      type: "datetime",
+      nullable: true,
+    },
+    status: {
+      type: "varchar",
+      length: 50,
+    },
+    project_id: {
       type: "bigint",
     },
   },
@@ -46,12 +47,16 @@ export const Project = new EntitySchema({
         name: "assigned_to",
         referencedColumnName: "user_id",
       },
-      inverseSide: "projects_rel",
+      inverseSide: "tasks_rel",
     },
-    tasks_rel: {
-      type: "one-to-many",
-      target: "Task",
-      inverseSide: "project_rel",
+    project_rel: {
+      type: "many-to-one",
+      target: "Project",
+      joinColumn: {
+        name: "project_id",
+        referencedColumnName: "project_id",
+      },
+      inverseSide: "tasks_rel",
     },
   },
 });

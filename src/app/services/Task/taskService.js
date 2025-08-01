@@ -1,38 +1,35 @@
 // app/services/Task/taskService.js
 import pool from "@/app/lib/sqlClient";
+import { Task } from "@/app/lib/typeorm/entities/Task";
+import { initDb } from "@/app/lib/typeorm/init-db";
 
 export class TaskService {
-  async getAllTasks() {
-    try {
-      const [rows] = await pool.query("SELECT * FROM tasks");
-      return rows;
-    } catch (error) {
-      console.error("Error fetching tasks:", error);
-      throw error;
-    }
+  constructor() {
+    this.userRepo = null;
   }
 
-  async createTask(data) {
-  try {
-    const [result] = await pool.query(
-      `INSERT INTO tasks 
-        (project_name, assigned_to, created_by, title, description, status, priority, due_date, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
-      [
-        data.project_name,
-        data.assigned_to,
-        data.created_by,
-        data.title,
-        data.description || '',
-        data.status ? data.status.toLowerCase().replace(/\s/g, '-') : 'pending',
-        data.priority || null,
-        data.due_date || null
-      ]
-    );
-    return result; // contains insertId
-  } catch (error) {
-    console.error("Error creating task:", error);
-    throw error;
+  async initializeRepository() {
+    if (!this.userRepo) {
+      const dataSource = await initDb();
+      this.userRepo = dataSource.getRepository(Task);
+    }
+    return this.userRepo;
   }
-}
+
+  async getAllTasks(userId) {
+    const repo = await this.initializeRepository();
+
+    return await repo
+      .createQueryBuilder("task")
+      .leftJoin("task.assigned_to_rel", "user")
+      .where("task.assigned_to = :userId", { userId })
+      .select([
+        "task.task_id",
+        "task.task_name",
+        "task.task_description",
+        "user.user_id",
+        "user.username",
+      ])
+      .getMany();
+  }
 }
