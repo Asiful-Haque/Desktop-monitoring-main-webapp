@@ -29,21 +29,19 @@ export class UsersService {
 
     return repo
       .createQueryBuilder("user")
-      .leftJoin("user.user_roles_rel", "userRole_reference")   
-      .leftJoin("userRole_reference.role_rel", "role_reference")        
+      .leftJoin("user.user_roles_rel", "ur")
+      .leftJoin("ur.role_rel", "r")
       .select([
-        "user.user_id",
-        "user.username",
-        "user.email",
-        "user.created_at",
-        "role_reference.role_name",
+        "user.user_id AS user_id",
+        "user.username AS username",
+        "user.email AS email",
+        "user.created_at AS created_at",
+        "r.role_name AS role_name",
       ])
-      .orderBy("user.user_id", "ASC")
+      .orderBy("user_id", "ASC")
       .limit(10)
-      .getMany();
+      .getRawMany(); // <- Important: getRawMany gives flat result
   }
-
-
 
   async getUserById(userId) {
     const repo = await this.initializeRepository();

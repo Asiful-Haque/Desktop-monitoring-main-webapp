@@ -50,7 +50,7 @@ export default function UserManagementCard({ users }) {
                   <p className="text-sm text-gray-600">{user.email}</p>
                 </div>
               </div>
-              <Badge className={getRoleColor(user.role)}>{user.role}</Badge>
+              <Badge className={getRoleColor(user.role_name)}>{user.role_name}</Badge>
             </div>
           ))}
         </div>

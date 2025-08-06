@@ -28,8 +28,9 @@ export async function POST(req) {
       id: user.user_id,
       email: user.email,
       name: user.username,
+      role: user.role, 
     });
-    // console.log("Token signed successfully:", token);
+    console.log("Token signed successfully with values:", user.role);
 
     // ✅ Set the token as a secure HTTP-only cookie
     const response = NextResponse.json({
