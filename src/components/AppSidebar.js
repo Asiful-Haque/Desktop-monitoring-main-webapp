@@ -1,0 +1,75 @@
+"use client";
+import React from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import {
+  Calendar,
+  CheckSquare,
+  Image,
+  Users,
+  BarChart3,
+  Settings,
+  Home,
+} from "lucide-react";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  useSidebar,
+} from "@/components/ui/sidebar";
+
+const navigationItems = [
+  { title: "Dashboard", url: "/adminDashboard", icon: Home, roles: ["Developer", "admin", "product_manager"] },
+  { title: "Tasks", url: "/tasks", icon: CheckSquare, roles: ["Developer", "admin", "product_manager"] },
+  { title: "Meetings", url: "/meetings", icon: Calendar, roles: ["Developer", "admin", "product_manager"] },
+  { title: "Gallery", url: "/gallery", icon: Image, roles: ["Developer", "admin", "product_manager"] },
+  { title: "Team", url: "/team", icon: Users, roles: ["admin", "product_manager"] },
+  { title: "Analytics", url: "/analytics", icon: BarChart3, roles: ["admin", "product_manager"] },
+  { title: "Settings", url: "/settings", icon: Settings, roles: ["admin"] },
+];
+
+export function AppSidebar({ user }) {
+    const { open } = useSidebar();
+    const pathname = usePathname(); // ✅ Hook used in client context
+
+  // Filter nav items by user role
+  const filteredItems = navigationItems.filter(
+    (item) => user && user.role && item.roles.includes(user.role)
+  );
+  console.log("user role is :", user );
+
+  // Class for active/inactive links
+  const getNavCls = (url) =>
+    url === pathname
+      ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+      : "hover:bg-sidebar-accent/50";
+
+  return (
+    <Sidebar className={open ? "w-64" : "w-14"} collapsible="icon">
+      <SidebarContent>
+        <SidebarGroup>
+          <SidebarGroupLabel>Your Sections</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {filteredItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton asChild>
+                    <Link href={item.url} className={getNavCls(item.url)}>
+                      <item.icon className="mr-2 h-4 w-4" />
+                      {open && <span>{item.title}</span>}
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      </SidebarContent>
+    </Sidebar>
+  );
+}

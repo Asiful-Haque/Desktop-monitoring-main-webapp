@@ -1,6 +1,4 @@
 // app/admin/page.tsx (Server Component)
-
-import Header from "@/components/commonComponent/Header";
 import AdminDashboardClient from "./AdminDashboardClient";
 import { cookies } from "next/headers";
 import jwt from "jsonwebtoken";
@@ -27,7 +25,7 @@ export default async function AdminDashboard() {
   // Pass data to client component
   return (
     <>
-      <Header user={currentUser} />
+      {/* <Header user={currentUser} /> */}
       <AdminDashboardClient users={users} projects={projects} />
     </>
   );
