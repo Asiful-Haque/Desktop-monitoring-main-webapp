@@ -38,6 +38,11 @@ export const Task = new EntitySchema({
     project_id: {
       type: "bigint",
     },
+    priority: {
+      type: "varchar",
+      length: 50,
+      default: "MEDIUM", 
+    },
   },
   relations: {
     assigned_to_rel: {

@@ -21,15 +21,23 @@ export class ProjectService {
   async getAllProjects(userId) {
     await this.initializeRepositories();
 
-    return this.projectRepo.find({
-      where: {
-        assigned_to_rel: { user_id: userId }, // filter on joined table
-      },
-      relations: ["assigned_to_rel"],         // JOIN performed here
-      order: { project_id: "ASC" },
-    });
+    return this.projectRepo
+      .createQueryBuilder("project")
+      .leftJoinAndSelect("project.assigned_to_rel", "user")
+      .where("user.user_id = :userId", { userId })
+      .select([
+        "project.project_id",
+        "project.project_name",
+        "project.project_description",
+        "project.status",
+        "project.deadline",
+        "project.assigned_to",
+        "user.user_id",
+        "user.username",
+      ])
+      .orderBy("project.project_id", "ASC")
+      .getMany();
   }
-
 
   // Create a new project and link to user by email
   async createProject({ title, description, deadline, status, email }) {

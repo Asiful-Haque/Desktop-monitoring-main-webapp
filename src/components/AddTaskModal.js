@@ -1,0 +1,281 @@
+"use client";
+import React, { useState } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { toast } from "sonner";
+
+// Example user options for assigned_to dropdown — replace with real data
+const userOptions = [
+  { id: 28, name: "Naim Sheikh" },
+  { id: 29, name: "Alice Johnson" },
+  { id: 30, name: "Bob Smith" },
+];
+
+const statusOptions = ["pending", "in_progress", "completed", "on_hold"];
+const priorityOptions = ["low", "medium", "high", "urgent"];
+
+const AddTaskModal = ({ addTaskModalOpen, setAddTaskModalOpen }) => {
+  const [formData, setFormData] = useState({
+    task_name: "",
+    task_description: "",
+    assigned_to: "", // user id
+    start_date: "",
+    deadline: "",
+    status: "",
+    project_name: "",
+    priority: "",
+  });
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    // Basic validation
+    if (
+      !formData.task_name ||
+      !formData.task_description ||
+      !formData.assigned_to ||
+      !formData.start_date ||
+      !formData.deadline ||
+      !formData.status ||
+      !formData.project_name ||
+      !formData.priority
+    ) {
+      toast.error("Please fill in all fields");
+      return;
+    }
+
+    try {
+      const res = await fetch("http://localhost:5000/api/tasks", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(formData),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        toast.error(errorData.message || "Failed to create task");
+        return;
+      }
+
+      const data = await res.json();
+      console.log("Task created:", data);
+
+      toast.success(`Task "${data.task_name}" has been added successfully`);
+
+      setFormData({
+        task_name: "",
+        task_description: "",
+        assigned_to: "",
+        start_date: "",
+        deadline: "",
+        status: "",
+        project_name: "",
+        priority: "",
+      });
+      setAddTaskModalOpen(false);
+    } catch (error) {
+      console.error("Error adding task:", error);
+      toast.error(error.message || "Something went wrong");
+    }
+  };
+
+  return (
+    <Dialog open={addTaskModalOpen} onOpenChange={setAddTaskModalOpen}>
+      <DialogContent className="sm:max-w-[600px]">
+        <DialogHeader>
+          <DialogTitle>Add New Task</DialogTitle>
+          <DialogDescription>Create a new task for your project.</DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit}>
+          <div className="grid gap-4 py-4">
+            {/* Task Name */}
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="task_name" className="text-right">
+                Task Name
+              </Label>
+              <Input
+                id="task_name"
+                value={formData.task_name}
+                onChange={(e) =>
+                  setFormData({ ...formData, task_name: e.target.value })
+                }
+                className="col-span-3"
+                placeholder="Enter task name"
+              />
+            </div>
+
+            {/* Task Description */}
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="task_description" className="text-right">
+                Description
+              </Label>
+              <Input
+                id="task_description"
+                value={formData.task_description}
+                onChange={(e) =>
+                  setFormData({ ...formData, task_description: e.target.value })
+                }
+                className="col-span-3"
+                placeholder="Enter task description"
+              />
+            </div>
+
+            {/* Assigned To */}
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="assigned_to" className="text-right">
+                Assigned To
+              </Label>
+              <Select
+                onValueChange={(value) =>
+                  setFormData({ ...formData, assigned_to: value })
+                }
+                value={formData.assigned_to}
+              >
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Select user" />
+                </SelectTrigger>
+                <SelectContent>
+                  {userOptions.map((user) => (
+                    <SelectItem key={user.id} value={String(user.id)}>
+                      {user.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Start Date */}
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="start_date" className="text-right">
+                Start Date
+              </Label>
+              <Input
+                id="start_date"
+                type="datetime-local"
+                value={formData.start_date}
+                onChange={(e) =>
+                  setFormData({ ...formData, start_date: e.target.value })
+                }
+                className="col-span-3"
+              />
+            </div>
+
+            {/* Deadline */}
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="deadline" className="text-right">
+                Deadline
+              </Label>
+              <Input
+                id="deadline"
+                type="datetime-local"
+                value={formData.deadline}
+                onChange={(e) =>
+                  setFormData({ ...formData, deadline: e.target.value })
+                }
+                className="col-span-3"
+              />
+            </div>
+
+            {/* Status */}
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="status" className="text-right">
+                Status
+              </Label>
+              <Select
+                onValueChange={(value) =>
+                  setFormData({ ...formData, status: value })
+                }
+                value={formData.status}
+              >
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  {statusOptions.map((status) => (
+                    <SelectItem key={status} value={status}>
+                      {status.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Project Name */}
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="project_name" className="text-right">
+                Project Name
+              </Label>
+              <Input
+                id="project_name"
+                value={formData.project_name}
+                onChange={(e) =>
+                  setFormData({ ...formData, project_name: e.target.value })
+                }
+                className="col-span-3"
+                placeholder="Enter project name"
+              />
+            </div>
+
+            {/* Priority */}
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="priority" className="text-right">
+                Priority
+              </Label>
+              <Select
+                onValueChange={(value) =>
+                  setFormData({ ...formData, priority: value })
+                }
+                value={formData.priority}
+              >
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Select priority" />
+                </SelectTrigger>
+                <SelectContent>
+                  {priorityOptions.map((priority) => (
+                    <SelectItem key={priority} value={priority}>
+                      {priority.charAt(0).toUpperCase() + priority.slice(1)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setAddTaskModalOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" className="bg-red-600 hover:bg-red-700">
+              Add Task
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+export default AddTaskModal;

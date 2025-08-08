@@ -22,13 +22,18 @@ export class TaskService {
     return await repo
       .createQueryBuilder("task")
       .leftJoin("task.assigned_to_rel", "user")
+      .leftJoin("task.project_rel", "project") 
       .where("task.assigned_to = :userId", { userId })
       .select([
         "task.task_id",
         "task.task_name",
         "task.task_description",
+        "task.status",
+        "task.priority",
+        "task.deadline",
         "user.user_id",
         "user.username",
+        "project.project_id", 
       ])
       .getMany();
   }

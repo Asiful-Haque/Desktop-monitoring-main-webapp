@@ -14,7 +14,7 @@ export function middleware(req) {
   const decoded = token && verifyToken(token);
   // console.log('Token is valid:', !!decoded);
 
-  const protectedPaths = ['/adminDashboard', '/settings', '/assign_task'];
+  const protectedPaths = ['/adminDashboard', '/tasks', '/assign_task'];
   const isProtected = protectedPaths.some(path => req.nextUrl.pathname.startsWith(path));
   // console.log('Is protected path:', isProtected);
 
@@ -27,7 +27,7 @@ export function middleware(req) {
 }
 
 export const config = {
-  matcher: ['/adminDashboard', '/settings', '/assign_task'],
+  matcher: ['/adminDashboard', '/tasks', '/assign_task'],
 };
 
 
