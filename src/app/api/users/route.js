@@ -16,12 +16,12 @@ export async function GET() {
 
 export async function POST(request) {
     try {
-        const { username, email, role } = await request.json();
-        if (!username || !email || !role) {
+        const { username, email, role, password } = await request.json();
+        if (!username || !email || !role || !password) {
             return NextResponse.json({ error: 'All fields are required' }, { status: 400 });
         }
 
-        const newUser = await usersService.createUser(username, email, role);
+        const newUser = await usersService.createUser(username, email, role, password);
         return NextResponse.json({ user: newUser }, { status: 201 });
     } catch (error) {
         console.error('Error creating user:', error);

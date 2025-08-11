@@ -1,33 +1,27 @@
 import { initDb } from "@/app/lib/typeorm/init-db";
 import { User } from "@/app/lib/typeorm/entities/User";
+import bcrypt from "bcrypt";
 
 export class UsersService {
   constructor() {
     this.userRepo = null;
+    this.roleRepo = null;
+    this.userRoleRepo = null;
   }
 
-  async initializeRepository() {
-    if (!this.userRepo) {
+  async initializeRepositories() {
+    if (!this.userRepo || !this.roleRepo || !this.userRoleRepo) {
       const dataSource = await initDb();
-      this.userRepo = dataSource.getRepository(User);
+      if (!this.userRepo) this.userRepo = dataSource.getRepository(User);
+      if (!this.roleRepo) this.roleRepo = dataSource.getRepository("Role");
+      if (!this.userRoleRepo) this.userRoleRepo = dataSource.getRepository("UserRoles");
     }
-    return this.userRepo;
   }
 
-  // async getUsers() {
-  //   const repo = await this.initializeRepository();
-  //   return repo.find({
-  //     take: 10,
-  //     select: ["user_id", "username", "email", "created_at"],
-  //     order: {
-  //       user_id: "ASC",
-  //     },
-  //   });
-  // }
   async getUsers() {
-    const repo = await this.initializeRepository();
+    await this.initializeRepositories();
 
-    return repo
+    return this.userRepo
       .createQueryBuilder("user")
       .leftJoin("user.user_roles_rel", "ur")
       .leftJoin("ur.role_rel", "r")
@@ -38,28 +32,39 @@ export class UsersService {
         "user.created_at AS created_at",
         "r.role_name AS role_name",
       ])
-      .orderBy("user_id", "ASC")
-      .limit(10)
-      .getRawMany(); // <- Important: getRawMany gives flat result
+      .orderBy("user.user_id", "ASC")
+      .getRawMany();
   }
 
   async getUserById(userId) {
-    const repo = await this.initializeRepository();
-    return repo.findOne({
+    await this.initializeRepositories();
+    return this.userRepo.findOne({
       where: { user_id: userId },
       select: ["user_id", "username", "email", "created_at"],
     });
   }
 
-  async createUser(data) {
-    const repo = await this.initializeRepository();
+  async createUser(username, email, roleName, password) {
+    await this.initializeRepositories();
 
-    const user = repo.create({
-      username: data.username,
-      email: data.email,
-      password: data.password, // Remember to hash passwords in production!
+    const hashedPassword = await bcrypt.hash(password, 10); //User created
+    const user = this.userRepo.create({
+      username,
+      email,
+      password: hashedPassword,
     });
+    const savedUser = await this.userRepo.save(user);
 
-    return repo.save(user);
+    const role = await this.roleRepo.findOne({ where: { role_name: roleName } }); // Find role by name by roleName
+    if (!role) {
+      throw new Error(`Role '${roleName}' not found`);
+    }
+
+    const userRole = this.userRoleRepo.create({ // saving both userid and roleid
+      user_id: savedUser.user_id,
+      role_id: role.role_id,
+    });
+    await this.userRoleRepo.save(userRole);
+    return savedUser;
   }
 }

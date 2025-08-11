@@ -40,21 +40,20 @@ export class ProjectService {
   }
 
   // Create a new project and link to user by email
-  async createProject({ title, description, deadline, status, email }) {
+  async createProject({ name, description, start_date, deadline, status, email }) {
     await this.initializeRepositories();
 
     const user = await this.userRepo.findOneBy({ email });
-
     if (!user) {
       throw new Error("User not found");
     }
-
     const project = this.projectRepo.create({
-      project_name: title,
+      project_name: name,
       project_description: description,
+      start_date,
       deadline,
       status,
-      created_by: user,
+      assigned_to: user.user_id, 
     });
 
     const savedProject = await this.projectRepo.save(project);
@@ -63,9 +62,10 @@ export class ProjectService {
       project_id: savedProject.project_id,
       project_name: savedProject.project_name,
       project_description: savedProject.project_description,
+      start_date: savedProject.start_date,
       deadline: savedProject.deadline,
       status: savedProject.status,
-      created_by: savedProject.created_by.user_id,
+      assigned_to: savedProject.assigned_to,
     };
   }
 }

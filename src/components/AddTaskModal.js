@@ -22,19 +22,20 @@ import { toast } from "sonner";
 
 // Example user options for assigned_to dropdown — replace with real data
 const userOptions = [
-  { id: 28, name: "Naim Sheikh" },
-  { id: 29, name: "Alice Johnson" },
-  { id: 30, name: "Bob Smith" },
+  { id: 28, name: "Naim Sheikh-Default" },
+  { id: 29, name: "Alice Johnson-Default" },
+  { id: 30, name: "Bob Smith-Default" },
 ];
 
 const statusOptions = ["pending", "in_progress", "completed", "on_hold"];
 const priorityOptions = ["low", "medium", "high", "urgent"];
 
-const AddTaskModal = ({ addTaskModalOpen, setAddTaskModalOpen }) => {
+const AddTaskModal = ({ projects, addTaskModalOpen, setAddTaskModalOpen }) => {
+  //console.log("Projects in AddTaskModal:", projects);
   const [formData, setFormData] = useState({
     task_name: "",
     task_description: "",
-    assigned_to: "", // user id
+    assigned_to: "",
     start_date: "",
     deadline: "",
     status: "",
@@ -59,9 +60,10 @@ const AddTaskModal = ({ addTaskModalOpen, setAddTaskModalOpen }) => {
       toast.error("Please fill in all fields");
       return;
     }
+     //console.log("Posting with ", formData);
 
     try {
-      const res = await fetch("http://localhost:5000/api/tasks", {
+      const res = await fetch(`http://localhost:5000/api/tasks`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -76,9 +78,9 @@ const AddTaskModal = ({ addTaskModalOpen, setAddTaskModalOpen }) => {
       }
 
       const data = await res.json();
-      console.log("Task created:", data);
+      //.log("Task created:", data.task);
 
-      toast.success(`Task "${data.task_name}" has been added successfully`);
+      toast.success(`Task "${data.task.task_name}" has been added successfully`);
 
       setFormData({
         task_name: "",
@@ -92,7 +94,7 @@ const AddTaskModal = ({ addTaskModalOpen, setAddTaskModalOpen }) => {
       });
       setAddTaskModalOpen(false);
     } catch (error) {
-      console.error("Error adding task:", error);
+      //console.error("Error adding task:", error);
       toast.error(error.message || "Something went wrong");
     }
   };
@@ -102,7 +104,9 @@ const AddTaskModal = ({ addTaskModalOpen, setAddTaskModalOpen }) => {
       <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
           <DialogTitle>Add New Task</DialogTitle>
-          <DialogDescription>Create a new task for your project.</DialogDescription>
+          <DialogDescription>
+            Create a new task for your project.
+          </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit}>
@@ -150,7 +154,7 @@ const AddTaskModal = ({ addTaskModalOpen, setAddTaskModalOpen }) => {
                 }
                 value={formData.assigned_to}
               >
-                <SelectTrigger className="col-span-3">
+                <SelectTrigger className="col-span-3 w-102">
                   <SelectValue placeholder="Select user" />
                 </SelectTrigger>
                 <SelectContent>
@@ -212,7 +216,9 @@ const AddTaskModal = ({ addTaskModalOpen, setAddTaskModalOpen }) => {
                 <SelectContent>
                   {statusOptions.map((status) => (
                     <SelectItem key={status} value={status}>
-                      {status.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}
+                      {status
+                        .replace(/_/g, " ")
+                        .replace(/\b\w/g, (c) => c.toUpperCase())}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -224,15 +230,26 @@ const AddTaskModal = ({ addTaskModalOpen, setAddTaskModalOpen }) => {
               <Label htmlFor="project_name" className="text-right">
                 Project Name
               </Label>
-              <Input
-                id="project_name"
-                value={formData.project_name}
-                onChange={(e) =>
-                  setFormData({ ...formData, project_name: e.target.value })
+              <Select
+                onValueChange={(value) =>
+                  setFormData({ ...formData, project_name: value })
                 }
-                className="col-span-3"
-                placeholder="Enter project name"
-              />
+                value={formData.project_name}
+              >
+                <SelectTrigger className="col-span-3 w-102">
+                  <SelectValue placeholder="Select project" />
+                </SelectTrigger>
+                <SelectContent>
+                  {projects.map((project) => (
+                    <SelectItem
+                      key={project.project_id}
+                      value={String(project.project_id)}
+                    >
+                      {project.project_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Priority */}

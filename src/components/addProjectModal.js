@@ -21,31 +21,30 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner"; // ✅ Sonner toast
 
-// 🧠 Component Definition
 const AddProjectModal = ({ addProjectModalOpen, setAddProjectModalOpen }) => {
-  // 📝 Form State
   const [formData, setFormData] = useState({
     name: "",
     description: "",
-    email: "", 
+    email: "",
+    start_date: "",
     deadline: "",
     status: "",
   });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    // ❗ Field Validation
     if (
       !formData.name ||
       !formData.description ||
       !formData.email ||
+      !formData.start_date ||
       !formData.deadline ||
       !formData.status
     ) {
       toast.error("Please fill in all fields");
       return;
     }
+    // console.log("Submitting form data:", formData);
 
     try {
       const res = await fetch("http://localhost:5000/api/projects", {
@@ -53,13 +52,7 @@ const AddProjectModal = ({ addProjectModalOpen, setAddProjectModalOpen }) => {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          title: formData.name,
-          description: formData.description,
-          email: formData.email, 
-          deadline: formData.deadline,
-          status: formData.status,
-        }),
+        body: JSON.stringify(formData),
       });
 
       if (!res.ok) {
@@ -69,13 +62,20 @@ const AddProjectModal = ({ addProjectModalOpen, setAddProjectModalOpen }) => {
       }
 
       const data = await res.json();
-      console.log("Project created:", data);
+      // console.log("Project created:", data);
 
-      // 🎉 Show success message
-      toast.success(`Project ${data.project.title} has been added successfully`);
+      toast.success(
+        `Project ${data.project.project_name} has been added successfully`
+      );
 
-      // 🔄 Reset form and close modal
-      setFormData({ name: "",description: "", email: "", deadline: "", status: "" });
+      setFormData({
+        name: "",
+        description: "",
+        email: "",
+        start_date: "",
+        deadline: "",
+        status: "",
+      });
       setAddProjectModalOpen(false);
     } catch (error) {
       console.error("Error adding user:", error);
@@ -127,7 +127,7 @@ const AddProjectModal = ({ addProjectModalOpen, setAddProjectModalOpen }) => {
             {/* assigning persons Field */}
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="email" className="text-right">
-                Assigned By *
+                Team Lead *
               </Label>
               <Input
                 id="email"
@@ -138,6 +138,20 @@ const AddProjectModal = ({ addProjectModalOpen, setAddProjectModalOpen }) => {
                 }
                 className="col-span-3"
                 placeholder="Enter email address"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="start_date" className="text-right">
+                Start Date *
+              </Label>
+              <Input
+                id="start_date"
+                type="date"
+                value={formData.start_date}
+                onChange={(e) =>
+                  setFormData({ ...formData, start_date: e.target.value })
+                }
+                className="col-span-3"
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
@@ -167,10 +181,10 @@ const AddProjectModal = ({ addProjectModalOpen, setAddProjectModalOpen }) => {
                   <SelectValue placeholder="Select status level" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="low">In progress</SelectItem>
-                  <SelectItem value="medium">Pending</SelectItem>
-                  <SelectItem value="high">Archieved</SelectItem>
-                  <SelectItem value="critical">Completed</SelectItem>
+                  <SelectItem value="in_progress">In progress</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="archieved">Archieved</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
                 </SelectContent>
               </Select>
             </div>

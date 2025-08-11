@@ -9,7 +9,7 @@ import { AppSidebar } from '@/components/AppSidebar';
 
 
 export default async function DashboardLayout({ children }) {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const token = cookieStore.get('token')?.value;
   const currentUser = token ? jwt.decode(token) : null;
 

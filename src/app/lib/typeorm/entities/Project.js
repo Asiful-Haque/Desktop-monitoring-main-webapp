@@ -6,8 +6,8 @@ export const Project = new EntitySchema({
   columns: {
     project_id: {
       primary: true,
-      type: "bigint",
-      generated: true,
+      type: "int",
+      generated: "increment",
     },
     project_name: {
       type: "varchar",

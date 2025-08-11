@@ -5,15 +5,6 @@ import { NextResponse } from "next/server";
 
 const taskService = new TaskService();
 
-// export async function GET() {
-//   try {
-//     const tasks = await taskService.getAllTasks();
-//     return corsJson(tasks);
-//   } catch (error) {
-//     return corsJson({ error: 'Failed to fetch tasks' }, 500);
-//   }
-// }
-
 export async function GET(req, context) {
   try {
     const params = await context.params;
@@ -30,7 +21,6 @@ export async function GET(req, context) {
     return NextResponse.json({ error: 'Failed to fetch tasks' }, { status: 500 });
   }
 }
-
 
 export async function OPTIONS() {
   return corsEmpty();

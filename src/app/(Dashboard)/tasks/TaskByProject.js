@@ -37,7 +37,7 @@ const Tasks = ({ tasks, projects }) => {
   const [selectedProject, setSelectedProject] = useState("default-project");
   const [addTaskModalOpen, setAddTaskModalOpen] = useState(false);
 
-  console.log("Selected project is now ", selectedProject);
+  //console.log("Selected project is now ", selectedProject);
   // Filter tasks based on selected project
   const filteredTasks =
     selectedProject === "default-project"
@@ -91,7 +91,7 @@ const Tasks = ({ tasks, projects }) => {
             return (
               <Card
                 key={task.task_id}
-                className="hover:shadow-md transition-shadow"
+                className="hover:shadow-md transition-shadow "
               >
                 <CardHeader>
                   <div className="flex items-center justify-between">
@@ -131,6 +131,7 @@ const Tasks = ({ tasks, projects }) => {
         )}
       </div>
       <AddTaskModal
+        projects={projects}
         addTaskModalOpen={addTaskModalOpen}
         setAddTaskModalOpen={setAddTaskModalOpen}
       />

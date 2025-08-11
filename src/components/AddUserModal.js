@@ -27,51 +27,57 @@ const AddUserModal = ({ addUserModalOpen, setAddUserModalOpen }) => {
     name: "",
     email: "",
     role: "",
+    password: "",
   });
 
-const handleSubmit = async (e) => {
-  e.preventDefault();
+  const handleSubmit = async (e) => {
+    e.preventDefault();
 
-  // ❗ Field Validation
-  if (!formData.name || !formData.email || !formData.role) {
-    toast.error("Please fill in all fields");
-    return;
-  }
-
-  try {
-    const res = await fetch("http://localhost:5000/api/users", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        username: formData.name,
-        email: formData.email,
-        role: formData.role,
-      }),
-    });
-
-    if (!res.ok) {
-      const errorData = await res.json();
-      toast.error(errorData.message || "Failed to create user");
+    // ❗ Field Validation
+    if (
+      !formData.name ||
+      !formData.email ||
+      !formData.role ||
+      !formData.password
+    ) {
+      toast.error("Please fill in all fields");
       return;
     }
 
-    const data = await res.json();
-    console.log("User created:", data);
+    try {
+      const res = await fetch("http://localhost:5000/api/users", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          username: formData.name,
+          email: formData.email,
+          role: formData.role,
+          password: formData.password,
+        }),
+      });
 
-    // 🎉 Show success message
-    toast.success(`User ${data.user.username} has been added successfully`);
+      if (!res.ok) {
+        const errorData = await res.json();
+        toast.error(errorData.message || "Failed to create user");
+        return;
+      }
 
-    // 🔄 Reset form and close modal
-    setFormData({ name: "", email: "", role: "" });
-    setAddUserModalOpen(false);
-  } catch (error) {
-    console.error("Error adding user:", error);
-    toast.error(error.message || "Something went wrong");
-  }
-};
+      const data = await res.json();
+      console.log("User created:", data);
 
+      // 🎉 Show success message
+      toast.success(`User ${data.user.username} has been added successfully`);
+
+      // 🔄 Reset form and close modal
+      setFormData({ name: "", email: "", role: "", password: "" });
+      setAddUserModalOpen(false);
+    } catch (error) {
+      console.error("Error adding user:", error);
+      toast.error(error.message || "Something went wrong");
+    }
+  };
 
   // 🖼️ UI Structure
   return (
@@ -116,6 +122,23 @@ const handleSubmit = async (e) => {
                 }
                 className="col-span-3"
                 placeholder="Enter email address"
+              />
+            </div>
+
+            {/* Password Field */}
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="password" className="text-right">
+                Password
+              </Label>
+              <Input
+                id="password"
+                type="password"
+                value={formData.password}
+                onChange={(e) =>
+                  setFormData({ ...formData, password: e.target.value })
+                }
+                className="col-span-3"
+                placeholder="Enter password"
               />
             </div>
 
