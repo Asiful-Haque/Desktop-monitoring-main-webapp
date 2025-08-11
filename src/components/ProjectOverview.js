@@ -10,6 +10,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { useRouter } from "next/navigation";
 
 const getStatusColor = (status) => {
   switch (status) {
@@ -29,34 +30,7 @@ const getStatusColor = (status) => {
 };
 
 function ProjectOverview({ projects }) {
-//   const fetchProjects = async () => {
-//     const res = await fetch("/api/projects");
-//     const data = await res.json();
-//     if (!res.ok) throw new Error(data.error || "Failed to fetch projects");
-//     return data.projects;
-//   };
-
-//   const {
-//     data: projects,
-//     isLoading,
-//     isError,
-//     error,
-//   } = useQuery({
-//     queryKey: ["projects"],
-//     queryFn: fetchProjects,
-//     staleTime: 1000 * 60,
-//     refetchOnWindowFocus: false,
-//   });
-
-//   if (isLoading) {
-//     return (
-//       <p className="text-sm text-gray-500 p-4">Loading project overview...</p>
-//     );
-//   }
-
-//   if (isError) {
-//     return <p className="text-sm text-red-500 p-4">Error: {error.message}</p>;
-//   }
+  const router = useRouter();
   console.log("Projects data:", projects);
   return (
     <div>
@@ -70,7 +44,8 @@ function ProjectOverview({ projects }) {
             {projects.map((project) => (
               <div
                 key={project.project_id}
-                className="p-4 border border-red-100 rounded-lg bg-red-50/50"
+                className="p-4 border border-red-100 rounded-lg bg-red-50/50 cursor-pointer hover:bg-red-100/50 transition-colors"
+                onClick={() => router.push(`/projectDetails/${project.project_id}`)}
               >
                 <div className="flex items-center justify-between mb-2">
                   <h4 className="font-medium text-gray-900">{project.project_name}</h4>

@@ -53,7 +53,7 @@ export default function AdminDashboardClient({ users, projects }) {
             <Plus className=" h-4 w-4" />
             Add User
           </Button>
-          <Button className="bg-red-600 hover:bg-red-700"
+          <Button className="bg-blue-600 hover:bg-blue-700"
             onClick={() => setAddProjectModalOpen(true)}
           >
             <FolderPlus className="mr-2 h-4 w-4" />

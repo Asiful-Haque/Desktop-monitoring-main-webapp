@@ -1,0 +1,191 @@
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  GitBranch,
+  FileText,
+} from "lucide-react";
+import UserManagementCard from "@/components/UserManagementCard";
+import ProjOverviewCards from "@/components/ProjOverviewCards";
+import ProjTaskCard from "@/components/ProjTaskCard";
+import ProjDetailsCard from "@/components/ProjDetailsCard";
+
+
+const ProjectDetails = async ({ params }) => {
+    const { projectId } = await params;
+  // Mock project data - in real app, this would be fetched based on projectId
+  const project = {
+    id: projectId,
+    name: "E-commerce Platform",
+    description:
+      "A comprehensive e-commerce platform with modern UI/UX and advanced features",
+    progress: 75,
+    team: 8,
+    status: "On Track",
+    deadline: "2024-02-15",
+    createdDate: "2023-10-01",
+    budget: "$150,000",
+    client: "TechCorp Inc.",
+    category: "Web Development",
+    priority: "High",
+  };
+
+  const tasks = [
+    {
+      id: 1,
+      title: "User Authentication System",
+      status: "Completed",
+      assignee: "Alex Developer",
+      dueDate: "2024-01-15",
+    },
+    {
+      id: 2,
+      title: "Product Catalog Integration",
+      status: "In Progress",
+      assignee: "Mike PM",
+      dueDate: "2024-01-25",
+    },
+    {
+      id: 3,
+      title: "Payment Gateway Setup",
+      status: "Pending",
+      assignee: "Sarah Designer",
+      dueDate: "2024-02-05",
+    },
+    {
+      id: 4,
+      title: "Mobile Responsiveness",
+      status: "In Progress",
+      assignee: "Tom QA",
+      dueDate: "2024-02-10",
+    },
+  ];
+
+  const teamMembers = [
+    {
+      id: 1,
+      username: "Alex Developer",
+      role: "Lead Developer",
+      avatar: "AD",
+      status: "Active",
+    },
+    {
+      id: 2,
+      username: "Mike PM",
+      role: "Product Manager",
+      avatar: "MP",
+      status: "Active",
+    },
+    {
+      id: 3,
+      username: "Sarah Designer",
+      role: "UI/UX Designer",
+      avatar: "SD",
+      status: "Away",
+    },
+    {
+      id: 4,
+      username: "Tom QA",
+      role: "QA Engineer",
+      avatar: "TQ",
+      status: "Active",
+    },
+        {
+      id: 5,
+      username: "Mike PM",
+      role: "Product Manager",
+      avatar: "MP",
+      status: "Active",
+    },
+    {
+      id: 6,
+      username: "Sarah Designer",
+      role: "UI/UX Designer",
+      avatar: "SD",
+      status: "Away",
+    },
+    {
+      id: 7,
+      username: "Tom QA",
+      role: "QA Engineer",
+      avatar: "TQ",
+      status: "Active",
+    },
+  ];
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case "Completed":
+        return "bg-green-100 text-green-800";
+      case "In Progress":
+        return "bg-blue-100 text-blue-800";
+      case "Pending":
+        return "bg-yellow-100 text-yellow-800";
+      case "On Track":
+        return "bg-blue-100 text-blue-800";
+      case "Active":
+        return "bg-green-100 text-green-800";
+      case "Away":
+        return "bg-yellow-100 text-yellow-800";
+      default:
+        return "bg-gray-100 text-gray-800";
+    }
+  };
+
+  const getPriorityColor = (priority) => {
+    switch (priority) {
+      case "High":
+        return "bg-red-100 text-red-800";
+      case "Medium":
+        return "bg-yellow-100 text-yellow-800";
+      case "Low":
+        return "bg-green-100 text-green-800";
+      default:
+        return "bg-gray-100 text-gray-800";
+    }
+  };
+
+  return (
+    <div className="p-6 space-y-6 bg-gradient-to-br from-blue-50 to-indigo-50 min-h-screen">
+      {/* Project Header */}
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">{project.name}</h1>
+          <p className="text-gray-600 mt-1">{project.description}</p>
+          <div className="flex items-center space-x-4 mt-4">
+            <Badge className={getStatusColor(project.status)}>
+              {project.status}
+            </Badge>
+            <Badge className={getPriorityColor(project.priority)}>
+              {project.priority} Priority
+            </Badge>
+            <span className="text-sm text-gray-500">
+              Project ID: {project.id}
+            </span>
+          </div>
+        </div>
+        <div className="flex space-x-2">
+          <Button variant="outline">
+            <FileText className="mr-2 h-4 w-4" />
+            View Reports
+          </Button>
+          <Button className="bg-blue-600 hover:bg-blue-700">
+            <GitBranch className="mr-2 h-4 w-4" />
+            Manage Project
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <ProjOverviewCards project={project} />
+        <UserManagementCard users={teamMembers} />
+      </div>
+      <ProjTaskCard tasks={tasks} />
+      <ProjDetailsCard project={project} />
+    </div>
+  );
+};
+
+export default ProjectDetails;
+
+
+

@@ -39,8 +39,34 @@ export class ProjectService {
       .getMany();
   }
 
+  // Get all projects only for seen Admin
+  async getAllProjectsForAdmin() {
+    await this.initializeRepositories();
+
+    return this.projectRepo
+      .createQueryBuilder("project")
+      .select([
+        "project.project_id",
+        "project.project_name",
+        "project.project_description",
+        "project.status",
+        "project.deadline",
+        "project.assigned_to",
+        "project.start_date",
+      ])
+      .orderBy("project.project_id", "ASC")
+      .getMany();
+  }
+
   // Create a new project and link to user by email
-  async createProject({ name, description, start_date, deadline, status, email }) {
+  async createProject({
+    name,
+    description,
+    start_date,
+    deadline,
+    status,
+    email,
+  }) {
     await this.initializeRepositories();
 
     const user = await this.userRepo.findOneBy({ email });
@@ -53,7 +79,7 @@ export class ProjectService {
       start_date,
       deadline,
       status,
-      assigned_to: user.user_id, 
+      assigned_to: user.user_id,
     });
 
     const savedProject = await this.projectRepo.save(project);
