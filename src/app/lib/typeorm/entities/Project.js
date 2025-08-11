@@ -53,5 +53,10 @@ export const Project = new EntitySchema({
       target: "Task",
       inverseSide: "project_rel",
     },
+    assigned_users_rel: {
+      type: "one-to-many",
+      target: "AssignedUsersToProjects",
+      inverseSide: "project_rel",
+    },
   },
 });
