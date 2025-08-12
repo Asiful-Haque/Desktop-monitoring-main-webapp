@@ -8,6 +8,7 @@ import {
   CardDescription,
   CardContent,
 } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
 // helper to give badge color based on role
@@ -29,6 +30,13 @@ function getRoleColor(role) {
 export default function UserManagementCard({ users }) {
   const pathname = usePathname();
   console.log("usesrs data:", users);
+  
+  const usersArray = Array.isArray(users)
+  ? users
+  : users?.members && Array.isArray(users.members)
+  ? users.members
+  : [];
+
   console.log("Current path:", pathname);
   return (
     <Card
@@ -36,27 +44,52 @@ export default function UserManagementCard({ users }) {
         pathname.includes("adminDashboard") ? "h-196" : "h-142"
       }`}
     >
-      <CardHeader>
-        <CardTitle className={pathname.includes("adminDashboard") ? "text-red-700" : "text-blue-700"}>
-          {pathname.includes("adminDashboard")
-            ? "User Management"
-            : "Team Members"}
-        </CardTitle>
-        <CardDescription>
-          {pathname.includes("adminDashboard")
-            ? "Active users and their current roles"
-            : "People working on this project"}
-        </CardDescription>
+      <CardHeader className="flex items-center justify-between">
+        <div>
+          <CardTitle
+            className={
+              pathname.includes("adminDashboard")
+                ? "text-red-700"
+                : "text-blue-700"
+            }
+          >
+            {pathname.includes("adminDashboard")
+              ? "User Management"
+              : "Team Members"}
+          </CardTitle>
+          <CardDescription>
+            {pathname.includes("adminDashboard")
+              ? "Active users and their current roles"
+              : "People working on this project"}
+          </CardDescription>
+        </div>
+
+        {!pathname.includes("adminDashboard") && (
+          <Button className="bg-blue-600 hover:bg-blue-700">
+            Add Member
+          </Button>
+        )}
       </CardHeader>
+
       <CardContent className="overflow-y-auto h-full">
         <div className="space-y-4">
-          {users.map((user, i) => (
+          {usersArray.map((user, i) => (
             <div
               key={i}
-              className={pathname.includes("adminDashboard") ? "flex items-center justify-between p-4 border border-red-100 rounded-lg bg-red-50/50" : "flex items-center justify-between p-4 border border-blue-100 rounded-lg bg-blue-50/50"}
+              className={
+                pathname.includes("adminDashboard")
+                  ? "flex items-center justify-between p-4 border border-red-100 rounded-lg bg-red-50/50"
+                  : "flex items-center justify-between p-4 border border-blue-100 rounded-lg bg-blue-50/50"
+              }
             >
               <div className="flex items-center space-x-3">
-                <div className={pathname.includes("adminDashboard") ? "w-10 h-10 bg-gradient-to-r from-red-400 to-pink-500 rounded-full flex items-center justify-center text-white font-medium" : "w-10 h-10 bg-gradient-to-r from-blue-400 to-blue-500 rounded-full flex items-center justify-center text-white font-medium"}>
+                <div
+                  className={
+                    pathname.includes("adminDashboard")
+                      ? "w-10 h-10 bg-gradient-to-r from-red-400 to-pink-500 rounded-full flex items-center justify-center text-white font-medium"
+                      : "w-10 h-10 bg-gradient-to-r from-blue-400 to-blue-500 rounded-full flex items-center justify-center text-white font-medium"
+                  }
+                >
                   {user.username
                     ? user.username
                         .split(" ")

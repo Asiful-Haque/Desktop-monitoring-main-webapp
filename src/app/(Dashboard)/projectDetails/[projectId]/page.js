@@ -9,9 +9,29 @@ import ProjOverviewCards from "@/components/ProjOverviewCards";
 import ProjTaskCard from "@/components/ProjTaskCard";
 import ProjDetailsCard from "@/components/ProjDetailsCard";
 
-
+const getTeamMembers = async (projectId) => { // Its the api calling function
+  try {
+    const res = await fetch(
+      `http://localhost:5000/api/team-member/${projectId}`,
+      {
+        // To ensure data is fresh on every SSR request:
+        cache: "no-store",
+      }
+    );
+    if (!res.ok) {
+      throw new Error("Failed to fetch team members");
+    }
+    const data = await res.json();
+    return data;
+  } catch (error) {
+    console.error("Error fetching team members:", error);
+    return [];
+  }
+};
 const ProjectDetails = async ({ params }) => {
-    const { projectId } = await params;
+  const { projectId } = await params;
+  const teamMembers = await getTeamMembers(projectId); // calling the api from a function
+  
   // Mock project data - in real app, this would be fetched based on projectId
   const project = {
     id: projectId,
@@ -60,57 +80,57 @@ const ProjectDetails = async ({ params }) => {
     },
   ];
 
-  const teamMembers = [
-    {
-      id: 1,
-      username: "Alex Developer",
-      role: "Lead Developer",
-      avatar: "AD",
-      status: "Active",
-    },
-    {
-      id: 2,
-      username: "Mike PM",
-      role: "Product Manager",
-      avatar: "MP",
-      status: "Active",
-    },
-    {
-      id: 3,
-      username: "Sarah Designer",
-      role: "UI/UX Designer",
-      avatar: "SD",
-      status: "Away",
-    },
-    {
-      id: 4,
-      username: "Tom QA",
-      role: "QA Engineer",
-      avatar: "TQ",
-      status: "Active",
-    },
-        {
-      id: 5,
-      username: "Mike PM",
-      role: "Product Manager",
-      avatar: "MP",
-      status: "Active",
-    },
-    {
-      id: 6,
-      username: "Sarah Designer",
-      role: "UI/UX Designer",
-      avatar: "SD",
-      status: "Away",
-    },
-    {
-      id: 7,
-      username: "Tom QA",
-      role: "QA Engineer",
-      avatar: "TQ",
-      status: "Active",
-    },
-  ];
+  // const teamMembers = [
+  //   {
+  //     id: 1,
+  //     username: "Alex Developer",
+  //     role: "Lead Developer",
+  //     avatar: "AD",
+  //     status: "Active",
+  //   },
+  //   {
+  //     id: 2,
+  //     username: "Mike PM",
+  //     role: "Product Manager",
+  //     avatar: "MP",
+  //     status: "Active",
+  //   },
+  //   {
+  //     id: 3,
+  //     username: "Sarah Designer",
+  //     role: "UI/UX Designer",
+  //     avatar: "SD",
+  //     status: "Away",
+  //   },
+  //   {
+  //     id: 4,
+  //     username: "Tom QA",
+  //     role: "QA Engineer",
+  //     avatar: "TQ",
+  //     status: "Active",
+  //   },
+  //       {
+  //     id: 5,
+  //     username: "Mike PM",
+  //     role: "Product Manager",
+  //     avatar: "MP",
+  //     status: "Active",
+  //   },
+  //   {
+  //     id: 6,
+  //     username: "Sarah Designer",
+  //     role: "UI/UX Designer",
+  //     avatar: "SD",
+  //     status: "Away",
+  //   },
+  //   {
+  //     id: 7,
+  //     username: "Tom QA",
+  //     role: "QA Engineer",
+  //     avatar: "TQ",
+  //     status: "Active",
+  //   },
+  // ];
 
   const getStatusColor = (status) => {
     switch (status) {

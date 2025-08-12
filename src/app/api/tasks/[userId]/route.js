@@ -24,4 +24,5 @@ export async function GET(req, context) {
 
 export async function OPTIONS() {
   return corsEmpty();
+  //Not using cors json because If your middleware sets CORS headers on all API routes, you can just use NextResponse.json() in API handlers.
 }

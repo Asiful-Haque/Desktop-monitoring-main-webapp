@@ -1,25 +1,36 @@
-
 import { verifyToken } from '@/app/lib/auth';
-import { NextRequest, NextResponse } from 'next/server';
-
+import { NextResponse } from 'next/server';
 
 export function middleware(req) {
-  // console.log('--- Middleware Triggered ---');
+  const { pathname, method } = req.nextUrl;
+
+  // Handle CORS for API routes------------------------------------for fixing cors setup-----------------------------
+  if (pathname.startsWith('/api')) {
+    // Handle OPTIONS preflight
+    if (method === 'OPTIONS') {
+      const response = NextResponse.json(null, { status: 204 });
+      response.headers.set('Access-Control-Allow-Origin', '*');
+      response.headers.set('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
+      response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      return response;
+    }
+
+    // For other API requests, add CORS headers to response
+    const response = NextResponse.next();
+    response.headers.set('Access-Control-Allow-Origin', '*');
+    response.headers.set('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
+    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    return response;
+  }
+
+  // Token validation for frontend protected routes----------------------for auth and authorizatioin------------
   const token = req.cookies.get('token')?.value;
-
-  
-  // console.log('Requested path:', req.nextUrl.pathname);
-  // console.log('Authorization token:', token);
-
   const decoded = token && verifyToken(token);
-  // console.log('Token is valid:', !!decoded);
 
   const protectedPaths = ['/adminDashboard', '/tasks', '/assign_task'];
-  const isProtected = protectedPaths.some(path => req.nextUrl.pathname.startsWith(path));
-  // console.log('Is protected path:', isProtected);
+  const isProtected = protectedPaths.some(path => pathname.startsWith(path));
 
   if (isProtected && !decoded) {
-    console.log('Redirecting to / due to invalid or expired token.');
     return NextResponse.redirect(new URL('/', req.url));
   }
 
@@ -27,7 +38,5 @@ export function middleware(req) {
 }
 
 export const config = {
-  matcher: ['/adminDashboard', '/tasks', '/assign_task'],
+  matcher: ['/api/:path*', '/adminDashboard', '/tasks', '/assign_task'],
 };
-
-

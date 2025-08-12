@@ -1,0 +1,58 @@
+import { AssignedUsersToProjects } from "@/app/lib/typeorm/entities/AssignedUsersToProject";
+import { initDb } from "@/app/lib/typeorm/init-db";
+
+export class TeamMemberService {
+  constructor() {
+    this.userRepo = null;
+  }
+
+  async initializeRepository() {
+    if (!this.userRepo) {
+      const dataSource = await initDb();
+      this.userRepo = dataSource.getRepository(AssignedUsersToProjects);
+    }
+    return this.userRepo;
+  }
+  async setMemberToProject(data) {
+    try {
+      const repo = await this.initializeRepository();
+      const newUser = repo.create({
+        user_id: data.user_id,
+        project_id: data.project_id,
+      });
+      const savedUser = await repo.save(newUser);
+      return savedUser;
+    } catch (error) {
+      console.error("Error adding team member:", error);
+      throw error;
+    }
+  }
+  async getMembersByProjectId(projectId) {
+    console.log("Fetching members for projectId:", projectId);
+    try {
+      const repo = await this.initializeRepository();
+
+      const rawMembers = await repo
+        .createQueryBuilder("aup")
+        .leftJoin("aup.user_rel", "user")
+        .leftJoin("user.user_roles_rel", "ur")
+        .leftJoin("ur.role_rel", "r")
+        .where("aup.project_id = :projectId", { projectId })
+        .select([
+          "aup.project_id AS project_id",
+          "aup.assigned_at AS assigned_at",
+          "user.user_id AS user_id",
+          "user.username AS username",
+          "user.email AS email",
+          "r.role_name AS role_name",
+        ])
+        .getRawMany();
+
+      console.log("Raw members:", rawMembers);
+      return rawMembers;
+    } catch (error) {
+      console.error("Error fetching members by projectId:", error);
+      throw error;
+    }
+  }
+}

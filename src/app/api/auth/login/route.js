@@ -14,7 +14,7 @@ export async function POST(req) {
         { status: 400 }
       );
     }
-    console.log("Hello");
+    console.log("Hello1");
     const user = await loginService.validateUser(email, password);
     if (!user) {
       return NextResponse.json(
@@ -22,6 +22,7 @@ export async function POST(req) {
         { status: 401 }
       );
     }
+    console.log("Hello2");
     console.log("validated user:", user);
     // console.log("Calling for signing");
     const token = await signToken({
