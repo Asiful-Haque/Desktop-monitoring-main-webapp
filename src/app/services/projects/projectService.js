@@ -45,6 +45,7 @@ export class ProjectService {
 
     return this.projectRepo
       .createQueryBuilder("project")
+      .leftJoin("project.assigned_to_rel", "user")
       .select([
         "project.project_id",
         "project.project_name",
@@ -53,6 +54,8 @@ export class ProjectService {
         "project.deadline",
         "project.assigned_to",
         "project.start_date",
+        "user.user_id",
+        "user.username",
       ])
       .orderBy("project.project_id", "ASC")
       .getMany();

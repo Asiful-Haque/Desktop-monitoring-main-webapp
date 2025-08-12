@@ -65,8 +65,8 @@ export default function UserManagementCard({ users }) {
         </div>
 
         {!pathname.includes("adminDashboard") && (
-          <Button className="bg-blue-600 hover:bg-blue-700">
-            Add Member
+          <Button className="bg-red-600 hover:bg-red-700">
+            Remove User
           </Button>
         )}
       </CardHeader>

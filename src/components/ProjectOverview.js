@@ -41,7 +41,7 @@ function ProjectOverview({ projects }) {
         </CardHeader>
         <CardContent className="overflow-y-auto h-full">
           <div className="space-y-4">
-            {projects.map((project) => (
+            {projects && projects.map((project) => (
               <div
                 key={project.project_id}
                 className="p-4 border border-red-100 rounded-lg bg-red-50/50 cursor-pointer hover:bg-red-100/50 transition-colors"

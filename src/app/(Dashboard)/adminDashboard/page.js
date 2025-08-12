@@ -12,21 +12,21 @@ export default async function AdminDashboard() {
   console.log("User ID:", userId);
 
   // Server-side fetch
-  const [usersRes, projectsRes] = await Promise.all([
+  const [usersRes, projectsRes, allProjectsRes] = await Promise.all([
     fetch("http://localhost:5000/api/users", { cache: "no-store" }),
     fetch(`http://localhost:5000/api/projects/${userId}`, { cache: "no-store" }),
+    fetch("http://localhost:5000/api/projects", { cache: "no-store" }),
   ]);
-  if (!usersRes.ok || !projectsRes.ok) {
+  if (!usersRes.ok || !projectsRes.ok || !allProjectsRes.ok) {
     throw new Error("Failed to fetch data");
   }
   const { users } = await usersRes.json();
   const { projects } = await projectsRes.json();
-
-  // Pass data to client component
+  const { allprojects } = await allProjectsRes.json();
   return (
     <>
       {/* <Header user={currentUser} /> */}
-      <AdminDashboardClient users={users} projects={projects} />
+      <AdminDashboardClient users={users} projects={projects} allprojects={allprojects} curruser={currentUser} />
     </>
   );
 }

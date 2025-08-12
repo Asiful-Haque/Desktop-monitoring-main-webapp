@@ -82,7 +82,7 @@ const Tasks = ({ tasks, projects }) => {
         {filteredTasks.length === 0 ? (
           <Card>
             <CardContent className="p-6 text-center text-muted-foreground">
-              No tasks found for this project.
+              No task is assigned yet.
             </CardContent>
           </Card>
         ) : (

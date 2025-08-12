@@ -7,8 +7,8 @@ const projectService = new ProjectService();
 
 export async function GET(req) {
   try {
-    const projects = await projectService.getAllProjectsForAdmin();
-    return NextResponse.json({ projects });
+    const allprojects = await projectService.getAllProjectsForAdmin();
+    return NextResponse.json({ allprojects });
   } catch (error) {
     console.error("Error fetching projects:", error);
     return NextResponse.json(
@@ -45,7 +45,7 @@ export async function POST(req) {
     });
 
     return NextResponse.json(
-      { message: "Project created", project: newProject },
+      { message: "Project created", allprojects: newProject },
       { status: 201 }
     );
   } catch (error) {

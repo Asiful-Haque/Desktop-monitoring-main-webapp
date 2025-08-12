@@ -24,13 +24,13 @@ import {
 } from "@/components/ui/sidebar";
 
 const navigationItems = [
-  { title: "Dashboard", url: "/adminDashboard", icon: Home, roles: ["Developer", "admin", "product_manager"] },
-  { title: "Tasks", url: "/tasks", icon: CheckSquare, roles: ["Developer", "admin", "product_manager"] },
-  { title: "Meetings", url: "/meetings", icon: Calendar, roles: ["Developer", "admin", "product_manager"] },
-  { title: "Screenshots", url: "/gallery", icon: Image, roles: ["Developer", "admin", "product_manager"] },
-  { title: "Team", url: "/team", icon: Users, roles: ["admin", "product_manager"] },
-  { title: "Analytics", url: "/analytics", icon: BarChart3, roles: ["admin", "product_manager"] },
-  { title: "Settings", url: "/settings", icon: Settings, roles: ["admin"] },
+  { title: "Dashboard", url: "/adminDashboard", icon: Home, roles: ["Developer", "Admin", "product_manager"] },
+  { title: "Tasks", url: "/tasks", icon: CheckSquare, roles: ["Developer", "Admin", "product_manager"] },
+  { title: "Meetings", url: "/meetings", icon: Calendar, roles: ["Developer", "Admin", "product_manager"] },
+  { title: "Screenshots", url: "/gallery", icon: Image, roles: ["Developer", "Admin", "product_manager"] },
+  { title: "Team", url: "/team", icon: Users, roles: ["Admin", "product_manager"] },
+  { title: "Analytics", url: "/analytics", icon: BarChart3, roles: ["Admin", "product_manager"] },
+  { title: "Settings", url: "/settings", icon: Settings, roles: ["Admin"] },
 ];
 
 export function AppSidebar({ user }) {

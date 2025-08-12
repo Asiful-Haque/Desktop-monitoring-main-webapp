@@ -24,14 +24,27 @@ import ProjectOverview from "@/components/ProjectOverview";
 import UserManagementCard from "@/components/UserManagementCard";
 import AddUserModal from "@/components/AddUserModal";
 import AddProjectModal from "@/components/addProjectModal";
+import AssignUserToProjectModal from "@/components/AssignUserToProjectModal";
 
-export default function AdminDashboardClient({ users, projects }) {
+export default function AdminDashboardClient({
+  users,
+  projects,
+  allprojects,
+  curruser,
+}) {
   const [addUserModalOpen, setAddUserModalOpen] = useState(false);
   const [addProjectModalOpen, setAddProjectModalOpen] = useState(false);
+  const [assignModalOpen, setAssignModalOpen] = useState(false);
+  // console.log("AAAAAAAALLL", allprojects);
 
   const systemStats = [
     { label: "Total Users", value: users.length, change: "+12%", icon: Users },
-    { label: "Active Projects", value: projects.length, change: "+8%", icon: Activity },
+    {
+      label: "Active Projects",
+      value: projects.length,
+      change: "+8%",
+      icon: Activity,
+    },
     { label: "System Uptime", value: "99.9%", change: "0%", icon: Shield },
     { label: "Issues", value: "3", change: "-40%", icon: AlertTriangle },
   ];
@@ -45,25 +58,30 @@ export default function AdminDashboardClient({ users, projects }) {
             System overview, user management, and analytics
           </p>
         </div>
-        <div className="flex space-x-2">
-          <Button
-            className="bg-red-600 hover:bg-red-700"
-            onClick={() => setAddUserModalOpen(true)}
-          >
-            <Plus className=" h-4 w-4" />
-            Add User
-          </Button>
-          <Button className="bg-blue-600 hover:bg-blue-700"
-            onClick={() => setAddProjectModalOpen(true)}
-          >
-            <FolderPlus className="mr-2 h-4 w-4" />
-            Add Project
-          </Button>
-          <Button variant="outline">
-            <Settings className=" h-4 w-4" />
-            Settings
-          </Button>
-        </div>
+        {curruser.role === "Admin" ? (
+          <div className="flex space-x-2">
+            <Button
+              className="bg-red-600 hover:bg-red-700"
+              onClick={() => setAddUserModalOpen(true)}
+            >
+              <Plus className=" h-4 w-4" />
+              Add User
+            </Button>
+            <Button
+              className="bg-blue-600 hover:bg-blue-700"
+              onClick={() => setAddProjectModalOpen(true)}
+            >
+              <FolderPlus className="mr-2 h-4 w-4" />
+              Add Project
+            </Button>
+            <Button variant="outline" onClick={() => setAssignModalOpen(true)}>
+              <Settings className=" h-4 w-4" />
+              Add user to project
+            </Button>
+          </div>
+        ) : (
+          ""
+        )}
       </div>
 
       {/* System Stats */}
@@ -104,7 +122,12 @@ export default function AdminDashboardClient({ users, projects }) {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <UserManagementCard users={users} />
-        <ProjectOverview projects={projects} />
+        {/* <ProjectOverview projects={projects} /> */}
+        {curruser.role === "Admin" ? (
+          <ProjectOverview projects={allprojects} />
+        ) : (
+          <ProjectOverview projects={projects} />
+        )}
       </div>
 
       {/* System Health */}
@@ -138,8 +161,20 @@ export default function AdminDashboardClient({ users, projects }) {
         </CardContent>
       </Card>
 
-      <AddUserModal addUserModalOpen={addUserModalOpen} setAddUserModalOpen={setAddUserModalOpen} />
-      <AddProjectModal addProjectModalOpen={addProjectModalOpen} setAddProjectModalOpen={setAddProjectModalOpen} />
+      <AddUserModal
+        addUserModalOpen={addUserModalOpen}
+        setAddUserModalOpen={setAddUserModalOpen}
+      />
+      <AddProjectModal
+        addProjectModalOpen={addProjectModalOpen}
+        setAddProjectModalOpen={setAddProjectModalOpen}
+      />
+      <AssignUserToProjectModal
+        assignModalOpen={assignModalOpen}
+        setAssignModalOpen={setAssignModalOpen}
+        users={users}
+        projects={projects}
+      />
     </div>
   );
 }
