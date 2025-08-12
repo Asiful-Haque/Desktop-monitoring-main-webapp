@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 
 
-function ProjOverviewCards({ project }) {
+function ProjOverviewCards({ project, teamCount }) {
   return (
 <div className="space-y-6">
           <div className="space-y-4">
@@ -38,7 +38,7 @@ function ProjOverviewCards({ project }) {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-green-600">
-                  {project.team}
+                  {teamCount}
                 </div>
                 <p className="text-xs text-muted-foreground">Active members</p>
               </CardContent>

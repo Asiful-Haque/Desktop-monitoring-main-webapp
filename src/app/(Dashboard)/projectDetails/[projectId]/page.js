@@ -28,14 +28,36 @@ const getTeamMembers = async (projectId) => { // Its the api calling function
     return [];
   }
 };
+const getProjectTasks = async (projectId) => {
+  try {
+    const res = await fetch(
+      `http://localhost:5000/api/tasks/task-project/${projectId}`, // Its the api calling function
+      {
+        cache: "no-store", // SSR fresh data
+      }
+    );
+    if (!res.ok) {
+      throw new Error("Failed to fetch tasks");
+    }
+    const data = await res.json();
+    return data.tasks || [];
+  } catch (error) {
+    console.error("Error fetching tasks:", error);
+    return [];
+  }
+};
+
+
 const ProjectDetails = async ({ params }) => {
   const { projectId } = await params;
   const teamMembers = await getTeamMembers(projectId); // calling the api from a function
-  
+  const tasks = await getProjectTasks(projectId);
+  const teamCount = teamMembers.members?.length || 0;
+
   // Mock project data - in real app, this would be fetched based on projectId
   const project = {
     id: projectId,
-    name: "E-commerce Platform",
+    name: "GreenMark",
     description:
       "A comprehensive e-commerce platform with modern UI/UX and advanced features",
     progress: 75,
@@ -49,38 +71,36 @@ const ProjectDetails = async ({ params }) => {
     priority: "High",
   };
 
-  const tasks = [
-    {
-      id: 1,
-      title: "User Authentication System",
-      status: "Completed",
-      assignee: "Alex Developer",
-      dueDate: "2024-01-15",
-    },
-    {
-      id: 2,
-      title: "Product Catalog Integration",
-      status: "In Progress",
-      assignee: "Mike PM",
-      dueDate: "2024-01-25",
-    },
-    {
-      id: 3,
-      title: "Payment Gateway Setup",
-      status: "Pending",
-      assignee: "Sarah Designer",
-      dueDate: "2024-02-05",
-    },
-    {
-      id: 4,
-      title: "Mobile Responsiveness",
-      status: "In Progress",
-      assignee: "Tom QA",
-      dueDate: "2024-02-10",
-    },
-  ];
-
-  // const teamMembers = [
+  // const tasks = [
+  //   {
+  //     id: 1,
+  //     title: "User Authentication System",
+  //     status: "Completed",
+  //     assignee: "Alex Developer",
+  //     dueDate: "2024-01-15",
+  //   },
+  //   {
+  //     id: 2,
+  //     title: "Product Catalog Integration",
+  //     status: "In Progress",
+  //     assignee: "Mike PM",
+  //     dueDate: "2024-01-25",
+  //   },
+  //   {
+  //     id: 3,
+  //     title: "Payment Gateway Setup",
+  //     status: "Pending",
+  //     assignee: "Sarah Designer",
+  //     dueDate: "2024-02-05",
+  //   },
+  //   {
+  //     id: 4,
+  //     title: "Mobile Responsiveness",
+  //     status: "In Progress",
+  //     assignee: "Tom QA",
+  //     dueDate: "2024-02-10",
+  //   },
+  // ];
   //   {
   //     id: 1,
   //     username: "Alex Developer",
@@ -196,7 +216,7 @@ const ProjectDetails = async ({ params }) => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <ProjOverviewCards project={project} />
+        <ProjOverviewCards project={project} teamCount={teamCount}/>
         <UserManagementCard users={teamMembers} />
       </div>
       <ProjTaskCard tasks={tasks} />

@@ -8,13 +8,13 @@ const taskService = new TaskService();
 export async function GET(req, context) {
   try {
     const params = await context.params;
-    const userId = Number(params.userId);
-    console.log('Fetching tasks for userId:', userId);
-    if (isNaN(userId)) {
-      return NextResponse.json({ error: 'Invalid userId' }, { status: 400 });
+    const projectId = Number(params.projectId);
+    console.log('Fetching tasks for project id:', projectId);
+    if (isNaN(projectId)) {
+      return NextResponse.json({ error: 'Invalid project id' }, { status: 400 });
     }
 
-    const tasks = await taskService.getAllTasks({userId});
+    const tasks = await taskService.getAllTasks({projectId});
     return NextResponse.json({ tasks });
   } catch (error) {
     console.error('Error fetching tasks:', error);

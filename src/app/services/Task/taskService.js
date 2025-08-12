@@ -34,14 +34,19 @@ export class TaskService {
     return savedTask;
   }
 
-  async getAllTasks(userId) {
+  async getAllTasks({ userId, projectId }) {
+    // This is called from two functions
+    // and the task is similar so optimized.
+  // Ensure exactly one filter is provided
+  if ((userId && projectId) || (!userId && !projectId)) {
+    throw new Error("Exactly one of userId or projectId must be provided");
+  }
     const repo = await this.initializeRepository();
 
-    return await repo
+    const qb = repo
       .createQueryBuilder("task")
       .leftJoin("task.assigned_to_rel", "user")
       .leftJoin("task.project_rel", "project")
-      .where("task.assigned_to = :userId", { userId })
       .select([
         "task.task_id",
         "task.task_name",
@@ -52,7 +57,13 @@ export class TaskService {
         "user.user_id",
         "user.username",
         "project.project_id",
-      ])
-      .getMany();
+      ]);
+
+      if (userId) {
+        qb.where("task.assigned_to = :userId", { userId });
+      } else if (projectId) {
+        qb.where("task.project_id = :projectId", { projectId });
+      }
+    return qb.getMany();
   }
 }
