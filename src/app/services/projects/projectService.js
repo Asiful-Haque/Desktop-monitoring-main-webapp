@@ -97,4 +97,27 @@ export class ProjectService {
       assigned_to: savedProject.assigned_to,
     };
   }
+
+  async getProjectDetails(projectId) {
+    await this.initializeRepositories();
+
+    const project = await this.projectRepo
+      .createQueryBuilder("project")
+      .leftJoinAndSelect("project.assigned_to_rel", "user")
+      .where("project.project_id = :projectId", { projectId })
+      .select([
+        "project.project_id",
+        "project.project_name",
+        "project.project_description",
+        "project.status",
+        "project.start_date",
+        "project.deadline",
+        "project.assigned_to",
+        "user.user_id",
+        "user.username",
+      ])
+      .getOne();
+
+    return project || null; 
+  }
 }

@@ -53,7 +53,7 @@ const AssignUserToProjectModal = ({
         });
       } else {
         const res = await fetch(
-          `http://localhost:5000/api/team-member/${formData.project_id}`,
+          `${process.env.NEXT_PUBLIC_MAIN_HOST}/api/team-member/${formData.project_id}`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },

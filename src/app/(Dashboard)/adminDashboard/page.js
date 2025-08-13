@@ -13,9 +13,9 @@ export default async function AdminDashboard() {
 
   // Server-side fetch
   const [usersRes, projectsRes, allProjectsRes] = await Promise.all([
-    fetch("http://localhost:5000/api/users", { cache: "no-store" }),
-    fetch(`http://localhost:5000/api/projects/${userId}`, { cache: "no-store" }),
-    fetch("http://localhost:5000/api/projects", { cache: "no-store" }),
+    fetch(`${process.env.NEXT_PUBLIC_MAIN_HOST}/api/users`, { cache: "no-store" }),
+    fetch(`${process.env.NEXT_PUBLIC_MAIN_HOST}/api/projects/${userId}`, { cache: "no-store" }),
+    fetch(`${process.env.NEXT_PUBLIC_MAIN_HOST}/api/projects`, { cache: "no-store" }),
   ]);
   if (!usersRes.ok || !projectsRes.ok || !allProjectsRes.ok) {
     throw new Error("Failed to fetch data");

@@ -8,18 +8,20 @@ import UserManagementCard from "@/components/UserManagementCard";
 import ProjOverviewCards from "@/components/ProjOverviewCards";
 import ProjTaskCard from "@/components/ProjTaskCard";
 import ProjDetailsCard from "@/components/ProjDetailsCard";
+import jwt from 'jsonwebtoken';
+import { cookies } from 'next/headers';
 
 const getTeamMembers = async (projectId) => { // Its the api calling function
   try {
     const res = await fetch(
-      `http://localhost:5000/api/team-member/${projectId}`,
+      `${process.env.NEXT_PUBLIC_MAIN_HOST}/api/team-member/${projectId}`,
       {
         // To ensure data is fresh on every SSR request:
         cache: "no-store",
       }
     );
     if (!res.ok) {
-      throw new Error("Failed to fetch team members");
+      // throw new Error("Failed to fetch team members");
     }
     const data = await res.json();
     return data;
@@ -31,7 +33,7 @@ const getTeamMembers = async (projectId) => { // Its the api calling function
 const getProjectTasks = async (projectId) => {
   try {
     const res = await fetch(
-      `http://localhost:5000/api/tasks/task-project/${projectId}`, // Its the api calling function
+      `${process.env.NEXT_PUBLIC_MAIN_HOST}/api/tasks/task-project/${projectId}`, // Its the api calling function
       {
         cache: "no-store", // SSR fresh data
       }
@@ -47,22 +49,44 @@ const getProjectTasks = async (projectId) => {
   }
 };
 
+const getProjectData = async (projectId) => {
+  try {
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_MAIN_HOST}/api/projects/details/${projectId}`,
+      {
+        cache: "no-store", // SSR fresh data
+      }
+    );
+    if (!res.ok) {
+      throw new Error("Failed to fetch project data");
+    }
+    const data = await res.json();
+    return data.projectDetailsResponse || {}; 
+  } catch (error) {
+    console.error("Error fetching project data:", error);
+    return {}; 
+  }
+};
+
 
 const ProjectDetails = async ({ params }) => {
   const { projectId } = await params;
   const teamMembers = await getTeamMembers(projectId); // calling the api from a function
   const tasks = await getProjectTasks(projectId);
+  const projectData = await getProjectData(projectId);
   const teamCount = teamMembers.members?.length || 0;
+
+  const cookieStore = await cookies();
+  const token = cookieStore.get('token')?.value;
+  const currentUser = token ? jwt.decode(token) : null;
 
   // Mock project data - in real app, this would be fetched based on projectId
   const project = {
     id: projectId,
-    name: "GreenMark",
-    description:
-      "A comprehensive e-commerce platform with modern UI/UX and advanced features",
+    name: projectData.project_name,
+    description: projectData.project_description,
+    status: projectData.status,
     progress: 75,
-    team: 8,
-    status: "On Track",
     deadline: "2024-02-15",
     createdDate: "2023-10-01",
     budget: "$150,000",
@@ -158,7 +182,7 @@ const ProjectDetails = async ({ params }) => {
         return "bg-green-100 text-green-800";
       case "In Progress":
         return "bg-blue-100 text-blue-800";
-      case "Pending":
+      case "pending":
         return "bg-yellow-100 text-yellow-800";
       case "On Track":
         return "bg-blue-100 text-blue-800";
@@ -189,8 +213,8 @@ const ProjectDetails = async ({ params }) => {
       {/* Project Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">{project.name}</h1>
-          <p className="text-gray-600 mt-1">{project.description}</p>
+          <h1 className="text-5xl font-bold text-gray-900">{project.name}</h1>
+          <p className="text-gray-600 mt-5">{project.description}</p>
           <div className="flex items-center space-x-4 mt-4">
             <Badge className={getStatusColor(project.status)}>
               {project.status}
@@ -198,9 +222,6 @@ const ProjectDetails = async ({ params }) => {
             <Badge className={getPriorityColor(project.priority)}>
               {project.priority} Priority
             </Badge>
-            <span className="text-sm text-gray-500">
-              Project ID: {project.id}
-            </span>
           </div>
         </div>
         <div className="flex space-x-2">
@@ -219,13 +240,10 @@ const ProjectDetails = async ({ params }) => {
         <ProjOverviewCards project={project} teamCount={teamCount}/>
         <UserManagementCard users={teamMembers} />
       </div>
-      <ProjTaskCard tasks={tasks} />
+      <ProjTaskCard tasks={tasks} curruser={currentUser} />
       <ProjDetailsCard project={project} />
     </div>
   );
 };
 
 export default ProjectDetails;
-
-
-

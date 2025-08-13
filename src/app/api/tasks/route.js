@@ -28,6 +28,22 @@ export async function POST(req) {
   }
 }
 
+export async function GET(req) {
+  try {
+    const tasks = await taskService.allTaskForGraph();
+    return NextResponse.json(
+      { message: "Tasks fetched successfully", tasks },
+      { status: 200 }
+    );
+  } catch (error) {
+    console.error("Error fetching tasks for graph:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch tasks" },
+      { status: 500 }
+    );
+  }
+}
+
 export async function OPTIONS() {
   return corsEmpty();
   //Not using cors json because If your middleware sets CORS headers on all API routes, you can just use NextResponse.json() in API handlers.

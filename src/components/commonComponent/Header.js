@@ -1,6 +1,7 @@
 "use client";
 import React from "react";
 // import { useAuth } from '@/contexts/AuthContext';
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -38,7 +39,7 @@ const Header = ({ user }) => {
         return role.charAt(0).toUpperCase() + role.slice(1);
     }
   };
-
+  const router = useRouter();
   return (
     <header className="bg-white border-b border-gray-200 px-6 py-4">
       <div className="flex items-center justify-between">
@@ -96,21 +97,33 @@ const Header = ({ user }) => {
                   <DropdownMenuLabel>Switch Role (Demo)</DropdownMenuLabel>
                   <DropdownMenuItem
                     className="cursor-pointer text-green-600"
-                    onClick={() => switchRole("developer")}
+                    onClick={() => router.push("/")}
                   >
                     Developer
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     className="cursor-pointer text-red-600"
-                    onClick={() => switchRole("admin")}
+                    onClick={() => router.push("/")}
                   >
                     Admin
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     className="cursor-pointer text-blue-600"
-                    onClick={() => switchRole("product_manager")}
+                    onClick={() => router.push("/")}
                   >
-                    Product Manager
+                    Project Manager
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className="cursor-pointer text-yellow-600"
+                    onClick={() => router.push("/")}
+                  >
+                    CEO
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className="cursor-pointer text-lime-600"
+                    onClick={() => router.push("/")}
+                  >
+                    Team Lead
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem

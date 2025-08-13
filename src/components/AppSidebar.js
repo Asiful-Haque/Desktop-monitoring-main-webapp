@@ -24,12 +24,12 @@ import {
 } from "@/components/ui/sidebar";
 
 const navigationItems = [
-  { title: "Dashboard", url: "/adminDashboard", icon: Home, roles: ["Developer", "Admin", "product_manager"] },
-  { title: "Tasks", url: "/tasks", icon: CheckSquare, roles: ["Developer", "Admin", "product_manager"] },
-  { title: "Meetings", url: "/meetings", icon: Calendar, roles: ["Developer", "Admin", "product_manager"] },
-  { title: "Screenshots", url: "/gallery", icon: Image, roles: ["Developer", "Admin", "product_manager"] },
-  { title: "Team", url: "/team", icon: Users, roles: ["Admin", "product_manager"] },
-  { title: "Analytics", url: "/analytics", icon: BarChart3, roles: ["Admin", "product_manager"] },
+  { title: "Dashboard", url: "/adminDashboard", icon: Home, roles: ["Developer", "Admin", "Project Manager", "CEO", "Team Lead"] },
+  { title: "Tasks", url: "/tasks", icon: CheckSquare, roles: ["Developer", "Admin", "Project Manager", "Team Lead"] },
+  { title: "Meetings", url: "/meetings", icon: Calendar, roles: ["Developer", "Admin", "Project Manager", "Team Lead"] },
+  { title: "Screenshots", url: "/gallery", icon: Image, roles: ["Admin", "Project Manager", "CEO"] },
+  { title: "Team", url: "/team", icon: Users, roles: ["Developer", "Admin", "Project Manager", "CEO", "Team Lead"] },
+  { title: "Analytics", url: "/analytics", icon: BarChart3, roles: ["Admin", "Project Manager"] },
   { title: "Settings", url: "/settings", icon: Settings, roles: ["Admin"] },
 ];
 

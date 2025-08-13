@@ -44,7 +44,7 @@ const Login = () => {
       {/* Two-column layout below */}
       <div className="flex flex-1 flex-col md:flex-row items-center md:mb-80">
         {/* Left: Image Section */}
-        <div className="w-full md:flex-1 flex items-center justify-center px-6 md:px-0 md:ml-32">
+        {/* <div className="w-full md:flex-1 flex items-center justify-center px-6 md:px-0 md:ml-32">
           <div className="w-full max-w-xs md:max-w-sm lg:max-w-md aspect-square relative">
             <Image
               src="/login_image.png"
@@ -54,10 +54,10 @@ const Login = () => {
               priority
             />
           </div>
-        </div>
+        </div> */}
 
         {/* Right: Login Form */}
-        <div className="w-full md:flex-1 flex items-center justify-center px-6 md:px-0 md:mr-32">
+        <div className="w-full md:flex-1 flex items-center ml-25 justify-center px-6 md:px-0 md:mr-32">
           <div className="w-full max-w-md p-8 shadow-lg rounded-lg bg-opacity-20 backdrop-blur-sm">
             <h2 className="text-3xl font-bold text-center mb-6 text-white">Login</h2>
             <form onSubmit={handleLogin} className="space-y-4">

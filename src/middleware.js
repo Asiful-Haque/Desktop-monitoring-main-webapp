@@ -27,7 +27,7 @@ export function middleware(req) {
   const token = req.cookies.get('token')?.value;
   const decoded = token && verifyToken(token);
 
-  const protectedPaths = ['/adminDashboard', '/tasks', '/assign_task'];
+  const protectedPaths = ['/adminDashboard', '/tasks', '/assign_task', '/projectDetails'];
   const isProtected = protectedPaths.some(path => pathname.startsWith(path));
 
   if (isProtected && !decoded) {
@@ -38,5 +38,5 @@ export function middleware(req) {
 }
 
 export const config = {
-  matcher: ['/api/:path*', '/adminDashboard', '/tasks', '/assign_task'],
+  matcher: ['/api/:path*', '/adminDashboard', '/tasks', '/assign_task', '/projectDetails'],
 };

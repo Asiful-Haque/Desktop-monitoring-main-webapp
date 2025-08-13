@@ -14,7 +14,6 @@ import { Button } from "@/components/ui/button";
 import { CheckSquare, Clock, AlertCircle, Plus } from "lucide-react";
 import AddTaskModal from "@/components/AddTaskModal";
 
-// Status, priority styles and icons
 const statusColors = {
   pending: "bg-yellow-100 text-yellow-800 border-yellow-200",
   in_progress: "bg-blue-100 text-blue-800 border-blue-200",
@@ -33,11 +32,42 @@ const statusIcons = {
   completed: CheckSquare,
 };
 
-const Tasks = ({ tasks, projects }) => {
+const Tasks = ({ tasks: initialTasks, projects, curruser }) => {
   const [selectedProject, setSelectedProject] = useState("default-project");
   const [addTaskModalOpen, setAddTaskModalOpen] = useState(false);
 
-  //console.log("Selected project is now ", selectedProject);
+  // Local state for tasks so we can update individual tasks and reload
+  const [tasks, setTasks] = useState(initialTasks);
+
+  const handleSubmitForReview = async (taskId, status) => {
+    try {
+      const response = await fetch(`/api/tasks/task-update/${taskId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ newStatus: status }),
+      });
+
+      const data = await response.json();
+      if (!response.ok)
+        throw new Error(data.error || "Failed to update task status");
+
+      setTasks((prevTasks) =>
+        prevTasks.map((task) =>
+          task.task_id === taskId
+            ? { ...task, status: data.taskres.status }
+            : task
+        )
+      );
+
+      // alert(`Task status updated to: ${data.taskres.status}`);
+    } catch (error) {
+      console.error("Error updating task status:", error);
+      alert("Failed to update task status");
+    }
+  };
+
   // Filter tasks based on selected project
   const filteredTasks =
     selectedProject === "default-project"
@@ -48,13 +78,22 @@ const Tasks = ({ tasks, projects }) => {
     <div className="p-6 space-y-6 bg-gradient-to-br from-red-50 to-pink-50 min-h-screen">
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-bold text-foreground">Tasks</h1>
-        <Button
+        {curruser.role !== "Project Manager" && (
+          <Button
+            className="bg-primary text-primary-foreground hover:bg-primary/90"
+            onClick={() => setAddTaskModalOpen(true)}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Add Task
+          </Button>
+        )}
+        {/* <Button
           className="bg-primary text-primary-foreground hover:bg-primary/90"
           onClick={() => setAddTaskModalOpen(true)}
         >
           <Plus className="mr-2 h-4 w-4" />
           Add Task
-        </Button>
+        </Button> */}
       </div>
 
       <div className="mb-6">
@@ -64,7 +103,10 @@ const Tasks = ({ tasks, projects }) => {
         >
           Select Project
         </label>
-        <Select value={selectedProject === "default-project" ? "" : selectedProject} onValueChange={setSelectedProject}>
+        <Select
+          value={selectedProject === "default-project" ? "" : selectedProject}
+          onValueChange={setSelectedProject}
+        >
           <SelectTrigger className="w-64">
             <SelectValue placeholder="Choose a project" />
           </SelectTrigger>
@@ -98,25 +140,48 @@ const Tasks = ({ tasks, projects }) => {
                     <CardTitle className="text-lg text-foreground">
                       {task.task_name}
                     </CardTitle>
-                    <div className="flex items-center gap-2">
-                      <Badge className={priorityColors[task.priority]}>
-                        {task.priority.toUpperCase()}
-                      </Badge>
-                      <Badge className={statusColors[task.status]}>
-                        <StatusIcon className="mr-1 h-3 w-3" />
-                        {task.status.replace("_", " ").toUpperCase()}
-                      </Badge>
-                    </div>
+                    {["Project Manager", "CEO", "Admin"].includes(curruser.role) ? (
+                      <button
+                        type="button"
+                        className="px-3 py-1 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors text-sm font-medium"
+                        // onClick={() => handleSeeDetails(task.task_id)}
+                      >
+                        See Details
+                      </button>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <Badge className={priorityColors[task.priority]}>
+                          {task.priority.toUpperCase()}
+                        </Badge>
+                        <Badge className={statusColors[task.status]}>
+                          <StatusIcon className="mr-1 h-3 w-3" />
+                          {task.status.replace("_", " ").toUpperCase()}
+                        </Badge>
+                      </div>
+                    )}
                   </div>
                 </CardHeader>
                 <CardContent>
                   <div className="flex items-center justify-between text-sm text-muted-foreground">
-                    <span>
-                      Assigned to:{" "}
-                      <span className="font-medium">
-                        {task.assigned_to_rel.username}
-                      </span>
-                    </span>
+                    {["Project Manager", "CEO"].includes(curruser.role) || ["pending","completed"].includes(task.status) ? (
+                      <div className="px-3 py-1" />
+                    ) : (
+                      <button
+                        type="button"
+                        className="px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm font-medium"
+                        onClick={() => {
+                          const confirmed = window.confirm(
+                            "Are you sure you want to submit for review?"
+                          );
+                          if (confirmed) {
+                            handleSubmitForReview(task.task_id, "pending");
+                          }
+                        }}
+                      >
+                        Submit for Review
+                      </button>
+                    )}
+
                     <span>
                       Due:{" "}
                       <span className="font-medium">

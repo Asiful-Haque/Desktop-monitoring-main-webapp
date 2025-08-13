@@ -19,8 +19,8 @@ const TasksPage = async () => {
 if (userId) {
   try {
     const [tasksRes, projectsRes] = await Promise.all([
-      fetch(`http://localhost:5000/api/tasks/${userId}`, { cache: 'no-store' }),
-      fetch(`http://localhost:5000/api/projects/${userId}`, { cache: 'no-store' }),
+      fetch(`${process.env.NEXT_PUBLIC_MAIN_HOST}/api/tasks/${userId}`, { cache: 'no-store' }),
+      fetch(`${process.env.NEXT_PUBLIC_MAIN_HOST}/api/projects/${userId}`, { cache: 'no-store' }),
     ]);
 
     if (tasksRes.ok && projectsRes.ok) {
@@ -41,7 +41,7 @@ if (userId) {
 
   return (
     // <Layout>
-      <Tasks tasks={tasks} projects={projects} />
+      <Tasks tasks={tasks} projects={projects} curruser={currentUser} />
     // </Layout>
   );
 };

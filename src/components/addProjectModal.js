@@ -47,7 +47,7 @@ const AddProjectModal = ({ addProjectModalOpen, setAddProjectModalOpen }) => {
     // console.log("Submitting form data:", formData);
 
     try {
-      const res = await fetch("http://localhost:5000/api/projects", {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_MAIN_HOST}/api/projects`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
