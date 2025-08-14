@@ -3,25 +3,22 @@ name: Mirror to Org Repo
 on:
   push:
     branches:
-      - main
+      - main  # or your default branch
 
 jobs:
   mirror:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout repo
+      - name: Checkout repository
         uses: actions/checkout@v3
         with:
-          fetch-depth: 0
+          fetch-depth: 0  # important to get full history
 
-      - name: Set Git author
-        run: |
-          git config --global user.name "Asiful Haque"
-          git config --global user.email "asiful35-2961@diu.edu.bd"
-
-      - name: Push to org repo using PAT
+      - name: Push to org repo
         env:
-          PAT: ${{ secrets.MIRROR_TOKEN }}
+          ORG_REPO: https://github.com/TaskPro-monitoring/desktop-monitoring-main-webapp.git
+          TOKEN: ${{ secrets.MIRROR_TOKEN }}
         run: |
-          git remote add mirror https://x-access-token:${PAT}@github.com/TaskPro-monitoring/desktop-monitoring-main-webapp.git
-          git push mirror main --force
+          git remote add org https://x-access-token:${TOKEN}@github.com/TaskPro-monitoring/desktop-monitoring-main-webapp.git
+          git push org main --force
