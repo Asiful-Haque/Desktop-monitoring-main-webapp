@@ -1,0 +1,23 @@
+name: Mirror to Org Repo
+
+on:
+  push:
+    branches:
+      - main   # change if your default branch is different
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source repo
+        uses: actions/checkout@v4
+
+      - name: Push to Org Repo
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add mirror https://x-access-token:${GH_PAT}@github.com/TaskPro-monitoring/desktop-monitoring-main-webapp.git
+          git push mirror main --force
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
