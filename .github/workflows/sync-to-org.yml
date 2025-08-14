@@ -9,19 +9,11 @@ jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout personal repo
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Configure Git identity
-        run: |
+      - run: |
           git config --global user.name "Asiful Haque"
           git config --global user.email "your-email@example.com"
-
-      - name: Push to org repo
-        env:
-          ORG_TOKEN: ${{ secrets.ORG_REPO_TOKEN }}
-        run: |
-          git remote add org "https://x-access-token:${ORG_TOKEN}@github.com/TaskPro-monitoring/desktop-monitoring-main-webapp.git"
+          git remote add org "https://x-access-token:${{ secrets.ORG_REPO_TOKEN }}@github.com/TaskPro-monitoring/desktop-monitoring-main-webapp.git"
           git push org main --force
