@@ -9,12 +9,12 @@ jobs:
   mirror:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout source repo
+      - name: Checkout repo
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
 
-      - name: Configure Git
+      - name: Set Git author
         run: |
           git config --global user.name "Asiful Haque"
           git config --global user.email "asiful35-2961@diu.edu.bd"
@@ -23,8 +23,5 @@ jobs:
         env:
           PAT: ${{ secrets.MIRROR_TOKEN }}
         run: |
-          # Remove GitHub Actions bot credentials
-          git remote remove origin
-          # Add the org repo with your PAT
           git remote add mirror https://x-access-token:${PAT}@github.com/TaskPro-monitoring/desktop-monitoring-main-webapp.git
           git push mirror main --force
