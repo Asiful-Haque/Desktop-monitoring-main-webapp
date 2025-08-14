@@ -3,7 +3,7 @@ name: Sync to Org Repo
 on:
   push:
     branches:
-      - main  # only when pushing to personal repo's main branch
+      - main
 
 jobs:
   sync:
@@ -14,13 +14,14 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Push to org repo
+      - name: Configure Git identity
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          
-          # Add org repo as remote
-          git remote add org "https://x-access-token:${{ secrets.ORG_REPO_TOKEN }}@github.com/TaskPro-monitoring/desktop-monitoring-main-webapp.git"
-          
-          # Push personal repo's main to org's repo main
+          git config --global user.name "Asiful Haque"
+          git config --global user.email "your-email@example.com"
+
+      - name: Push to org repo
+        env:
+          ORG_TOKEN: ${{ secrets.ORG_REPO_TOKEN }}
+        run: |
+          git remote add org "https://x-access-token:${ORG_TOKEN}@github.com/TaskPro-monitoring/desktop-monitoring-main-webapp.git"
           git push org main --force
