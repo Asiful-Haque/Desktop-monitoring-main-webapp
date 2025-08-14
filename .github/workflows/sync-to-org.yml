@@ -1,0 +1,26 @@
+name: Sync to Org Repo
+
+on:
+  push:
+    branches:
+      - main  # only when pushing to personal repo's main branch
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout personal repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Push to org repo
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Add org repo as remote
+          git remote add org "https://x-access-token:${{ secrets.ORG_REPO_TOKEN }}@github.com/TaskPro-monitoring/desktop-monitoring-main-webapp.git"
+          
+          # Push personal repo's main to org's repo main
+          git push org main --force
