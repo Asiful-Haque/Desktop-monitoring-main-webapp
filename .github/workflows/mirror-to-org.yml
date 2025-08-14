@@ -3,7 +3,7 @@ name: Mirror to Org Repo
 on:
   push:
     branches:
-      - main   # your default branch
+      - main
 
 jobs:
   mirror:
@@ -14,9 +14,17 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Push to org repo
+      - name: Configure Git
         run: |
           git config --global user.name "Asiful Haque"
           git config --global user.email "asiful35-2961@diu.edu.bd"
-          git remote add mirror https://x-access-token:${{ secrets.MIRROR_TOKEN }}@github.com/TaskPro-monitoring/desktop-monitoring-main-webapp.git
+
+      - name: Push to org repo
+        env:
+          PAT: ${{ secrets.MIRROR_TOKEN }}
+        run: |
+          # Remove GitHub Actions bot credentials
+          git remote remove origin
+          # Add the org repo with your PAT
+          git remote add mirror https://x-access-token:${PAT}@github.com/TaskPro-monitoring/desktop-monitoring-main-webapp.git
           git push mirror main --force
