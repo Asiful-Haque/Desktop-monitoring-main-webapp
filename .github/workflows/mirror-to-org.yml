@@ -19,7 +19,7 @@ jobs:
           git config --global user.name "Asiful Haque"
           git config --global user.email "asiful35-2961@diu.edu.bd"
 
-      - name: Push to org repo
+      - name: Push to org repo using PAT
         env:
           PAT: ${{ secrets.MIRROR_TOKEN }}
         run: |
