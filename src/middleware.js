@@ -1,34 +1,53 @@
+// middleware.ts
 import { verifyToken } from '@/app/lib/auth';
 import { NextResponse } from 'next/server';
 
-export function middleware(req) {
-  const { pathname, method } = req.nextUrl;
+const ORIGIN_WHITELIST = new Set([
+  'http://localhost:3000',
+]);
 
-  // Handle CORS for API routes------------------------------------for fixing cors setup-----------------------------
+function buildCorsHeaders(req) {
+  const origin = req.headers.get('origin') || '';
+  const headers = new Headers();
+
+  if (ORIGIN_WHITELIST.has(origin)) {
+    headers.set('Access-Control-Allow-Origin', origin);
+    headers.set('Access-Control-Allow-Credentials', 'true');
+  }
+  headers.set('Vary', 'Origin');
+  headers.set('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+  headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  return headers;
+}
+
+export function middleware(req) {
+  const url = new URL(req.url);
+  const pathname = url.pathname;
+  const method = req.method;
+
+  // ------------------ CORS for API routes ------------------
   if (pathname.startsWith('/api')) {
-    // Handle OPTIONS preflight
+    // Preflight
     if (method === 'OPTIONS') {
-      const response = NextResponse.json(null, { status: 204 });
-      response.headers.set('Access-Control-Allow-Origin', '*');
-      response.headers.set('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
-      response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-      return response;
+      return new NextResponse(null, {
+        status: 204,
+        headers: buildCorsHeaders(req),
+      });
     }
 
-    // For other API requests, add CORS headers to response
-    const response = NextResponse.next();
-    response.headers.set('Access-Control-Allow-Origin', '*');
-    response.headers.set('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
-    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    return response;
+    // Other API requests: pass through but attach CORS headers to the response
+    const res = NextResponse.next();
+    const cors = buildCorsHeaders(req);
+    cors.forEach((v, k) => res.headers.set(k, v));
+    return res;
   }
 
-  // Token validation for frontend protected routes----------------------for auth and authorizatioin------------
-  const token = req.cookies.get('token')?.value;
+  // --------------- Auth for protected frontend routes ---------------
+  const token = (req).cookies?.get?.('token')?.value; // Next middleware Request has cookies.get
   const decoded = token && verifyToken(token);
 
   const protectedPaths = ['/adminDashboard', '/tasks', '/assign_task', '/projectDetails'];
-  const isProtected = protectedPaths.some(path => pathname.startsWith(path));
+  const isProtected = protectedPaths.some((p) => pathname.startsWith(p));
 
   if (isProtected && !decoded) {
     return NextResponse.redirect(new URL('/', req.url));

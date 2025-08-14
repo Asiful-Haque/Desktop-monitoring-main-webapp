@@ -22,3 +22,12 @@ export class ScreenshotDataService {
     return rows;
   }
 }
+
+
+        //   const dataToSend = {
+        //     screenshotPath: ssResult.path,
+        //     task_id: selectedTaskId,
+        //     timestamp,
+        //     idleSeconds: idle,
+        //     activeSeconds: active,
+        //   };

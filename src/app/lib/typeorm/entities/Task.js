@@ -41,7 +41,7 @@ export const Task = new EntitySchema({
     priority: {
       type: "varchar",
       length: 50,
-      default: "MEDIUM", 
+      default: "MEDIUM",
     },
   },
   relations: {
@@ -62,6 +62,11 @@ export const Task = new EntitySchema({
         referencedColumnName: "project_id",
       },
       inverseSide: "tasks_rel",
+    },
+    screenshots_rel: {
+      type: "one-to-many",
+      target: "Screenshot",
+      inverseSide: "task_rel",
     },
   },
 });
