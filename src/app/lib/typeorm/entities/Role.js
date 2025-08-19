@@ -23,3 +23,4 @@ export const Role = new EntitySchema({
     },
   },
 });
+

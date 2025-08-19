@@ -15,18 +15,18 @@
 
 
 
-// src/lib/typeorm/init-db.ts
-import { AppDataSource } from "./data-source";
+// // src/lib/typeorm/init-db.ts
+// import { AppDataSource } from "./data-source";
 
-let isInitialized = false;
+// let isInitialized = false;
 
-export const initDb = async () => {
-  if (!isInitialized) {
-    if (!AppDataSource.isInitialized) {
-      await AppDataSource.initialize();
-      console.log("✅ Database connection established");
-    }
-    isInitialized = true;
-  }
-  return AppDataSource;
-};
+// export const initDb = async () => {
+//   if (!isInitialized) {
+//     if (!AppDataSource.isInitialized) {
+//       await AppDataSource.initialize();
+//       console.log("✅ Database connection established");
+//     }
+//     isInitialized = true;
+//   }
+//   return AppDataSource;
+// };

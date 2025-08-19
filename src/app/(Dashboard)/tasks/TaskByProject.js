@@ -9,6 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CheckSquare, Clock, AlertCircle, Plus } from "lucide-react";
@@ -35,6 +36,10 @@ const statusIcons = {
 const Tasks = ({ tasks: initialTasks, projects, curruser }) => {
   const [selectedProject, setSelectedProject] = useState("default-project");
   const [addTaskModalOpen, setAddTaskModalOpen] = useState(false);
+  const router = useRouter();
+  const handleSeeDetails = (taskId) => {
+    router.push(`/task-screenshot/${taskId}`);
+  };
 
   // Local state for tasks so we can update individual tasks and reload
   const [tasks, setTasks] = useState(initialTasks);
@@ -140,11 +145,13 @@ const Tasks = ({ tasks: initialTasks, projects, curruser }) => {
                     <CardTitle className="text-lg text-foreground">
                       {task.task_name}
                     </CardTitle>
-                    {["Project Manager", "CEO", "Admin"].includes(curruser.role) ? (
+                    {["Project Manager", "CEO", "Admin"].includes(
+                      curruser.role
+                    ) ? (
                       <button
                         type="button"
                         className="px-3 py-1 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors text-sm font-medium"
-                        // onClick={() => handleSeeDetails(task.task_id)}
+                        onClick={() => handleSeeDetails(task.task_id)}
                       >
                         See Details
                       </button>
@@ -163,7 +170,8 @@ const Tasks = ({ tasks: initialTasks, projects, curruser }) => {
                 </CardHeader>
                 <CardContent>
                   <div className="flex items-center justify-between text-sm text-muted-foreground">
-                    {["Project Manager", "CEO"].includes(curruser.role) || ["pending","completed"].includes(task.status) ? (
+                    {["Project Manager", "CEO"].includes(curruser.role) ||
+                    ["pending", "completed"].includes(task.status) ? (
                       <div className="px-3 py-1" />
                     ) : (
                       <button

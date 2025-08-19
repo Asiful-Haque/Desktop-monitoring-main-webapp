@@ -1,6 +1,5 @@
 "use client";
 import React from "react";
-// import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -15,8 +14,8 @@ import {
 import { Building2, LogOut, Settings, User } from "lucide-react";
 
 const Header = ({ user }) => {
-    const { name, role } = user || {};
-    console.log("Header user:", name, role);
+  const router = useRouter();
+
   const getRoleColor = (role) => {
     switch (role) {
       case "Developer":
@@ -39,7 +38,28 @@ const Header = ({ user }) => {
         return role.charAt(0).toUpperCase() + role.slice(1);
     }
   };
-  const router = useRouter();
+
+  // ✅ Logout function
+  const logout = async () => {
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_MAIN_HOST}/api/auth/logout`, {
+        method: "POST",
+        credentials: "include", // important for cookie-based sessions
+      });
+
+      if (!res.ok) {
+        console.error("Logout failed:", res.status, res.statusText);
+        return;
+      }
+
+      // Redirect to login page
+      router.push("/");
+      router.refresh();
+    } catch (error) {
+      console.error("Logout error:", error);
+    }
+  };
+
   return (
     <header className="bg-white border-b border-gray-200 px-6 py-4">
       <div className="flex items-center justify-between">
@@ -128,7 +148,7 @@ const Header = ({ user }) => {
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     className="cursor-pointer text-red-600"
-                    // onClick={logout}
+                    onClick={logout} // ✅ call logout
                   >
                     <LogOut className="mr-2 h-4 w-4" />
                     Logout
