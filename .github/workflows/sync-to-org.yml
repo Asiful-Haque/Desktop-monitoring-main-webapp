@@ -1,0 +1,19 @@
+name: Sync to Org Repo
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: |
+          git config --global user.name "Asiful Haque"
+          git config --global user.email "your-email@example.com"
+          git remote add org "https://x-access-token:${{ secrets.ORG_REPO_TOKEN }}@github.com/TaskPro-monitoring/desktop-monitoring-main-webapp.git"
+          git push org main --force
