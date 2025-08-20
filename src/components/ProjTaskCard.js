@@ -61,6 +61,7 @@ function ProjTaskCard({ tasks: initialTasks, curruser }) {
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
+          {console.log("Tasks:", tasks)}
           {tasks.map((task) => (
             <div
               key={task.task_id}
@@ -77,7 +78,7 @@ function ProjTaskCard({ tasks: initialTasks, curruser }) {
               <div className="mb-2">
                 <h4 className="font-medium text-gray-900">{task.task_name}</h4>
                 <p className="text-sm text-gray-600">
-                  Assigned to: {task.assigned_to_rel?.username || "N/A"}
+                  Assigned to: {task.assigned_to_name || "N/A"}
                 </p>
                 <p className="text-xs text-gray-500">
                   Due: {task.deadline?.split("T")[0] || "N/A"}

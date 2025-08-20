@@ -36,6 +36,7 @@ export default function AdminDashboardClient({
   const [addProjectModalOpen, setAddProjectModalOpen] = useState(false);
   const [assignModalOpen, setAssignModalOpen] = useState(false);
   // console.log("AAAAAAAALLL", allprojects);
+  console.log("team lead has AAAAAAAALLL-------", projects);
 
   const systemStats = [
     { label: "Total Users", value: users.length, change: "+12%", icon: Users },
@@ -169,12 +170,22 @@ export default function AdminDashboardClient({
         addProjectModalOpen={addProjectModalOpen}
         setAddProjectModalOpen={setAddProjectModalOpen}
       />
-      <AssignUserToProjectModal
-        assignModalOpen={assignModalOpen}
-        setAssignModalOpen={setAssignModalOpen}
-        users={users}
-        projects={projects}
-      />
+
+      {curruser.role === "Admin" ? (
+        <AssignUserToProjectModal
+          assignModalOpen={assignModalOpen}
+          setAssignModalOpen={setAssignModalOpen}
+          users={users}
+          projects={allprojects}
+        />
+      ) : (
+        <AssignUserToProjectModal
+          assignModalOpen={assignModalOpen}
+          setAssignModalOpen={setAssignModalOpen}
+          users={users}
+          projects={projects}
+        />
+      )}
     </div>
   );
 }

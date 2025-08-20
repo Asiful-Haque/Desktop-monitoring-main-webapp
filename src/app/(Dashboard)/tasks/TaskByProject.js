@@ -73,11 +73,13 @@ const Tasks = ({ tasks: initialTasks, projects, curruser }) => {
     }
   };
 
+  console.log("Selected Project:", selectedProject);
+  console.log("Filteabnle Tasks:", tasks);
   // Filter tasks based on selected project
   const filteredTasks =
     selectedProject === "default-project"
       ? tasks
-      : tasks.filter((task) => task.project_rel.project_id === selectedProject);
+      : tasks.filter((task) => task.project_id === selectedProject);
 
   return (
     <div className="p-6 space-y-6 bg-gradient-to-br from-red-50 to-pink-50 min-h-screen">
@@ -145,7 +147,7 @@ const Tasks = ({ tasks: initialTasks, projects, curruser }) => {
                     <CardTitle className="text-lg text-foreground">
                       {task.task_name}
                     </CardTitle>
-                    {["Project Manager", "CEO", "Admin"].includes(
+                    {["Project Manager", "CEO", "Admin", "Team Lead"].includes(
                       curruser.role
                     ) ? (
                       <button
@@ -170,7 +172,7 @@ const Tasks = ({ tasks: initialTasks, projects, curruser }) => {
                 </CardHeader>
                 <CardContent>
                   <div className="flex items-center justify-between text-sm text-muted-foreground">
-                    {["Project Manager", "CEO"].includes(curruser.role) ||
+                    {["Project Manager", "CEO", "Team Lead", "Admin"].includes(curruser.role) ||
                     ["pending", "completed"].includes(task.status) ? (
                       <div className="px-3 py-1" />
                     ) : (
