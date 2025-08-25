@@ -33,7 +33,8 @@ const statusIcons = {
   completed: CheckSquare,
 };
 
-const Tasks = ({ tasks: initialTasks, projects, curruser }) => {
+const Tasks = ({ tasks: initialTasks, projects, curruser, allusers }) => {
+  console.log("All users##########:", allusers);
   const [selectedProject, setSelectedProject] = useState("default-project");
   const [addTaskModalOpen, setAddTaskModalOpen] = useState(false);
   const router = useRouter();
@@ -209,6 +210,8 @@ const Tasks = ({ tasks: initialTasks, projects, curruser }) => {
         projects={projects}
         addTaskModalOpen={addTaskModalOpen}
         setAddTaskModalOpen={setAddTaskModalOpen}
+        curruser={curruser}
+        allusers={allusers}
       />
     </div>
   );

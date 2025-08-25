@@ -1,74 +1,27 @@
-// import { initDb } from "@/app/lib/typeorm/init-db";
-// import { User } from "@/app/lib/typeorm/entities/User";
-
-// export class LoginService {
-//   constructor() {
-//     this.userRepo = null;
-//   }
-
-//   async initializeRepository() {
-//     if (!this.userRepo) {
-//       const dataSource = await initDb(); // Use initDb here
-//       this.userRepo = dataSource.getRepository(User);
-//     }
-//     return this.userRepo;
-//   }
-
-//   async validateUser(email, password) {
-//     console.log("Entered in the function with ",email, password);
-//     const repo = await this.initializeRepository();
-
-//     const user = await repo
-//       .createQueryBuilder("u")
-//       .leftJoin("u.user_roles_rel", "ur")
-//       .leftJoin("ur.role_rel", "r")
-//       .select(["u.user_id, u.username, u.email, u.password", "r.role_id", "r.role_name"])
-//       .where("u.email = :email", { email })
-//       .getRawOne();
-
-//     if (!user) {
-//       console.log("No user found with this email");
-//       return null;
-//     }
-
-//     // console.log("Password from DB:", user.password);
-//     // console.log("Password provided:", password);
-
-//     if (user.password !== password) {
-//       console.log("Password mismatch");
-//       return null;
-//     }
-
-//     console.log("------role is-----", user.r_role_name || null);
-
-//     return {
-//       user_id: user.user_id,
-//       username: user.username,
-//       email: user.email,
-//       role: user.r_role_name || null, 
-//     };
-//   }
-// }
-
-
-
-
-
 import { getDataSource } from "@/app/lib/typeorm/db/getDataSource";
 import { User } from "@/app/lib/typeorm/entities/User";
+import * as bcrypt from "bcrypt";
 
 export class LoginService {
   async validateUser(email, password) {
-    console.log("Entered in the function with ", email, password);
+    console.log("Entered in the function with", email, password);
 
     const ds = await getDataSource();
     const repo = ds.getRepository(User);
 
+    // Fetch user with roles
     const user = await repo
       .createQueryBuilder("u")
       .leftJoin("u.user_roles_rel", "ur")
       .leftJoin("ur.role_rel", "r")
-      .select(["u.user_id, u.username, u.email, u.password", "r.role_id", "r.role_name"])
+      .select([
+        "u.user_id AS user_id",
+        "u.username AS username",
+        "u.email AS email",
+        "u.password AS password",
+        "r.role_id AS role_id",
+        "r.role_name AS r_role_name",
+      ])
       .where("u.email = :email", { email })
       .getRawOne();
 
@@ -77,8 +30,37 @@ export class LoginService {
       return null;
     }
 
-    if (user.password !== password) {
-      console.log("Password mismatch");
+    console.log("User from DB:", user);
+
+    const storedPassword = user.password; // use actual key from DB
+    let isPasswordValid = false;
+
+    if (!storedPassword) {
+      console.log("Password field is empty for user:", email);
+      return null;
+    }
+
+    // Detect bcrypt hash
+    if (
+      storedPassword.startsWith("$2a$") ||
+      storedPassword.startsWith("$2b$") ||
+      storedPassword.startsWith("$2y$")
+    ) {
+      isPasswordValid = await bcrypt.compare(password, storedPassword);
+    } else {
+      // Plain text password
+      isPasswordValid = password === storedPassword;
+
+      // Upgrade plain password to hashed after successful login
+      // if (isPasswordValid) {
+      //   const hashedPassword = await bcrypt.hash(password, 10);
+      //   await repo.update({ user_id: user.user_id }, { password: hashedPassword });
+      //   console.log("Upgraded plain password to hashed for user:", user.email);
+      // }
+    }
+
+    if (!isPasswordValid) {
+      console.log("Password mismatch for user:", email);
       return null;
     }
 

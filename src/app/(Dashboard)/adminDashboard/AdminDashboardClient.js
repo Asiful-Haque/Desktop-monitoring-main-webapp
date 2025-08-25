@@ -36,7 +36,7 @@ export default function AdminDashboardClient({
   const [addProjectModalOpen, setAddProjectModalOpen] = useState(false);
   const [assignModalOpen, setAssignModalOpen] = useState(false);
   // console.log("AAAAAAAALLL", allprojects);
-  console.log("team lead has AAAAAAAALLL-------", projects);
+  // console.log("team lead has AAAAAAAALLL-------", projects);
 
   const systemStats = [
     { label: "Total Users", value: users.length, change: "+12%", icon: Users },
@@ -49,9 +49,13 @@ export default function AdminDashboardClient({
     { label: "System Uptime", value: "99.9%", change: "0%", icon: Shield },
     { label: "Issues", value: "3", change: "-40%", icon: AlertTriangle },
   ];
-
+  // from-blue-50 to-indigo-50
   return (
-    <div className="p-6 space-y-6 bg-gradient-to-br from-red-50 to-pink-50 min-h-screen">
+    <div
+      className={`p-6 space-y-6 bg-gradient-to-br ${
+        curruser.role === "Admin" ? "from-red-100" : "from-blue-50"
+      } to-indigo-50 min-h-screen`}
+    >
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
@@ -99,17 +103,30 @@ export default function AdminDashboardClient({
               <stat.icon className="h-4 w-4 text-red-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-red-600">
+              {/* <div className="text-2xl font-bold text-red-600">
+                {stat.value}
+              </div> */}
+              <div
+                className={`text-2xl font-bold ${
+                  index === 0
+                    ? "text-rose-700"
+                    : index === 1
+                    ? "text-amber-700"
+                    : index === 2
+                    ? "text-emerald-700"
+                    : "text-violet-700"
+                }`}
+              >
                 {stat.value}
               </div>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs font-bold text-muted-foreground">
                 <span
                   className={
                     stat.change.startsWith("+")
-                      ? "text-green-600"
+                      ? "text-green-600 font-bold"
                       : stat.change.startsWith("-")
-                      ? "text-red-600"
-                      : "text-gray-600"
+                      ? "text-red-600 font-bold"
+                      : "text-gray-600 font-bold"
                   }
                 >
                   {stat.change}

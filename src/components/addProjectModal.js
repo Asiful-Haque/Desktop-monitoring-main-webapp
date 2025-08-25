@@ -62,10 +62,10 @@ const AddProjectModal = ({ addProjectModalOpen, setAddProjectModalOpen }) => {
       }
 
       const data = await res.json();
-      // console.log("Project created:", data);
+      console.log("Project created:", data);
 
       toast.success(
-        `Project ${data.project.project_name} has been added successfully`
+        `Project ${data.allprojects.project_name} has been added successfully`
       );
 
       setFormData({

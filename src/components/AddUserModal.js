@@ -156,9 +156,10 @@ const AddUserModal = ({ addUserModalOpen, setAddUserModalOpen }) => {
                   <SelectValue placeholder="Select a role" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="developer">Developer</SelectItem>
-                  <SelectItem value="admin">Admin</SelectItem>
-                  <SelectItem value="product_manager">
+                  <SelectItem value="Developer">Developer</SelectItem>
+                  <SelectItem value="Team Lead">Team Lead</SelectItem>
+                  <SelectItem value="Admin">Admin</SelectItem>
+                  <SelectItem value="Product Manager">
                     Product Manager
                   </SelectItem>
                 </SelectContent>

@@ -7,6 +7,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogClose,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,17 +21,18 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 
-// Example user options for assigned_to dropdown — replace with real data
-const userOptions = [
-  { id: 28, name: "Naim Sheikh-Default" },
-  { id: 29, name: "Alice Johnson-Default" },
-  { id: 30, name: "Bob Smith-Default" },
-];
+const statusOptions = ["pending", "in_progress", "completed"];
+const priorityOptions = ["low", "medium", "high"];
 
-const statusOptions = ["pending", "in_progress", "completed", "on_hold"];
-const priorityOptions = ["low", "medium", "high", "urgent"];
-
-const AddTaskModal = ({ projects, addTaskModalOpen, setAddTaskModalOpen }) => {
+const AddTaskModal = ({
+  projects,
+  addTaskModalOpen,
+  setAddTaskModalOpen,
+  curruser,
+  allusers,
+}) => {
+  console.log("All users in Modal:", allusers);
+  const userOptions = [{ id: curruser.id, name: curruser.name }];
   //console.log("Projects in AddTaskModal:", projects);
   const [formData, setFormData] = useState({
     task_name: "",
@@ -60,16 +62,19 @@ const AddTaskModal = ({ projects, addTaskModalOpen, setAddTaskModalOpen }) => {
       toast.error("Please fill in all fields");
       return;
     }
-     //console.log("Posting with ", formData);
+    //console.log("Posting with ", formData);
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_MAIN_HOST}/api/tasks`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(formData),
-      });
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_MAIN_HOST}/api/tasks`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(formData),
+        }
+      );
 
       if (!res.ok) {
         const errorData = await res.json();
@@ -80,7 +85,9 @@ const AddTaskModal = ({ projects, addTaskModalOpen, setAddTaskModalOpen }) => {
       const data = await res.json();
       //.log("Task created:", data.task);
 
-      toast.success(`Task "${data.task.task_name}" has been added successfully`);
+      toast.success(
+        `Task "${data.task.task_name}" has been added successfully`
+      );
 
       setFormData({
         task_name: "",
@@ -101,16 +108,20 @@ const AddTaskModal = ({ projects, addTaskModalOpen, setAddTaskModalOpen }) => {
 
   return (
     <Dialog open={addTaskModalOpen} onOpenChange={setAddTaskModalOpen}>
-      <DialogContent className="sm:max-w-[600px]">
-        <DialogHeader>
-          <DialogTitle>Add New Task</DialogTitle>
-          <DialogDescription>
+      <DialogContent className="sm:max-w-[700px] p-0 overflow-hidden ">
+        {/* Colored header */}
+        <div className="bg-amber-900 text-white px-6 py-4 flex flex-col items-start">
+          <DialogTitle className="!text-2xl !font-bold !text-white">
+            Add New Task
+          </DialogTitle>
+          <DialogDescription className="!text-base !text-white opacity-90">
             Create a new task for your project.
           </DialogDescription>
-        </DialogHeader>
+        </div>
 
-        <form onSubmit={handleSubmit}>
-          <div className="grid gap-4 py-4">
+        {/* Body */}
+        <div className="p-6">
+          <form onSubmit={handleSubmit} className="space-y-4">
             {/* Task Name */}
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="task_name" className="text-right">
@@ -154,15 +165,27 @@ const AddTaskModal = ({ projects, addTaskModalOpen, setAddTaskModalOpen }) => {
                 }
                 value={formData.assigned_to}
               >
-                <SelectTrigger className="col-span-3 w-102">
+                <SelectTrigger className="col-span-3">
                   <SelectValue placeholder="Select user" />
                 </SelectTrigger>
-                <SelectContent>
-                  {userOptions.map((user) => (
-                    <SelectItem key={user.id} value={String(user.id)}>
-                      {user.name}
-                    </SelectItem>
-                  ))}
+                <SelectContent className="max-h-60 overflow-y-auto">
+                  {" "}
+                  {curruser.role === "Developer"
+                    ? userOptions.map((user) => (
+                        <SelectItem key={user.id} value={String(user.id)}>
+                          {user.name}
+                        </SelectItem>
+                      ))
+                    : Object.values(allusers)
+                        .flat()
+                        .map((user) => (
+                          <SelectItem
+                            key={user.user_id}
+                            value={String(user.user_id)}
+                          >
+                            {user.username}
+                          </SelectItem>
+                        ))}
                 </SelectContent>
               </Select>
             </div>
@@ -236,7 +259,7 @@ const AddTaskModal = ({ projects, addTaskModalOpen, setAddTaskModalOpen }) => {
                 }
                 value={formData.project_name}
               >
-                <SelectTrigger className="col-span-3 w-102">
+                <SelectTrigger className="col-span-3">
                   <SelectValue placeholder="Select project" />
                 </SelectTrigger>
                 <SelectContent>
@@ -275,21 +298,22 @@ const AddTaskModal = ({ projects, addTaskModalOpen, setAddTaskModalOpen }) => {
                 </SelectContent>
               </Select>
             </div>
-          </div>
 
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setAddTaskModalOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" className="bg-red-600 hover:bg-red-700">
-              Add Task
-            </Button>
-          </DialogFooter>
-        </form>
+            {/* Footer */}
+            <div className="mt-6 flex items-center justify-end gap-3 border-t pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setAddTaskModalOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" className="bg-amber-900 hover:bg-amber-800">
+                Add Task
+              </Button>
+            </div>
+          </form>
+        </div>
       </DialogContent>
     </Dialog>
   );

@@ -14,6 +14,7 @@ const TasksPage = async () => {
 
   let tasks = [];
   let projects = [];
+  let allUsers = [];
 
   if (userId) {
     try {
@@ -46,13 +47,29 @@ const TasksPage = async () => {
           console.error("Failed to fetch team lead tasks");
         }
       }
+
+      // If user is a Team Lead or some authority supreme, fetch all users to assign tasks 
+            if (role !== "Developer") {
+        console.log("Fetching All users:");
+        const usersRes = await fetch(
+          `${process.env.NEXT_PUBLIC_MAIN_HOST}/api/users`, 
+          { cache: 'no-store' }
+        );
+
+        if (usersRes.ok) {
+          allUsers = await usersRes.json();
+          console.log("All users fetched successfully:", allUsers);
+        } else {
+          console.error("Failed to fetch  users");
+        }
+      }
     } catch (err) {
       console.error("Error fetching data:", err.message);
     }
   }
 
   return (
-    <Tasks tasks={tasks} projects={projects} curruser={currentUser} />
+    <Tasks tasks={tasks} projects={projects} curruser={currentUser} allusers={currentUser.role !== "Developer" ? allUsers : undefined}/>
   );
 };
 

@@ -44,7 +44,7 @@ function ProjectOverview({ projects }) {
             {projects && projects.map((project) => (
               <div
                 key={project.project_id}
-                className="p-4 border border-red-100 rounded-lg bg-red-50/50 cursor-pointer hover:bg-red-100/50 transition-colors"
+                className="p-4 border border-blue-100 rounded-lg bg-blue-50/50 cursor-pointer hover:bg-blue-100/50 transition-colors"
                 onClick={() => router.push(`/projectDetails/${project.project_id}`)}
               >
                 <div className="flex items-center justify-between mb-2">

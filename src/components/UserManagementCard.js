@@ -78,7 +78,7 @@ export default function UserManagementCard({ users }) {
               key={i}
               className={
                 pathname.includes("adminDashboard")
-                  ? "flex items-center justify-between p-4 border border-red-100 rounded-lg bg-red-50/50"
+                  ? "flex items-center justify-between p-4 border border-blue-100 rounded-lg bg-blue-50/50"
                   : "flex items-center justify-between p-4 border border-blue-100 rounded-lg bg-blue-50/50"
               }
             >
