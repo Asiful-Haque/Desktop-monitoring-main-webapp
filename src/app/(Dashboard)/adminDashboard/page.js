@@ -4,13 +4,16 @@ import { cookies } from "next/headers";
 import jwt from "jsonwebtoken";
 
 export default async function AdminDashboard() {
-  const cookieStore = await cookies();   
-  const token = cookieStore.get('token')?.value;
-  const currentUser = token ? jwt.decode(token) : null;
-  console.log("Current User:", currentUser);
-  const userId = currentUser ? currentUser.id : null;
-  console.log("User ID:", userId);
-
+  const tokenCookie = cookies().get("token");
+  if (!tokenCookie) throw new Error("Unauthorized");
+  const raw = jwt.decode(tokenCookie.value);
+  if (!raw) throw new Error("Unauthorized");
+  const userId = raw.id;
+  const curruser = {
+    id: raw.id,
+    email: raw.email,
+    role: raw.role
+  };
   // Server-side fetch
   const [usersRes, projectsRes, allProjectsRes] = await Promise.all([
     fetch(`${process.env.NEXT_PUBLIC_MAIN_HOST}/api/users`, { cache: "no-store" }),
@@ -26,7 +29,7 @@ export default async function AdminDashboard() {
   return (
     <>
       {/* <Header user={currentUser} /> */}
-      <AdminDashboardClient users={users} projects={projects} allprojects={allprojects} curruser={currentUser} />
+      <AdminDashboardClient users={users} projects={projects} allprojects={allprojects} curruser={curruser} />
     </>
   );
 }

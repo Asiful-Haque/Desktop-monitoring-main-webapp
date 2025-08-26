@@ -14,12 +14,15 @@ export class LoginService {
       .createQueryBuilder("u")
       .leftJoin("u.user_roles_rel", "ur")
       .leftJoin("ur.role_rel", "r")
+      .leftJoin("ur.tenant_rel", "t")
       .select([
         "u.user_id AS user_id",
         "u.username AS username",
         "u.email AS email",
         "u.password AS password",
         "r.role_id AS role_id",
+        "ur.tenant_id AS tenant_id",     
+        "t.name AS tenant_name",          
         "r.role_name AS r_role_name",
       ])
       .where("u.email = :email", { email })
@@ -48,15 +51,7 @@ export class LoginService {
     ) {
       isPasswordValid = await bcrypt.compare(password, storedPassword);
     } else {
-      // Plain text password
       isPasswordValid = password === storedPassword;
-
-      // Upgrade plain password to hashed after successful login
-      // if (isPasswordValid) {
-      //   const hashedPassword = await bcrypt.hash(password, 10);
-      //   await repo.update({ user_id: user.user_id }, { password: hashedPassword });
-      //   console.log("Upgraded plain password to hashed for user:", user.email);
-      // }
     }
 
     if (!isPasswordValid) {
@@ -71,6 +66,8 @@ export class LoginService {
       username: user.username,
       email: user.email,
       role: user.r_role_name || null,
+      tenant_id: user.tenant_id || null,
+      tenant_name: user.tenant_name || null,
     };
   }
 }

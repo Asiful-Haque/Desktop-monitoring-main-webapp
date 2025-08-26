@@ -1,6 +1,8 @@
 
+import { getAuthFromCookie } from '@/app/lib/auth-server';
 import { UsersService } from '@/app/services/users/usersService';
 import { NextResponse } from 'next/server';
+
 
 const usersService = new UsersService();
 
@@ -16,12 +18,14 @@ export async function GET() {
 
 export async function POST(request) {
     try {
+        const auth = await getAuthFromCookie();           
+        if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         const { username, email, role, password } = await request.json();
         if (!username || !email || !role || !password) {
             return NextResponse.json({ error: 'All fields are required' }, { status: 400 });
         }
 
-        const newUser = await usersService.createUser(username, email, role, password);
+        const newUser = await usersService.createUser(username, email, role, password, auth.tenant_id);
         return NextResponse.json({ user: newUser }, { status: 201 });
     } catch (error) {
         console.error('Error creating user:', error);

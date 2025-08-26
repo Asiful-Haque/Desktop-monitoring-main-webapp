@@ -29,7 +29,9 @@ export async function POST(req) {
       id: user.user_id,
       email: user.email,
       name: user.username,
-      role: user.role, 
+      role: user.role,
+      tenant_id: user.tenant_id,
+      tenant_name: user.tenant_name, 
     });
     console.log("Token signed successfully with values:", user.role);
 
@@ -38,6 +40,10 @@ export async function POST(req) {
       message: "Login successful",
       name: user.username,
       id : user.user_id,
+      email: user.email,
+      role: user.role,
+      tenant_id: user.tenant_id,
+      tenant_name: user.tenant_name,
     });
 
     // console.log("About to set cookie…");

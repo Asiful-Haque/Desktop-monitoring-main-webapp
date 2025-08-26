@@ -109,7 +109,7 @@ export class UsersService {
     });
   }
 
-  async createUser(username, email, roleName, password) {
+  async createUser(username, email, roleName, password, tenant_id) {
     const ds = await getDataSource();
     const userRepo = ds.getRepository(User);
     const roleRepo = ds.getRepository(Role);
@@ -136,6 +136,7 @@ export class UsersService {
     const userRole = userRoleRepo.create({
       user_id: savedUser.user_id,
       role_id: role.role_id,
+      tenant_id: tenant_id,
     });
     await userRoleRepo.save(userRole);
 
