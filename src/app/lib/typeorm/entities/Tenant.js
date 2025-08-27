@@ -22,5 +22,15 @@ export const Tenant = new EntitySchema({
       target: "UserRoles",
       inverseSide: "tenant_rel",
     },
+    projects_rel: {
+      type: "one-to-many",
+      target: "Project",
+      inverseSide: "tenant_rel", 
+    },
+    tasks_rel: {
+      type: "one-to-many",
+      target: "Task",
+      inverseSide: "tenant_rel", 
+    },
   },
 });

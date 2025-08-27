@@ -31,7 +31,7 @@ const getStatusColor = (status) => {
 
 function ProjectOverview({ projects }) {
   const router = useRouter();
-  console.log("Projects data:", projects);
+  // console.log("Projects data:", projects);
   return (
     <div>
       <Card className="border-0 shadow-lg bg-white/70 backdrop-blur-sm h-196">

@@ -2,11 +2,14 @@ import { verifyToken } from '@/app/lib/auth';
 import { corsEmpty, corsJson } from '@/app/lib/coreResponse';
 import { TaskService } from '@/app/services/Task/taskService';
 import { NextResponse } from "next/server";
+import { getAuthFromCookie } from '@/app/lib/auth-server';
 
 const taskService = new TaskService();
 
 export async function POST(req) {
   try {
+    const auth =  await getAuthFromCookie(req);           
+    if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const body = await req.json();
     if (!body.task_name || !body.project_name) {
       return NextResponse.json(
@@ -14,7 +17,7 @@ export async function POST(req) {
         { status: 400 }
       );
     }
-    const newTask = await taskService.setTask(body);
+    const newTask = await taskService.setTask({taskData: body, tenant_id: auth.tenant_id});
     return NextResponse.json(
       { message: "Task created successfully", task: newTask },
       { status: 201 }

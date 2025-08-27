@@ -5,7 +5,7 @@ import { AssignedUsersToProjects } from "@/app/lib/typeorm/entities/AssignedUser
 import { Task } from "@/app/lib/typeorm/entities/Task";
 
 export class TaskService {
-  async setTask(taskData) {
+  async setTask({ taskData, tenant_id }) {
     const ds = await getDataSource();
     const repo = ds.getRepository(Task);
 
@@ -18,6 +18,7 @@ export class TaskService {
       status: taskData.status || "pending",
       project_id: Number(taskData.project_name),
       priority: taskData.priority || "MEDIUM",
+      tenant_id: tenant_id,
     });
     const savedTask = await repo.save(newTask);
     return savedTask;
@@ -62,79 +63,85 @@ export class TaskService {
       .getRawMany();
   }
 
-async getAllTasks({ userId, projectId }) {
-  if ((userId && projectId) || (!userId && !projectId)) {
-    throw new Error("Exactly one of userId or projectId must be provided");
+  async getAllTasks({ userId, projectId, tenant_id }) {
+    if ((userId && projectId) || (!userId && !projectId)) {
+      throw new Error("Exactly one of userId or projectId must be provided");
+    }
+    const ds = await getDataSource();
+    const repo = ds.getRepository(Task);
+    const qb = repo
+      .createQueryBuilder("task")
+      .leftJoin("task.assigned_to_rel", "user")
+      .leftJoin("task.project_rel", "project")
+      .select([
+        "task.task_id           AS task_id",
+        "task.task_name         AS task_name",
+        "task.task_description  AS task_description",
+        "task.status            AS status",
+        "task.priority          AS priority",
+        "task.start_date        AS start_date",
+        "task.deadline          AS deadline",
+        "task.end_date          AS end_date",
+        "user.user_id           AS assigned_to",
+        "user.username          AS assigned_to_name",
+        "task.project_id        AS project_id",
+        "project.project_name   AS project_name",
+      ])
+      .orderBy("task.start_date", "ASC");
+
+    if (userId) {
+      qb.where("task.assigned_to = :userId", {
+        userId: Number(userId),
+      }).andWhere("task.tenant_id = :tenant_id", { tenant_id });
+    } else {
+      qb.where("task.project_id = :projectId", {
+        projectId: Number(projectId),
+      }).andWhere("task.tenant_id = :tenant_id", { tenant_id });
+    }
+
+    return qb.getRawMany();
   }
-
-  const ds = await getDataSource();
-  const repo = ds.getRepository(Task);
-
-  const qb = repo
-    .createQueryBuilder("task")
-    .leftJoin("task.assigned_to_rel", "user")
-    .leftJoin("task.project_rel", "project")
-    .select([
-      "task.task_id           AS task_id",
-      "task.task_name         AS task_name",
-      "task.task_description  AS task_description",
-      "task.status            AS status",
-      "task.priority          AS priority",
-      "task.start_date        AS start_date",
-      "task.deadline          AS deadline",
-      "task.end_date          AS end_date",
-      "user.user_id           AS assigned_to",
-      "user.username          AS assigned_to_name",
-      "task.project_id        AS project_id",      // ✅ from task table
-      "project.project_name   AS project_name",    // ✅ friendly name
-    ])
-    .orderBy("task.start_date", "ASC");
-
-  if (userId) {
-    qb.where("task.assigned_to = :userId", { userId: Number(userId) });
-  } else {
-    qb.where("task.project_id = :projectId", { projectId: Number(projectId) });
-  }
-
-  return qb.getRawMany(); // ✅ returns your aliases
-}
 
   // app/services/Task/taskService.js
-async getAllTasksForSupremeUsers(userIdInput) {
-  const ds = await getDataSource();
-  const uid = typeof userIdInput === "string" ? parseInt(userIdInput, 10) : Number(userIdInput);
-  if (!Number.isFinite(uid)) throw new Error(`Invalid userId: ${JSON.stringify(userIdInput)}`);
+  async getAllTasksForSupremeUsers(userIdInput) {
+    const ds = await getDataSource();
+    const uid =
+      typeof userIdInput === "string"
+        ? parseInt(userIdInput, 10)
+        : Number(userIdInput);
+    if (!Number.isFinite(uid))
+      throw new Error(`Invalid userId: ${JSON.stringify(userIdInput)}`);
 
-  const qb = ds
-    .getRepository(Task)
-    .createQueryBuilder("task")
-    .innerJoin("task.project_rel", "project")
-    // 🔗 use the EntitySchema for the mapping table
-    .leftJoin(
-      AssignedUsersToProjects,
-      "aup",
-      "aup.project_id = project.project_id"
-    )
-    .leftJoin("task.assigned_to_rel", "user")
-    .where("(aup.user_id = :uid OR project.assigned_to = :uid)", { uid })
-    .distinct(true)
-    .select([
-      "task.task_id           AS task_id",
-      "task.task_name         AS task_name",
-      "task.task_description  AS task_description",
-      "task.status            AS status",
-      "task.priority          AS priority",
-      "task.start_date        AS start_date",
-      "task.deadline          AS deadline",
-      "task.end_date          AS end_date",
-      "user.user_id           AS assigned_to",
-      "user.username          AS assigned_to_name",
-      "project.project_id     AS project_id",
-      "project.project_name   AS project_name",
-    ])
-    .orderBy("task.start_date", "ASC");
+    const qb = ds
+      .getRepository(Task)
+      .createQueryBuilder("task")
+      .innerJoin("task.project_rel", "project")
+      // 🔗 use the EntitySchema for the mapping table
+      .leftJoin(
+        AssignedUsersToProjects,
+        "aup",
+        "aup.project_id = project.project_id"
+      )
+      .leftJoin("task.assigned_to_rel", "user")
+      .where("(aup.user_id = :uid OR project.assigned_to = :uid)", { uid })
+      .distinct(true)
+      .select([
+        "task.task_id           AS task_id",
+        "task.task_name         AS task_name",
+        "task.task_description  AS task_description",
+        "task.status            AS status",
+        "task.priority          AS priority",
+        "task.start_date        AS start_date",
+        "task.deadline          AS deadline",
+        "task.end_date          AS end_date",
+        "user.user_id           AS assigned_to",
+        "user.username          AS assigned_to_name",
+        "project.project_id     AS project_id",
+        "project.project_name   AS project_name",
+      ])
+      .orderBy("task.start_date", "ASC");
 
-  // console.log(qb.getSql(), qb.getParameters());
-  return qb.getRawMany();
-}
+    // console.log(qb.getSql(), qb.getParameters());
+    return qb.getRawMany();
+  }
 }

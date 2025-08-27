@@ -1,16 +1,20 @@
-import React from 'react';
-import { cookies } from 'next/headers';
-import jwt from 'jsonwebtoken';
-import Tasks from './TaskByProject';
+import React from "react";
+import { cookies } from "next/headers";
+import jwt from "jsonwebtoken";
+import Tasks from "./TaskByProject";
 
 const TasksPage = async () => {
+  // Read token from cookie (SSR)
   const cookieStore = await cookies();
-  const token = cookieStore.get('token')?.value;
+  const token = cookieStore.get("token")?.value;
   const currentUser = token ? jwt.decode(token) : null;
   const userId = currentUser ? currentUser.id : null;
-  const role = currentUser ? currentUser.role : null; // assuming your token has `role`
+  const role = currentUser ? currentUser.role : null;
 
   console.log("Current User:", currentUser);
+
+  // Prepare cookie header for server-side fetch
+  const cookieHeader = token ? `token=${token}` : "";
 
   let tasks = [];
   let projects = [];
@@ -18,10 +22,15 @@ const TasksPage = async () => {
 
   if (userId) {
     try {
-      // Always fetch user's own tasks and projects
       const [tasksRes, projectsRes] = await Promise.all([
-        fetch(`${process.env.NEXT_PUBLIC_MAIN_HOST}/api/tasks/${userId}`, { cache: 'no-store' }),
-        fetch(`${process.env.NEXT_PUBLIC_MAIN_HOST}/api/projects/${userId}`, { cache: 'no-store' }),
+        fetch(`${process.env.NEXT_PUBLIC_MAIN_HOST}/api/tasks/${userId}`, {
+          cache: "no-store",
+          headers: { Cookie: cookieHeader }, 
+        }),
+        fetch(`${process.env.NEXT_PUBLIC_MAIN_HOST}/api/projects/${userId}`, {
+          cache: "no-store",
+          headers: { Cookie: cookieHeader }, 
+        }),
       ]);
 
       if (tasksRes.ok && projectsRes.ok) {
@@ -31,36 +40,35 @@ const TasksPage = async () => {
         projects = projectsData.projects;
       }
 
-      // If user is a Team Lead or some authority supreme, fetch team tasks as well 
+      // Team Lead / admin: fetch team tasks
       if (role === "Team Lead") {
         console.log("Fetching team lead tasks for userId:", userId);
         const teamTasksRes = await fetch(
-          `${process.env.NEXT_PUBLIC_MAIN_HOST}/api/taskForSupremeUsers/${userId}`, 
-          { cache: 'no-store' }
+          `${process.env.NEXT_PUBLIC_MAIN_HOST}/api/taskForSupremeUsers/${userId}`,
+          { cache: "no-store", headers: { Cookie: cookieHeader } }
         );
 
         if (teamTasksRes.ok) {
           const teamTasksData = await teamTasksRes.json();
-          // Replace tasks with team tasks
           tasks = teamTasksData.tasks;
         } else {
           console.error("Failed to fetch team lead tasks");
         }
       }
 
-      // If user is a Team Lead or some authority supreme, fetch all users to assign tasks 
-            if (role !== "Developer") {
-        console.log("Fetching All users:");
-        const usersRes = await fetch(
-          `${process.env.NEXT_PUBLIC_MAIN_HOST}/api/users`, 
-          { cache: 'no-store' }
-        );
+      // Team Lead / admin: fetch all users
+      if (role !== "Developer") {
+        console.log("Fetching all users:");
+        const usersRes = await fetch(`${process.env.NEXT_PUBLIC_MAIN_HOST}/api/users`, {
+          cache: "no-store",
+          headers: { Cookie: cookieHeader }, // forward cookie
+        });
 
         if (usersRes.ok) {
           allUsers = await usersRes.json();
           console.log("All users fetched successfully:", allUsers);
         } else {
-          console.error("Failed to fetch  users");
+          console.error("Failed to fetch users");
         }
       }
     } catch (err) {
@@ -69,7 +77,12 @@ const TasksPage = async () => {
   }
 
   return (
-    <Tasks tasks={tasks} projects={projects} curruser={currentUser} allusers={currentUser.role !== "Developer" ? allUsers : undefined}/>
+    <Tasks
+      tasks={tasks}
+      projects={projects}
+      curruser={currentUser}
+      allusers={role !== "Developer" ? allUsers : undefined}
+    />
   );
 };
 

@@ -53,7 +53,7 @@ export async function POST(req) {
       maxAge: 60 * 60, // 1 hour
       sameSite: "lax",
     });
-    // console.log("Token added in cookie successfully:", token);
+    console.log("Token added in cookie successfully:", token);
     console.log("Response:", response);
     return response;
   } catch (error) {

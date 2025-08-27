@@ -118,14 +118,9 @@
 //       ])
 //       .getOne();
 
-//     return project || null; 
+//     return project || null;
 //   }
 // }
-
-
-
-
-
 
 // app/services/project/projectService.js
 import { getDataSource } from "@/app/lib/typeorm/db/getDataSource";
@@ -134,36 +129,35 @@ import { User } from "@/app/lib/typeorm/entities/User";
 
 export class ProjectService {
   // Get all projects created by a specific user (userId)
-async getAllProjects(userId) {
-  const ds = await getDataSource();
-  const projectRepo = ds.getRepository(Project);
+  async getAllProjects(userId) {
+    const ds = await getDataSource();
+    const projectRepo = ds.getRepository(Project);
 
-  return projectRepo
-    .createQueryBuilder("project")
-    .leftJoinAndSelect("project.assigned_to_rel", "owner")
-    .leftJoin("project.assigned_users_rel", "aup")
-    .leftJoin("aup.user_rel", "assignedUser")
-    .where("owner.user_id = :userId", { userId })
-    .orWhere("assignedUser.user_id = :userId", { userId })
-    .select([
-      "project.project_id",
-      "project.project_name",
-      "project.project_description",
-      "project.status",
-      "project.deadline",
-      "project.assigned_to",
-      "owner.user_id",
-      "owner.username",
-      "assignedUser.user_id",
-      "assignedUser.username",
-    ])
-    .orderBy("project.project_id", "ASC")
-    .getMany();
-}
-
+    return projectRepo
+      .createQueryBuilder("project")
+      .leftJoinAndSelect("project.assigned_to_rel", "owner")
+      .leftJoin("project.assigned_users_rel", "aup")
+      .leftJoin("aup.user_rel", "assignedUser")
+      .where("owner.user_id = :userId", { userId })
+      .orWhere("assignedUser.user_id = :userId", { userId })
+      .select([
+        "project.project_id",
+        "project.project_name",
+        "project.project_description",
+        "project.status",
+        "project.deadline",
+        "project.assigned_to",
+        "owner.user_id",
+        "owner.username",
+        "assignedUser.user_id",
+        "assignedUser.username",
+      ])
+      .orderBy("project.project_id", "ASC")
+      .getMany();
+  }
 
   // Get all projects only for Admin
-  async getAllProjectsForAdmin() {
+  async getAllProjectsForAdmin(tenant_id) {
     const ds = await getDataSource();
     const projectRepo = ds.getRepository(Project);
 
@@ -181,12 +175,21 @@ async getAllProjects(userId) {
         "user.user_id",
         "user.username",
       ])
+      .where("project.tenant_id = :tenant_id", { tenant_id })
       .orderBy("project.project_id", "ASC")
       .getMany();
   }
 
   // Create a new project and link to user by email
-  async createProject({ name, description, start_date, deadline, status, email }) {
+  async createProject({
+    name,
+    description,
+    start_date,
+    deadline,
+    status,
+    email,
+    tenant_id,
+  }) {
     const ds = await getDataSource();
     const projectRepo = ds.getRepository(Project);
     const userRepo = ds.getRepository(User);
@@ -203,6 +206,7 @@ async getAllProjects(userId) {
       deadline,
       status,
       assigned_to: user.user_id,
+      tenant_id,
     });
 
     const savedProject = await projectRepo.save(project);
@@ -215,6 +219,7 @@ async getAllProjects(userId) {
       deadline: savedProject.deadline,
       status: savedProject.status,
       assigned_to: savedProject.assigned_to,
+      // tenant_id: savedProject.tenant_id,
     };
   }
 

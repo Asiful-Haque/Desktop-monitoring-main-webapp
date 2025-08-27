@@ -4,12 +4,27 @@ import { NextResponse } from "next/server";
 import { signToken, verifyToken } from "./auth";
 
 
-/** Read + verify JWT from HttpOnly cookie named "token". Returns claims or null. */
-export async function getAuthFromCookie() {
-  const token = cookies().get("token")?.value;
-  if (!token) return null;
-  return await verifyToken(token);
+
+export async function getAuthFromCookie(req) {
+  if (!req) { //This is for direct cookie access 
+    const cookieStore = await cookies();
+    const tokenCookie = cookieStore.get("token");
+    const token = tokenCookie?.value;
+    if (token) return verifyToken(token);
+  }
+  if (req) { //Its for manual fetch where we forward the cookie in headers
+    const cookieHeader = req.headers.get("cookie"); 
+    if (cookieHeader) {
+      const token = cookieHeader
+        .split("; ")
+        .find(c => c.startsWith("token="))
+        ?.split("=")[1];
+      if (token) return verifyToken(token);
+    }
+  }
+  return null;
 }
+
 
 /** Read + verify JWT from Authorization: Bearer <token>. Returns claims or null. */
 export async function getAuthFromHeader() {
@@ -26,7 +41,7 @@ export async function requireAuth() {
   return claims;
 }
 
-/** Set the HttpOnly auth cookie after login. */
+// /** Set the HttpOnly auth cookie after login. */
 export async function setAuthCookie(payload, opts = {}) {
   const {
     maxAge = 60 * 60, // 1h

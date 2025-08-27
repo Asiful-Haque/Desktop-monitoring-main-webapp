@@ -43,6 +43,10 @@ export const Task = new EntitySchema({
       length: 50,
       default: "MEDIUM",
     },
+    tenant_id: {             
+      type: "int",
+      nullable: false,
+    },
   },
   relations: {
     assigned_to_rel: {
@@ -67,6 +71,15 @@ export const Task = new EntitySchema({
       type: "one-to-many",
       target: "Screenshot",
       inverseSide: "task_rel",
+    },
+    tenant_rel: {             
+      type: "many-to-one",
+      target: "Tenant",
+      joinColumn: {
+        name: "tenant_id",
+        referencedColumnName: "tenant_id",
+      },
+      inverseSide: "tasks_rel",
     },
   },
 });

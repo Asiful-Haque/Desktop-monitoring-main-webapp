@@ -29,7 +29,7 @@ function getRoleColor(role) {
 
 export default function UserManagementCard({ users }) {
   const pathname = usePathname();
-  console.log("usesrs data:", users);
+  // console.log("usesrs data:", users);
   
   const usersArray = Array.isArray(users)
   ? users

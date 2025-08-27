@@ -37,6 +37,10 @@ export const Project = new EntitySchema({
     assigned_to: {
       type: "bigint",
     },
+    tenant_id: {             
+      type: "int",
+      nullable: false,
+    },
   },
   relations: {
     assigned_to_rel: {
@@ -57,6 +61,15 @@ export const Project = new EntitySchema({
       type: "one-to-many",
       target: "AssignedUsersToProjects",
       inverseSide: "project_rel",
+    },
+    tenant_rel: {             
+      type: "many-to-one",
+      target: "Tenant",
+      joinColumn: {
+        name: "tenant_id",
+        referencedColumnName: "tenant_id",
+      },
+      inverseSide: "projects_rel",
     },
   },
 });
