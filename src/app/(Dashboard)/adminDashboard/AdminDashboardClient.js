@@ -25,6 +25,9 @@ import UserManagementCard from "@/components/UserManagementCard";
 import AddUserModal from "@/components/AddUserModal";
 import AddProjectModal from "@/components/addProjectModal";
 import AssignUserToProjectModal from "@/components/AssignUserToProjectModal";
+import ProjectActivityDashboard from "@/components/commonComponent/ActivityDashboard";
+
+
 
 export default function AdminDashboardClient({
   users,
@@ -137,6 +140,7 @@ export default function AdminDashboardClient({
           </Card>
         ))}
       </div>
+      <ProjectActivityDashboard />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <UserManagementCard users={users} />
@@ -178,6 +182,7 @@ export default function AdminDashboardClient({
           </div>
         </CardContent>
       </Card>
+
 
       <AddUserModal
         addUserModalOpen={addUserModalOpen}

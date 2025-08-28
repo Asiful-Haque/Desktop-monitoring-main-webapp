@@ -1,17 +1,15 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  GitBranch,
-  FileText,
-} from "lucide-react";
+import { GitBranch, FileText } from "lucide-react";
 import UserManagementCard from "@/components/UserManagementCard";
 import ProjOverviewCards from "@/components/ProjOverviewCards";
 import ProjTaskCard from "@/components/ProjTaskCard";
 import ProjDetailsCard from "@/components/ProjDetailsCard";
-import jwt from 'jsonwebtoken';
-import { cookies } from 'next/headers';
+import jwt from "jsonwebtoken";
+import { cookies } from "next/headers";
 
-const getTeamMembers = async (projectId) => { // Its the api calling function
+const getTeamMembers = async (projectId) => {
+  // Its the api calling function
   try {
     const res = await fetch(
       `${process.env.NEXT_PUBLIC_MAIN_HOST}/api/team-member/${projectId}`,
@@ -30,12 +28,15 @@ const getTeamMembers = async (projectId) => { // Its the api calling function
     return [];
   }
 };
-const getProjectTasks = async (projectId) => {
+const getProjectTasks = async (projectId, cookieHeader) => {
   try {
     const res = await fetch(
       `${process.env.NEXT_PUBLIC_MAIN_HOST}/api/tasks/task-project/${projectId}`, // Its the api calling function
       {
-        cache: "no-store", // SSR fresh data
+        cache: "no-store",
+        headers: {
+          Cookie: cookieHeader, // <-- send cookie manually
+        },
       }
     );
     if (!res.ok) {
@@ -61,25 +62,30 @@ const getProjectData = async (projectId) => {
       throw new Error("Failed to fetch project data");
     }
     const data = await res.json();
-    return data.projectDetailsResponse || {}; 
+    return data.projectDetailsResponse || {};
   } catch (error) {
     console.error("Error fetching project data:", error);
-    return {}; 
+    return {};
   }
 };
 
-
 const ProjectDetails = async ({ params }) => {
-  const { projectId } = await params;
-  const teamMembers = await getTeamMembers(projectId); // calling the api from a function
-  const tasks = await getProjectTasks(projectId);
+  const cookieStore = await cookies();
+  const tokenCookie = cookieStore.get("token");
+  if (!tokenCookie) throw new Error("Unauthorized");
+
+  const raw = jwt.decode(tokenCookie.value);
+  if (!raw) throw new Error("Unauthorized");
+
+  const cookieHeader = `token=${tokenCookie.value}`;
+  const { projectId } = params;
+
+  const teamMembers = await getTeamMembers(projectId); 
+  const tasks = await getProjectTasks(projectId, cookieHeader);
   const projectData = await getProjectData(projectId);
   const teamCount = teamMembers.members?.length || 0;
 
-  const cookieStore = await cookies();
-  const token = cookieStore.get('token')?.value;
-  const currentUser = token ? jwt.decode(token) : null;
-
+  const currentUser = raw;
   // Mock project data - in real app, this would be fetched based on projectId
   const project = {
     id: projectId,
@@ -94,87 +100,6 @@ const ProjectDetails = async ({ params }) => {
     category: "Web Development",
     priority: "High",
   };
-
-  // const tasks = [
-  //   {
-  //     id: 1,
-  //     title: "User Authentication System",
-  //     status: "Completed",
-  //     assignee: "Alex Developer",
-  //     dueDate: "2024-01-15",
-  //   },
-  //   {
-  //     id: 2,
-  //     title: "Product Catalog Integration",
-  //     status: "In Progress",
-  //     assignee: "Mike PM",
-  //     dueDate: "2024-01-25",
-  //   },
-  //   {
-  //     id: 3,
-  //     title: "Payment Gateway Setup",
-  //     status: "Pending",
-  //     assignee: "Sarah Designer",
-  //     dueDate: "2024-02-05",
-  //   },
-  //   {
-  //     id: 4,
-  //     title: "Mobile Responsiveness",
-  //     status: "In Progress",
-  //     assignee: "Tom QA",
-  //     dueDate: "2024-02-10",
-  //   },
-  // ];
-  //   {
-  //     id: 1,
-  //     username: "Alex Developer",
-  //     role: "Lead Developer",
-  //     avatar: "AD",
-  //     status: "Active",
-  //   },
-  //   {
-  //     id: 2,
-  //     username: "Mike PM",
-  //     role: "Product Manager",
-  //     avatar: "MP",
-  //     status: "Active",
-  //   },
-  //   {
-  //     id: 3,
-  //     username: "Sarah Designer",
-  //     role: "UI/UX Designer",
-  //     avatar: "SD",
-  //     status: "Away",
-  //   },
-  //   {
-  //     id: 4,
-  //     username: "Tom QA",
-  //     role: "QA Engineer",
-  //     avatar: "TQ",
-  //     status: "Active",
-  //   },
-  //       {
-  //     id: 5,
-  //     username: "Mike PM",
-  //     role: "Product Manager",
-  //     avatar: "MP",
-  //     status: "Active",
-  //   },
-  //   {
-  //     id: 6,
-  //     username: "Sarah Designer",
-  //     role: "UI/UX Designer",
-  //     avatar: "SD",
-  //     status: "Away",
-  //   },
-  //   {
-  //     id: 7,
-  //     username: "Tom QA",
-  //     role: "QA Engineer",
-  //     avatar: "TQ",
-  //     status: "Active",
-  //   },
-  // ];
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -237,7 +162,7 @@ const ProjectDetails = async ({ params }) => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <ProjOverviewCards project={project} teamCount={teamCount}/>
+        <ProjOverviewCards project={project} teamCount={teamCount} />
         <UserManagementCard users={teamMembers} />
       </div>
       <ProjTaskCard tasks={tasks} curruser={currentUser} />

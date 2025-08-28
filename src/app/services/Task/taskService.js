@@ -24,20 +24,23 @@ export class TaskService {
     return savedTask;
   }
 
-  async updateTaskStatus({ taskId, newStatus }) {
-    const ds = await getDataSource();
-    const repo = ds.getRepository(Task);
-
-    const task = await repo.findOne({ where: { task_id: Number(taskId) } });
-    if (!task) {
-      throw new Error(`Task with ID ${taskId} not found`);
-    }
-    task.status = newStatus;
-    task.end_date = new Date();
-
-    const updatedTask = await repo.save(task);
-    return updatedTask;
+async updateTaskStatus({ taskId, newStatus }) {
+  const ds = await getDataSource();
+  const repo = ds.getRepository(Task);
+  const task = await repo.findOne({ where: { task_id: Number(taskId) } });
+  if (!task) {
+    throw new Error(`Task with ID ${taskId} not found`);
   }
+  task.status = newStatus;
+  if (newStatus.toLowerCase() === "completed") {
+    task.end_date = new Date(); // set end_date when completed
+  } else {
+    task.end_date = null; // clear end_date otherwise
+  }
+  const updatedTask = await repo.save(task);
+  return updatedTask;
+}
+
 
   async allTaskForGraph() {
     const ds = await getDataSource();
