@@ -1,153 +1,256 @@
-import React, { useState, useEffect, useRef } from 'react';
-import Chart from 'chart.js/auto';
-import { Chart as ChartJS, registerables } from 'chart.js';
-import 'chartjs-adapter-luxon'; // Ensure Luxon adapter is imported
+import React, { useState, useEffect, useRef } from "react";
+import Chart from "chart.js/auto";
+import { Chart as ChartJS, registerables } from "chart.js";
+import "chartjs-adapter-luxon"; // Ensure Luxon adapter is imported
 
 ChartJS.register(...registerables);
 
+// Utility function to hash a string into a hue value (to generate unique colors)
+const hashStringToHue = (str) => {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash * 31 + str.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash) % 360;
+};
+
+// Function to generate colors dynamically based on the user's name
+const colorForUser = (userName, alpha = 1) => {
+  const h = hashStringToHue(userName);
+  const s = 90; // Increase saturation for more vibrant colors
+  const l = 60; // Increase lightness for brighter colors
+  return `hsla(${h}, ${s}%, ${l}%, ${alpha})`; // Adjusted alpha for more visibility
+};
+
 const ProjectActivityDashboard = () => {
-  const [activityData, setActivityData] = useState([]);
+  const [tasks, setTasks] = useState([]);
+  const [users, setUsers] = useState([]); // Added state for users
   const [filters, setFilters] = useState({
-    startDate: '2025-07-01',
-    endDate: '2025-07-30',
-    selectedTypes: ['rb', 'apt', 'ocn', 'ptc']
+    startDate: "", // Set dynamically to the first day of the current month
+    endDate: "", // Set dynamically to the last day of the current month
+    selectedUsers: [], // Change to track selected users
   });
+  const [projectCount, setProjectCount] = useState(0);
+  const [userCount, setUserCount] = useState(0);
+  const [activityCount, setActivityCount] = useState(0);
 
   const chartRef = useRef(null); // Using useRef to get the chart context directly
 
-  const activityTypes = React.useMemo(() => [
-    { id: 'rb', name: 'P1', color: '#2563eb' },
-    { id: 'apt', name: 'P2', color: '#f59e0b' },
-    { id: 'ocn', name: 'P3', color: '#ef4444' },
-    { id: 'ptc', name: 'P4', color: '#10b981' }
-  ], []);
+  const getFirstAndLastDateOfMonth = () => {
+    const currentDate = new Date();
+    const firstDay = new Date(
+      currentDate.getFullYear(),
+      currentDate.getMonth(),
+      1
+    );
+    const lastDay = new Date(
+      currentDate.getFullYear(),
+      currentDate.getMonth() + 1,
+      0
+    );
 
-  const staticActivityData = [
-    { project: 'Project A', date: '2025-07-01', activityType: 'rb', count: 2 },
-    { project: 'Project B', date: '2025-07-02', activityType: 'apt', count: 1 },
-    { project: 'Project C', date: '2025-07-03', activityType: 'ocn', count: 3 },
-    { project: 'Project D', date: '2025-07-05', activityType: 'ptc', count: 1 },
-    { project: 'Project E', date: '2025-07-06', activityType: 'rb', count: 2 },
-    { project: 'Project A', date: '2025-07-08', activityType: 'apt', count: 2 },
-    { project: 'Project B', date: '2025-07-10', activityType: 'ocn', count: 1 },
-    { project: 'Project C', date: '2025-07-12', activityType: 'ptc', count: 2 },
-    { project: 'Project D', date: '2025-07-15', activityType: 'rb', count: 3 },
-    { project: 'Project E', date: '2025-07-18', activityType: 'apt', count: 1 },
-    { project: 'Project F', date: '2025-07-20', activityType: 'ocn', count: 2 },
-    { project: 'Project G', date: '2025-07-22', activityType: 'ptc', count: 1 },
-    { project: 'Project H', date: '2025-07-25', activityType: 'rb', count: 2 },
-    { project: 'Project I', date: '2025-07-27', activityType: 'apt', count: 3 },
-    { project: 'Project J', date: '2025-07-29', activityType: 'ocn', count: 1 }
-  ];
+    return {
+      firstDay: firstDay.toISOString().split("T")[0], 
+      lastDay: lastDay.toISOString().split("T")[0], 
+    };
+  };
 
-  // Initialize the activity data
   useEffect(() => {
-    setActivityData(staticActivityData); // Initialize activity data
+    // Set the default date range to the current month
+    const { firstDay, lastDay } = getFirstAndLastDateOfMonth();
+    setFilters((prevFilters) => ({
+      ...prevFilters,
+      startDate: firstDay,
+      endDate: lastDay,
+    }));
   }, []);
 
-  const createDatasets = React.useCallback((typesToInclude) => {
-    const groupedData = {};
-    activityData.forEach((item) => {
-      if (!typesToInclude.includes(item.activityType)) return;
-      const key = `${item.project}_${item.date}_${item.activityType}`;
-      if (!groupedData[key]) groupedData[key] = { ...item, count: 0 };
-      groupedData[key].count += item.count;
-    });
-    return activityTypes.map((type) => ({
-      label: type.name,
-      data: Object.values(groupedData)
-        .filter((item) => item.activityType === type.id)
-        .map((item) => ({ x: item.project, y: item.date, count: item.count })),
-      backgroundColor: type.color + '80',
-      borderColor: type.color,
-      pointRadius: (context) => {
-        const count = context.raw ? context.raw.count : 1;
-        return Math.min(8 + count * 2, 16);
-      },
-      pointHoverRadius: (context) => {
-        const count = context.raw ? context.raw.count : 1;
-        return Math.min(12 + count * 2, 20);
-      },
-      pointStyle: 'circle'
-    }));
-  }, [activityData, activityTypes]);
+  // Fetch Projects and Tasks data from APIs
+  useEffect(() => {
+    const fetchTasksData = async () => {
+      try {
+        const taskRes = await fetch("http://localhost:5500/api/tasks");
 
-  const updateChart = React.useCallback((chart) => {
-    const startDate = new Date(filters.startDate);
-    const endDate = new Date(filters.endDate);
-    endDate.setHours(23, 59, 59, 999);
-    const selectedTypes = filters.selectedTypes;
+        if (!taskRes.ok) {
+          console.error("Failed to fetch data from API");
+          return;
+        }
 
-    chart.data.datasets = createDatasets(selectedTypes);
-    chart.options.scales.y.min = startDate;
-    chart.options.scales.y.max = endDate;
-    chart.update();
-  }, [filters.startDate, filters.endDate, filters.selectedTypes, createDatasets]);
+        const tasksData = await taskRes.json();
 
+        // Now we use 'assigned_to' directly since it's a string
+        const usersList = Array.from(
+          new Set(tasksData.tasks.map((task) => task.assigned_to))
+        );
+
+        // Calculate the number of unique projects
+        const projectList = Array.from(
+          new Set(tasksData.tasks.map((task) => task.project_name))
+        );
+
+        // Calculate the activities count (completed tasks)
+        const completedTasksCount = tasksData.tasks.filter(
+          (task) => task.status === "completed"
+        ).length;
+
+        console.log("Tasks:", tasksData);
+        console.log("Users:", usersList);
+        console.log("Projects:", projectList);
+
+        setTasks(tasksData.tasks);
+        setUsers(usersList); // Set unique users
+        setProjectCount(projectList.length); // Set project count
+        setUserCount(usersList.length); // Set user count
+        setActivityCount(completedTasksCount); // Set activity count
+
+        // Set all users as selected by default
+        setFilters((prevFilters) => ({
+          ...prevFilters,
+          selectedUsers: usersList,
+        }));
+      } catch (error) {
+        console.error("Error fetching data:", error);
+      }
+    };
+
+    fetchTasksData();
+  }, []);
+
+  // Filter and process completed tasks only
+  const completedTasks = React.useMemo(() => {
+    return tasks.filter(
+      (task) => task.status === "completed" && task.end_date !== null
+    );
+  }, [tasks]);
+
+  // Generate datasets based on selected users and project data
+  const createDatasets = React.useCallback(
+    (usersToInclude) => {
+      // Get unique project names for the X-axis
+      const projectNames = Array.from(
+        new Set(completedTasks.map((task) => task.project_name))
+      );
+
+      const groupedData = {};
+
+      completedTasks.forEach((task) => {
+        // Only include tasks for selected users
+        if (!usersToInclude.includes(task.assigned_to)) return;
+
+        const key = `${task.project_name}_${task.end_date}_${task.assigned_to}`;
+        if (!groupedData[key]) groupedData[key] = { ...task, count: 0 };
+        groupedData[key].count += 1;
+      });
+
+      // Map projects and set the x-axis to be unique project names
+      return projectNames.map((projectName) => ({
+        label: projectName,
+        data: completedTasks
+          .filter(
+            (task) =>
+              task.project_name === projectName &&
+              usersToInclude.includes(task.assigned_to)
+          )
+          .map((task) => ({
+            x: task.project_name, // Ensure the project name appears on the x-axis
+            y: task.end_date, // End date of task
+            count: 1, // Fallback count value
+            userColor: colorForUser(task.assigned_to), // Generate unique color for each user
+          })),
+        backgroundColor: "transparent", // No background for the entire dataset
+        borderColor: "transparent", // Transparent border
+        pointBorderColor: (ctx) => ctx.raw?.userColor || "gray", // Use dynamic color for user, fallback to gray
+        pointBackgroundColor: (ctx) => ctx.raw?.userColor || "gray", // Use dynamic color for user, fallback to gray
+        pointRadius: (ctx) => Math.min(8 + (ctx.raw?.count || 1) * 2, 16), // Check if `ctx.raw.count` exists
+        pointHoverRadius: (ctx) => Math.min(12 + (ctx.raw?.count || 1) * 2, 20), // Check if `ctx.raw.count` exists
+        pointStyle: "circle",
+      }));
+    },
+    [completedTasks] // Ensure dependencies include completed tasks
+  );
+
+  // Update the chart with filtered data
+  const updateChart = React.useCallback(
+    (chart) => {
+      const startDate = new Date(filters.startDate);
+      const endDate = new Date(filters.endDate);
+      endDate.setHours(23, 59, 59, 999);
+      const selectedUsers = filters.selectedUsers;
+
+      chart.data.datasets = createDatasets(selectedUsers);
+      chart.options.scales.y.min = startDate;
+      chart.options.scales.y.max = endDate;
+      chart.update();
+    },
+    [filters.startDate, filters.endDate, filters.selectedUsers, createDatasets]
+  );
+
+  // Handle date change in filters
   const handleDateChange = (e) => {
     setFilters({
       ...filters,
-      [e.target.name]: e.target.value
+      [e.target.name]: e.target.value,
     });
   };
 
-  const handleTypeChange = (e) => {
-    const { checked, id } = e.target;
+  // Handle user selection change
+  const handleUserChange = (e) => {
+    const { checked, value } = e.target;
     setFilters({
       ...filters,
-      selectedTypes: checked
-        ? [...filters.selectedTypes, id]
-        : filters.selectedTypes.filter((type) => type !== id)
+      selectedUsers: checked
+        ? [...filters.selectedUsers, value]
+        : filters.selectedUsers.filter((user) => user !== value),
     });
   };
 
-  // useEffect to handle chart initialization and updates
+  // Initialize chart and update on user or filter change
   useEffect(() => {
-    const ctx = chartRef.current.getContext('2d');
+    const ctx = chartRef.current.getContext("2d");
 
     const activityChart = new Chart(ctx, {
-      type: 'scatter',
-      data: { datasets: createDatasets(filters.selectedTypes) },
+      type: "scatter",
+      data: { datasets: createDatasets(filters.selectedUsers) },
       options: {
         responsive: true,
         maintainAspectRatio: false,
         scales: {
           x: {
-            type: 'category',
-            title: { display: true, text: 'Projects', color: '#333' },
-            ticks: { color: '#666' },
-            grid: { display: false }
+            type: "category",
+            title: { display: true, text: "Projects", color: "#333" },
+            ticks: { color: "#666" },
+            grid: { display: false },
           },
           y: {
-            type: 'time',
+            type: "time",
             time: {
-              unit: 'day',
-              displayFormats: { day: 'MMM d' },
-              tooltipFormat: 'MMM d, yyyy'
+              unit: "day",
+              displayFormats: { day: "MMM d" },
+              tooltipFormat: "MMM d, yyyy",
             },
-            title: { display: true, text: 'Date', color: '#333' },
-            ticks: { color: '#666' },
-            grid: { color: '#e5e5e5' }
-          }
+            title: { display: true, text: "End Date", color: "#333" },
+            ticks: { color: "#666" },
+            grid: { color: "#e5e5e5" },
+          },
         },
         plugins: {
           legend: { display: false },
           tooltip: {
             callbacks: {
-              label: (context) => `Activities: ${context.raw.count}`,
+              label: (context) => `Tasks: ${context.raw.count}`,
               afterLabel: (context) => `Project: ${context.raw.x}`,
               title: (context) => {
                 const date = new Date(context[0].raw.y);
-                return date.toLocaleDateString('en-US', {
-                  month: 'long',
-                  day: 'numeric',
-                  year: 'numeric'
+                return date.toLocaleDateString("en-US", {
+                  month: "long",
+                  day: "numeric",
+                  year: "numeric",
                 });
-              }
-            }
-          }
-        }
-      }
+              },
+            },
+          },
+        },
+      },
     });
 
     // Initial chart update
@@ -157,17 +260,27 @@ const ProjectActivityDashboard = () => {
     return () => {
       activityChart.destroy();
     };
-  }, [filters.selectedTypes, filters.startDate, filters.endDate, createDatasets, updateChart]); // Re-run when filters change
+  }, [
+    filters.selectedUsers,
+    filters.startDate,
+    filters.endDate,
+    createDatasets,
+    updateChart,
+  ]);
 
   return (
     <div className="container mx-auto px-6 py-8">
-      <header className="text-center mb-8 py-6 bg-white rounded-lg shadow-md">
-        <h1 className="text-2xl font-semibold text-gray-900">Project Activity Dashboard</h1>
-        <p className="text-gray-600 mt-2">Visualize project activities over time with interactive filters</p>
+      <header className="text-center mb-8 py-6 bg-white/70 rounded-lg shadow-md">
+        <h1 className="text-2xl font-semibold text-gray-900">
+          Project Activity Dashboard
+        </h1>
+        <p className="text-gray-600 mt-2">
+          Visualize project activities over time with interactive filters
+        </p>
       </header>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Filters */}
-        <div className="bg-white rounded-lg p-6 shadow-md">
+        <div className="bg-white/70 rounded-lg p-6 shadow-md">
           <h2 className="text-xl font-medium text-gray-900">Filters</h2>
           <div className="mt-6">
             <h3 className="text-lg font-medium text-gray-800">Date Range</h3>
@@ -189,25 +302,22 @@ const ProjectActivityDashboard = () => {
             </div>
           </div>
           <div className="mt-6">
-            <h3 className="text-lg font-medium text-gray-800">Persons</h3>
-            <div className="space-y-4">
-              {activityTypes.map((type) => (
-                <div className="flex items-center space-x-3" key={type.id}>
-                  <div
-                    className="w-4 h-4 rounded-sm"
-                    style={{
-                      backgroundColor: type.color,
-                      borderColor: type.color,
-                    }}
-                  />
-                  <span className="text-gray-800">{type.name}</span>
+            <h3 className="text-lg font-medium text-gray-800">Users</h3>
+            <div
+              className="space-y-4 overflow-auto"
+              style={{ maxHeight: "200px" }} // Make the list scrollable if there are many users
+            >
+              {users.map((user) => (
+                <div className="flex items-center space-x-3" key={user}>
                   <input
                     type="checkbox"
-                    id={type.id}
+                    value={user}
+                    id={user}
                     className="w-5 h-5"
-                    checked={filters.selectedTypes.includes(type.id)}
-                    onChange={handleTypeChange}
+                    checked={filters.selectedUsers.includes(user)}
+                    onChange={handleUserChange}
                   />
+                  <span className="text-gray-800">{user}</span>
                 </div>
               ))}
             </div>
@@ -215,47 +325,60 @@ const ProjectActivityDashboard = () => {
           <button
             className="w-full mt-6 bg-blue-600 text-white p-3 rounded-lg hover:bg-blue-500 transition"
             onClick={() => {
+              // Get today's date
+              const today = new Date();
+              const startDate = new Date(today);
+              // Calculate 30 days ago
+              startDate.setDate(today.getDate() - 30);
+              // Set the end date to today (formatted as yyyy-mm-dd)
+              const endDate = today.toISOString().split("T")[0];
+              // Set the start date to 30 days ago (formatted as yyyy-mm-dd)
+              const startDateFormatted = startDate.toISOString().split("T")[0];
               setFilters({
-                startDate: '2025-07-01',
-                endDate: '2025-07-30',
-                selectedTypes: activityTypes.map((type) => type.id),
+                startDate: startDateFormatted, // 30 days ago
+                endDate: endDate, // today
+                selectedUsers: users,
               });
             }}
           >
-            Reset Filters
+            Reset Filters (Last 30 Days)
           </button>
         </div>
 
         {/* Chart */}
-        <div className="bg-white rounded-lg p-6 shadow-md col-span-2">
-          <h2 className="text-xl font-medium text-gray-900">Activity Overview</h2>
+        <div className="bg-white/70 rounded-lg p-6 shadow-md col-span-2">
+          <h2 className="text-xl font-medium text-gray-900">
+            Activity Overview
+          </h2>
           <div className="w-full h-[400px] mt-6">
             <canvas ref={chartRef} id="activityChart"></canvas>
           </div>
 
           {/* Info Panel */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 mt-8 p-6 bg-gray-100 rounded-lg">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-6 mt-8 p-6 bg-blue-100 rounded-lg">
             <div className="text-center">
-              <div className="text-3xl font-semibold text-blue-600" id="totalProjects">10</div>
+              <div className="text-3xl font-semibold text-blue-600">
+                {projectCount}
+              </div>
               <div className="text-sm text-gray-600">Projects</div>
             </div>
             <div className="text-center">
-              <div className="text-3xl font-semibold text-blue-600" id="totalActivities">42</div>
+              <div className="text-3xl font-semibold text-blue-600">
+                {activityCount}
+              </div>
               <div className="text-sm text-gray-600">Activities</div>
             </div>
             <div className="text-center">
-              <div className="text-3xl font-semibold text-blue-600" id="activityTypes">4</div>
-              <div className="text-sm text-gray-600">Persons</div>
-            </div>
-            <div className="text-center">
-              <div className="text-3xl font-semibold text-blue-600" id="dateRange">45</div>
-              <div className="text-sm text-gray-600">Days</div>
+              <div className="text-3xl font-semibold text-blue-600">
+                {userCount}
+              </div>
+              <div className="text-sm text-gray-600">Users</div>
             </div>
           </div>
         </div>
       </div>
     </div>
   );
-}; 
+};
 
 export default ProjectActivityDashboard;
