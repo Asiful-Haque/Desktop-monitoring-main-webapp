@@ -41,7 +41,7 @@ const TasksPage = async () => {
       }
 
       // Team Lead / admin: fetch team tasks
-      if (role === "Team Lead") {
+      if (role === "Team Lead" ) {
         console.log("Fetching team lead tasks for userId:", userId);
         const teamTasksRes = await fetch(
           `${process.env.NEXT_PUBLIC_MAIN_HOST}/api/taskForSupremeUsers/${userId}`,

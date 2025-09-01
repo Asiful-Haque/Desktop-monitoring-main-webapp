@@ -14,6 +14,7 @@ export default async function AdminDashboard() {
 
   const curruser = {
     id: raw.id,
+    name: raw.name,
     email: raw.email,
     role: raw.role,
   };

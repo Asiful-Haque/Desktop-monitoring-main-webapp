@@ -22,7 +22,7 @@ const colorForUser = (userName, alpha = 1) => {
   return `hsla(${h}, ${s}%, ${l}%, ${alpha})`; // Adjusted alpha for more visibility
 };
 
-const ProjectActivityDashboard = () => {
+const ProjectActivityDashboard = ({ curruser, teamSupremeProjects }) => {
   const [tasks, setTasks] = useState([]);
   const [users, setUsers] = useState([]); // Added state for users
   const [filters, setFilters] = useState({
@@ -50,8 +50,8 @@ const ProjectActivityDashboard = () => {
     );
 
     return {
-      firstDay: firstDay.toISOString().split("T")[0], 
-      lastDay: lastDay.toISOString().split("T")[0], 
+      firstDay: firstDay.toISOString().split("T")[0],
+      lastDay: lastDay.toISOString().split("T")[0],
     };
   };
 
@@ -69,7 +69,9 @@ const ProjectActivityDashboard = () => {
   useEffect(() => {
     const fetchTasksData = async () => {
       try {
-        const taskRes = await fetch("http://localhost:5500/api/tasks");
+        const taskRes = await fetch(
+          `${process.env.NEXT_PUBLIC_MAIN_HOST}/api/tasks`
+        );
 
         if (!taskRes.ok) {
           console.error("Failed to fetch data from API");
@@ -78,32 +80,54 @@ const ProjectActivityDashboard = () => {
 
         const tasksData = await taskRes.json();
 
-        // Now we use 'assigned_to' directly since it's a string
-        const usersList = Array.from(
-          new Set(tasksData.tasks.map((task) => task.assigned_to))
-        );
+        let finalTasks = tasksData.tasks;
 
-        // Calculate the number of unique projects
-        const projectList = Array.from(
-          new Set(tasksData.tasks.map((task) => task.project_name))
-        );
+        // ✅ Developer → only own tasks
+        if (curruser?.role === "Developer") {
+          finalTasks = finalTasks.filter(
+            (task) => task.assigned_to_id === curruser.id
+          );
+        }
 
-        // Calculate the activities count (completed tasks)
-        const completedTasksCount = tasksData.tasks.filter(
+        // ✅ Team Lead → only tasks from their projects
+        if (curruser?.role === "Team Lead" || curruser?.role === "Project Manager" && Array.isArray(teamSupremeProjects)) {
+          const projectNames = teamSupremeProjects.map((p) =>
+            typeof p === "object" ? p.project_name ?? p.name : p
+          );
+          finalTasks = finalTasks.filter((task) =>
+            projectNames.includes(task.project_name)
+          );
+        }
+
+        // Count completed tasks from filtered tasks
+        const completedTasksCount = finalTasks.filter(
           (task) => task.status === "completed"
         ).length;
+        const completedTasks = finalTasks.filter(
+          (task) => task.status === "completed"
+        );
 
-        console.log("Tasks:", tasksData);
+        // Build users list from filtered tasks
+        const usersList = Array.from(
+          new Set(completedTasks.map((task) => task.assigned_to))
+        );
+
+        // Build projects list from filtered tasks
+        const projectList = Array.from(
+          new Set(completedTasks.map((task) => task.project_name))
+        );
+
+        console.log("Tasks final:", completedTasks);
         console.log("Users:", usersList);
         console.log("Projects:", projectList);
 
-        setTasks(tasksData.tasks);
-        setUsers(usersList); // Set unique users
-        setProjectCount(projectList.length); // Set project count
-        setUserCount(usersList.length); // Set user count
-        setActivityCount(completedTasksCount); // Set activity count
+        // ✅ Update states with filtered tasks
+        setTasks(completedTasks);
+        setUsers(usersList);
+        setProjectCount(projectList.length);
+        setUserCount(usersList.length);
+        setActivityCount(completedTasksCount);
 
-        // Set all users as selected by default
         setFilters((prevFilters) => ({
           ...prevFilters,
           selectedUsers: usersList,
@@ -114,7 +138,7 @@ const ProjectActivityDashboard = () => {
     };
 
     fetchTasksData();
-  }, []);
+  }, [curruser, teamSupremeProjects]);
 
   // Filter and process completed tasks only
   const completedTasks = React.useMemo(() => {

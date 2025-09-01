@@ -55,6 +55,7 @@ async updateTaskStatus({ taskId, newStatus }) {
         "t.task_name      AS task_name",
         "t.task_description AS task_description",
         "u.username       AS assigned_to",
+        "u.user_id        AS assigned_to_id",
         "t.start_date     AS start_date",
         "t.deadline       AS deadline",
         "t.end_date       AS end_date",

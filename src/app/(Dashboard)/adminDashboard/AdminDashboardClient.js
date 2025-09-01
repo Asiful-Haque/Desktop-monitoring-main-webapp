@@ -140,7 +140,7 @@ export default function AdminDashboardClient({
           </Card>
         ))}
       </div>
-      <ProjectActivityDashboard />
+      <ProjectActivityDashboard curruser={curruser} teamSupremeProjects={projects}/>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <UserManagementCard users={users} />
