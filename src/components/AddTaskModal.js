@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 
-const statusOptions = ["pending", "in_progress", "completed"];
+const statusOptions = [ "in_progress", "completed"];
 const priorityOptions = ["low", "medium", "high"];
 
 const AddTaskModal = ({

@@ -12,14 +12,19 @@ export async function getAuthFromCookie(req) {
     const token = tokenCookie?.value;
     if (token) return verifyToken(token);
   }
-  if (req) { //Its for manual fetch where we forward the cookie in headers
-    const cookieHeader = req.headers.get("cookie"); 
+  if (req) {
+    // This is for manual fetch where we forward the cookie in headers
+    const cookieHeader = req.headers.get("cookie");
+    // console.log("Cookie Header received:", cookieHeader); // Log the cookie header
     if (cookieHeader) {
       const token = cookieHeader
         .split("; ")
         .find(c => c.startsWith("token="))
         ?.split("=")[1];
-      if (token) return verifyToken(token);
+      if (token) {
+        // console.log("Token extracted from header:", token); // Log the extracted token
+        return verifyToken(token);
+      }
     }
   }
   return null;

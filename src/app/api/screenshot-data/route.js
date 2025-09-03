@@ -1,10 +1,17 @@
+import { getAuthFromCookie } from "@/app/lib/auth-server";
 import { corsEmpty, corsJson } from "@/app/lib/coreResponse";
 import { ScreenshotDataService } from "@/app/services/screenshotData/screenshotDataService";
 
 const screenshotService = new ScreenshotDataService();
-export async function POST(request) {
+export async function POST(req) {
   try {
-    const data = await request.json();
+    const token = await getAuthFromCookie(req); 
+    if (!token) {
+      return corsJson({ error: "Token missing or invalid" }, 401);
+    }
+
+    // Proceed with the data handling
+    const data = await req.json();
 
     if (
       !data.screenshotPath ||
@@ -16,7 +23,9 @@ export async function POST(request) {
       return corsJson({ error: "Invalid or missing fields" }, 400);
     }
 
+    // Save the screenshot data (ensure your service also checks user authorization if needed)
     const result = await screenshotService.createScreenshotData(data);
+
     return corsJson(
       { message: "Screenshot data stored", insertedId: result.insertId },
       201

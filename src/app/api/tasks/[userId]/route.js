@@ -14,6 +14,7 @@ export async function GET(req, context) {
     if (isNaN(userId)) {
       return NextResponse.json({ error: "Invalid userId" }, { status: 400 });
     }
+    // console.log("req is ----------------------- ",req);
     const token = await getAuthFromCookie(req);
     if (!token) {
       console.log("Unauthorized: No token found");
@@ -24,6 +25,8 @@ export async function GET(req, context) {
       userId,
       tenant_id: token.tenant_id,
     });
+
+    // console.log(`Fetched----------------------- `,tasks);
     return NextResponse.json({ tasks });
   } catch (error) {
     console.error("Error fetching tasks:", error);

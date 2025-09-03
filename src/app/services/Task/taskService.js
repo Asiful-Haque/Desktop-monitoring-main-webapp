@@ -24,23 +24,34 @@ export class TaskService {
     return savedTask;
   }
 
-async updateTaskStatus({ taskId, newStatus }) {
-  const ds = await getDataSource();
-  const repo = ds.getRepository(Task);
-  const task = await repo.findOne({ where: { task_id: Number(taskId) } });
-  if (!task) {
-    throw new Error(`Task with ID ${taskId} not found`);
+  async updateTaskStatus({ taskId, newStatus }) {
+    const ds = await getDataSource();
+    const repo = ds.getRepository(Task);
+    const task = await repo.findOne({ where: { task_id: Number(taskId) } });
+    if (!task) {
+      throw new Error(`Task with ID ${taskId} not found`);
+    }
+    task.status = newStatus;
+    if (newStatus.toLowerCase() === "completed") {
+      task.end_date = new Date(); // set end_date when completed
+    } else {
+      task.end_date = null; // clear end_date otherwise
+    }
+    const updatedTask = await repo.save(task);
+    return updatedTask;
   }
-  task.status = newStatus;
-  if (newStatus.toLowerCase() === "completed") {
-    task.end_date = new Date(); // set end_date when completed
-  } else {
-    task.end_date = null; // clear end_date otherwise
-  }
-  const updatedTask = await repo.save(task);
-  return updatedTask;
-}
 
+  async updateTaskTiming({ taskId, last_timing }) {
+    const ds = await getDataSource();
+    const repo = ds.getRepository(Task);
+    const task = await repo.findOne({ where: { task_id: Number(taskId) } });
+    if (!task) {
+      throw new Error(`Task with ID ${taskId} not found`);
+    }
+    task.last_timing = last_timing;
+    const updatedTask = await repo.save(task);
+    return updatedTask;
+  }
 
   async allTaskForGraph() {
     const ds = await getDataSource();
@@ -86,6 +97,7 @@ async updateTaskStatus({ taskId, newStatus }) {
         "task.start_date        AS start_date",
         "task.deadline          AS deadline",
         "task.end_date          AS end_date",
+        "task.last_timing       AS last_timing",
         "user.user_id           AS assigned_to",
         "user.username          AS assigned_to_name",
         "task.project_id        AS project_id",

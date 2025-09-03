@@ -47,6 +47,10 @@ export const Task = new EntitySchema({
       type: "int",
       nullable: false,
     },
+    last_timing: {
+      type: "bigint",
+      default: 0,
+    },
   },
   relations: {
     assigned_to_rel: {
