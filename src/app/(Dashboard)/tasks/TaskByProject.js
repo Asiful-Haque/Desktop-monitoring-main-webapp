@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CheckSquare, Clock, AlertCircle, Plus } from "lucide-react";
 import AddTaskModal from "@/components/AddTaskModal";
+import moment from "moment";
 
 // Chart.js
 import {
@@ -71,6 +72,21 @@ const statusIcons = {
   in_progress: AlertCircle,
   completed: CheckSquare,
 };
+
+  const formatDeadline = (deadline) => {
+    if (!deadline) return "-";
+
+    // Check if it contains time + 'T' or 'Z' → TIMESTAMP/ISO string
+    if (deadline.includes("T") || deadline.endsWith("Z")) {
+      return moment.utc(deadline).local().format("YYYY-MM-DD HH:mm:ss");
+    } else if (deadline.includes(" ")) {
+      // DATETIME (assume stored in UTC)
+      return moment.utc(deadline).local().format("YYYY-MM-DD HH:mm:ss");
+    } else {
+      // DATE only
+      return moment(deadline).format("YYYY-MM-DD");
+    }
+  };
 
 const Tasks = ({ tasks: initialTasks, projects, curruser, allusers }) => {
   const router = useRouter();
@@ -383,10 +399,11 @@ const Tasks = ({ tasks: initialTasks, projects, curruser, allusers }) => {
                       </button>
                     )}
 
-                    <span>
+                    <span className="font-medium">
                       Due:{" "}
-                      <span className="font-medium">
-                        {new Date(task.deadline).toISOString().split("T")[0]}
+                      <span >
+                        {/* {new Date(task.deadline).toISOString().split("T")[0]} */}
+                        {formatDeadline(task.deadline)}
                       </span>
                     </span>
                   </div>

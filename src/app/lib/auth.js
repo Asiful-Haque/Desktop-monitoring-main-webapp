@@ -13,6 +13,7 @@ export async function signToken(payload) {
 }
 
 export async function verifyToken(token) {
+  // console.log("Verifying token in the verifyToken ^^^^^^^^^^^^^^^^ function:", token);
   try {
     const { payload } = await jwtVerify(token, secret);
     return payload;

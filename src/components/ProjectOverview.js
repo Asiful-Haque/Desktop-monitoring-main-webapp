@@ -7,6 +7,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import moment from "moment";
 import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -28,6 +29,21 @@ const getStatusColor = (status) => {
       return "bg-gray-100 text-gray-800";
   }
 };
+
+  const formatDeadline = (deadline) => {
+    if (!deadline) return "-";
+
+    // Check if it contains time + 'T' or 'Z' → TIMESTAMP/ISO string
+    if (deadline.includes("T") || deadline.endsWith("Z")) {
+      return moment.utc(deadline).local().format("YYYY-MM-DD HH:mm:ss");
+    } else if (deadline.includes(" ")) {
+      // DATETIME (assume stored in UTC)
+      return moment.utc(deadline).local().format("YYYY-MM-DD HH:mm:ss");
+    } else {
+      // DATE only
+      return moment(deadline).format("YYYY-MM-DD");
+    }
+  };
 
 function ProjectOverview({ projects }) {
   const router = useRouter();
@@ -60,7 +76,7 @@ function ProjectOverview({ projects }) {
                   </div>
                   <Progress value={project.progress} className="h-2" />
                   <p className="text-xs text-gray-500">
-                    Deadline: {project.deadline}
+                    Deadline: {formatDeadline(project.deadline)}
                   </p>
                 </div>
               </div>

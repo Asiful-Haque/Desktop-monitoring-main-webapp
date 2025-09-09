@@ -37,7 +37,7 @@ export const Project = new EntitySchema({
     assigned_to: {
       type: "bigint",
     },
-    tenant_id: {             
+    tenant_id: {
       type: "int",
       nullable: false,
     },
@@ -62,7 +62,7 @@ export const Project = new EntitySchema({
       target: "AssignedUsersToProjects",
       inverseSide: "project_rel",
     },
-    tenant_rel: {             
+    tenant_rel: {
       type: "many-to-one",
       target: "Tenant",
       joinColumn: {
@@ -70,6 +70,11 @@ export const Project = new EntitySchema({
         referencedColumnName: "tenant_id",
       },
       inverseSide: "projects_rel",
+    },
+    time_trackings_rel: {
+      type: "one-to-many",
+      target: "TimeTracking",
+      inverseSide: "project_rel",
     },
   },
 });

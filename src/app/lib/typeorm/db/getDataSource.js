@@ -7,6 +7,9 @@ import { Task } from "../entities/Task.js";
 import { AssignedUsersToProjects } from "../entities/AssignedUsersToProject.js";
 import Screenshot from "../entities/Screenshot.js";
 import { Tenant } from "../entities/Tenant.js";
+import { TimeTracking } from "../entities/TimeTracking.js";
+
+
 
 export const AppDataSource = new DataSource({
   type: "mysql",
@@ -18,7 +21,7 @@ export const AppDataSource = new DataSource({
   database: process.env.MYSQL_DATABASE || "task_monitor_demo",
   synchronize: false,
   logging: false,
-  entities: [User, Role, UserRoles, Project, Task, AssignedUsersToProjects, Screenshot, Tenant],
+  entities: [User, Role, UserRoles, Project, Task, AssignedUsersToProjects, Screenshot, Tenant, TimeTracking ],
   extra: { connectionLimit: 10, decimalNumbers: true },
 });
 
@@ -27,6 +30,7 @@ export async function getDataSource() {
   if (!_ds) _ds = AppDataSource;
   if (!_ds.isInitialized) {
     await _ds.initialize();
+    console.log("✅ Entities loaded:", _ds.entityMetadatas.map(m => m.name));
     console.log("✅ Database connection established (singleton)");
   }
   return _ds;

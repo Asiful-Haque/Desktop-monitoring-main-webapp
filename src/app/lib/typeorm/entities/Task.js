@@ -6,7 +6,7 @@ export const Task = new EntitySchema({
   columns: {
     task_id: {
       primary: true,
-      type: "bigint",
+      type: "int",
       generated: true,
     },
     task_name: {
@@ -19,7 +19,7 @@ export const Task = new EntitySchema({
       nullable: true,
     },
     assigned_to: {
-      type: "bigint",
+      type: "int",
     },
     start_date: {
       type: "datetime",
@@ -36,7 +36,7 @@ export const Task = new EntitySchema({
       length: 50,
     },
     project_id: {
-      type: "bigint",
+      type: "int",
     },
     priority: {
       type: "varchar",
@@ -85,5 +85,6 @@ export const Task = new EntitySchema({
       },
       inverseSide: "tasks_rel",
     },
+    time_trackings_rel: { type: "one-to-many", target: "TimeTracking", inverseSide: "task_rel" },
   },
 });

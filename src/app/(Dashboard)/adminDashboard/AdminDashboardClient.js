@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -38,8 +38,41 @@ export default function AdminDashboardClient({
   const [addUserModalOpen, setAddUserModalOpen] = useState(false);
   const [addProjectModalOpen, setAddProjectModalOpen] = useState(false);
   const [assignModalOpen, setAssignModalOpen] = useState(false);
+  const [tasks, setTasks] = useState([]); 
   // console.log("AAAAAAAALLL", allprojects);
   // console.log("team lead has AAAAAAAALLL-------", projects);
+
+    // API call to fetch tasks for the logged-in user (currUser)
+  // useEffect(() => {
+  //   const fetchUserTasks = async () => {
+  //     try {
+  //       const today = new Date().toISOString().split('T')[0]; // Get current date in YYYY-MM-DD format
+  //       const res = await fetch(
+  //         `${process.env.NEXT_PUBLIC_MAIN_HOST}/api/time-tracking/${projects[0]?.id}?date=${today}`, // Using the first projectId as an example
+  //         {
+  //           method: "GET",
+  //           headers: {
+  //             "Content-Type": "application/json",
+  //           },
+  //         }
+  //       );
+        
+  //       if (res.ok) {
+  //         const data = await res.json();
+  //         const userTasks = data.items.filter(item => item.developer_id === curruser.id);
+  //         setTasks(userTasks);
+  //       } else {
+  //         console.error("Failed to fetch tasks for the current user.");
+  //       }
+  //     } catch (error) {
+  //       console.error("Error fetching tasks:", error);
+  //     }
+  //   };
+
+  //   if (curruser) {
+  //     fetchUserTasks();
+  //   }
+  // }, [curruser, projects]);
 
   const systemStats = [
     { label: "Total Users", value: users.length, change: "+12%", icon: Users },

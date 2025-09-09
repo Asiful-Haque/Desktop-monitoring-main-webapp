@@ -55,5 +55,10 @@ export const User = new EntitySchema({
       target: "AssignedUsersToProjects",
       inverseSide: "user_rel",
     },
+    time_trackings_rel: {
+      type: "one-to-many",
+      target: "TimeTracking",
+      inverseSide: "developer_rel",
+    },
   },
 });

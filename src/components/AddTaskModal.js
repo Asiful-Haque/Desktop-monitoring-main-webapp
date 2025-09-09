@@ -190,6 +190,16 @@ const AddTaskModal = ({
               </Select>
             </div>
 
+              {/* Timezone Display */}
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="timezone" className="text-right">
+                Timezone
+              </Label>
+              <div className="col-span-3 ml-2">
+                <p>{Intl.DateTimeFormat().resolvedOptions().timeZone}</p>
+              </div>
+            </div>
+                          
             {/* Start Date */}
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="start_date" className="text-right">

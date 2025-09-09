@@ -7,6 +7,7 @@ import ProjTaskCard from "@/components/ProjTaskCard";
 import ProjDetailsCard from "@/components/ProjDetailsCard";
 import jwt from "jsonwebtoken";
 import { cookies } from "next/headers";
+import GanttChart from "@/components/commonComponent/GanttChart";
 
 const getTeamMembers = async (projectId) => {
   // Its the api calling function
@@ -28,6 +29,8 @@ const getTeamMembers = async (projectId) => {
     return [];
   }
 };
+
+
 const getProjectTasks = async (projectId, cookieHeader) => {
   try {
     const res = await fetch(
@@ -49,6 +52,37 @@ const getProjectTasks = async (projectId, cookieHeader) => {
     return [];
   }
 };
+
+// Fetching the project tasks for a specific date (using GET and sending date in the query)
+const getProjectTasksByDate = async (projectId, date, cookieHeader) => {
+  try {
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_MAIN_HOST}/api/time-tracking/${projectId}?date=${date}`, // Use GET method with date in the query string
+      {
+        method: "GET", 
+        headers: {
+          "Content-Type": "application/json", 
+        },
+        cache: "no-store",
+                headers: {
+          Cookie: cookieHeader, 
+        },
+      }
+    );
+    
+    // Check if the response is OK
+    if (!res.ok) {
+      console.error("Failed to fetch tasks by date");
+    }
+    
+    const data = await res.json(); 
+    return data.items || []; 
+  } catch (error) {
+    console.error("Error fetching tasks by date:", error); 
+    return []; 
+  }
+};
+
 
 const getProjectData = async (projectId) => {
   try {
@@ -78,10 +112,13 @@ const ProjectDetails = async ({ params }) => {
   if (!raw) throw new Error("Unauthorized");
 
   const cookieHeader = `token=${tokenCookie.value}`;
-  const { projectId } = params;
+  const { projectId } = await params;
 
   const teamMembers = await getTeamMembers(projectId); 
   const tasks = await getProjectTasks(projectId, cookieHeader);
+  const currentDate = new Date().toISOString().split('T')[0]; 
+  // const currentDate = "2025-09-08"; 
+  const tasksbyDate = await getProjectTasksByDate(projectId, currentDate, cookieHeader);
   const projectData = await getProjectData(projectId);
   const teamCount = teamMembers.members?.length || 0;
 
@@ -161,10 +198,13 @@ const ProjectDetails = async ({ params }) => {
         </div>
       </div>
 
+
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <ProjOverviewCards project={project} teamCount={teamCount} />
         <UserManagementCard users={teamMembers} />
       </div>
+            <GanttChart projectId={projectId || '1'} tasks={tasksbyDate} />
       <ProjTaskCard tasks={tasks} curruser={currentUser} />
       <ProjDetailsCard project={project} />
     </div>

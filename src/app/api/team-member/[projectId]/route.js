@@ -28,7 +28,7 @@ export async function POST(req) {
 export async function GET(req, context) {
   try {
     const params = await context.params;  
-    const { projectId } = params;
+    const { projectId } = await params;
 
     if (!projectId) {
       return NextResponse.json({ error: "projectId param is required" }, { status: 400 });

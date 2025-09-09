@@ -3,6 +3,7 @@ import { getDataSource } from "@/app/lib/typeorm/db/getDataSource";
 import { AssignedUsersToProjects } from "@/app/lib/typeorm/entities/AssignedUsersToProject";
 
 import { Task } from "@/app/lib/typeorm/entities/Task";
+import { TimeTracking } from "@/app/lib/typeorm/entities/TimeTracking";
 
 export class TaskService {
   async setTask({ taskData, tenant_id }) {
