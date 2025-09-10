@@ -26,8 +26,7 @@ import AddUserModal from "@/components/AddUserModal";
 import AddProjectModal from "@/components/addProjectModal";
 import AssignUserToProjectModal from "@/components/AssignUserToProjectModal";
 import ProjectActivityDashboard from "@/components/commonComponent/ActivityDashboard";
-
-
+import IndGanttChart from "@/components/commonComponent/IndGanttChart";
 
 export default function AdminDashboardClient({
   users,
@@ -38,41 +37,56 @@ export default function AdminDashboardClient({
   const [addUserModalOpen, setAddUserModalOpen] = useState(false);
   const [addProjectModalOpen, setAddProjectModalOpen] = useState(false);
   const [assignModalOpen, setAssignModalOpen] = useState(false);
-  const [tasks, setTasks] = useState([]); 
-  // console.log("AAAAAAAALLL", allprojects);
-  // console.log("team lead has AAAAAAAALLL-------", projects);
+  const [tasks, setTasks] = useState([]);
 
-    // API call to fetch tasks for the logged-in user (currUser)
-  // useEffect(() => {
-  //   const fetchUserTasks = async () => {
-  //     try {
-  //       const today = new Date().toISOString().split('T')[0]; // Get current date in YYYY-MM-DD format
-  //       const res = await fetch(
-  //         `${process.env.NEXT_PUBLIC_MAIN_HOST}/api/time-tracking/${projects[0]?.id}?date=${today}`, // Using the first projectId as an example
-  //         {
-  //           method: "GET",
-  //           headers: {
-  //             "Content-Type": "application/json",
-  //           },
-  //         }
-  //       );
-        
-  //       if (res.ok) {
-  //         const data = await res.json();
-  //         const userTasks = data.items.filter(item => item.developer_id === curruser.id);
-  //         setTasks(userTasks);
-  //       } else {
-  //         console.error("Failed to fetch tasks for the current user.");
-  //       }
-  //     } catch (error) {
-  //       console.error("Error fetching tasks:", error);
-  //     }
-  //   };
+  // Helper: get today's date in LOCAL YYYY-MM-DD - avoid UTC off-by-one
+  const getTodayLocal = () => {
+    const d = new Date();
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  };
 
-  //   if (curruser) {
-  //     fetchUserTasks();
-  //   }
-  // }, [curruser, projects]);
+  useEffect(() => {
+    const fetchUserTasks = async () => {
+      try {
+        if (!curruser?.id) return;
+
+        const today = getTodayLocal();
+        const host = process.env.NEXT_PUBLIC_MAIN_HOST || "";
+        const res = await fetch(
+          `${host}/api/time-tracking-dev/${curruser.id}?date=${today}`,
+          { method: "GET" }
+        );
+        if (!res.ok) {
+          console.error(
+            "Failed to fetch tasks for the current user. Status:",
+            res.status
+          );
+          setTasks([]);
+          return;
+        }
+
+        const data = await res.json();
+        const items = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.items)
+          ? data.items
+          : [];
+        const userTasks = items.filter(
+          (item) => String(item.developer_id) === String(curruser.id)
+        );
+
+        setTasks(userTasks);
+      } catch (error) {
+        console.error("Error fetching tasks:", error);
+        setTasks([]);
+      }
+    };
+
+    fetchUserTasks();
+  }, [curruser?.id]);
 
   const systemStats = [
     { label: "Total Users", value: users.length, change: "+12%", icon: Users },
@@ -85,7 +99,7 @@ export default function AdminDashboardClient({
     { label: "System Uptime", value: "99.9%", change: "0%", icon: Shield },
     { label: "Issues", value: "3", change: "-40%", icon: AlertTriangle },
   ];
-  // from-blue-50 to-indigo-50
+
   return (
     <div
       className={`p-6 space-y-6 bg-gradient-to-br ${
@@ -120,9 +134,7 @@ export default function AdminDashboardClient({
               Add user to project
             </Button>
           </div>
-        ) : (
-          ""
-        )}
+        ) : null}
       </div>
 
       {/* System Stats */}
@@ -139,9 +151,6 @@ export default function AdminDashboardClient({
               <stat.icon className="h-4 w-4 text-red-600" />
             </CardHeader>
             <CardContent>
-              {/* <div className="text-2xl font-bold text-red-600">
-                {stat.value}
-              </div> */}
               <div
                 className={`text-2xl font-bold ${
                   index === 0
@@ -173,11 +182,14 @@ export default function AdminDashboardClient({
           </Card>
         ))}
       </div>
-      <ProjectActivityDashboard curruser={curruser} teamSupremeProjects={projects}/>
 
+      <IndGanttChart currUser={curruser} projects={projects} tasks={tasks} />
+      <ProjectActivityDashboard
+        curruser={curruser}
+        teamSupremeProjects={projects}
+      />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <UserManagementCard users={users} />
-        {/* <ProjectOverview projects={projects} /> */}
         {curruser.role === "Admin" ? (
           <ProjectOverview projects={allprojects} />
         ) : (
@@ -215,7 +227,6 @@ export default function AdminDashboardClient({
           </div>
         </CardContent>
       </Card>
-
 
       <AddUserModal
         addUserModalOpen={addUserModalOpen}

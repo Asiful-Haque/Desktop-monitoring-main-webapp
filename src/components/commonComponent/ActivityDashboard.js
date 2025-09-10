@@ -117,9 +117,9 @@ const ProjectActivityDashboard = ({ curruser, teamSupremeProjects }) => {
           new Set(completedTasks.map((task) => task.project_name))
         );
 
-        console.log("Tasks final:", completedTasks);
-        console.log("Users:", usersList);
-        console.log("Projects:", projectList);
+        // console.log("Tasks final:", completedTasks);
+        // console.log("Users:", usersList);
+        // console.log("Projects:", projectList);
 
         // ✅ Update states with filtered tasks
         setTasks(completedTasks);

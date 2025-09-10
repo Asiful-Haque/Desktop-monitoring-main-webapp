@@ -6,7 +6,7 @@ import jwt from "jsonwebtoken";
 export default async function AdminDashboard() {
   const cookieStore = await cookies();
   const tokenCookie = cookieStore.get("token");
-  console.log("Token cookie in Admin Dashboard:", tokenCookie);
+  // console.log("Token cookie in Admin Dashboard:", tokenCookie);
   if (!tokenCookie) throw new Error("Unauthorized");
   const raw = jwt.decode(tokenCookie.value);
   if (!raw) throw new Error("Unauthorized");

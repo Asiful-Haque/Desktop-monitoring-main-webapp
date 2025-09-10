@@ -74,35 +74,32 @@ export class TimeTrackingService {
     return rows;
   }
 
-  // async findByUserAndDay(userId, date) {
-  //   const repo = await this.repo();
+  async findByUserAndDay(devId, date) {
+    const repo = await this.repo();
+    const startOfDay = `${date} 00:00:00`;
+    const endOfDay = `${date} 23:59:59`;
+    const userId = devId;
+    const rows = await repo
+      .createQueryBuilder("t")
+      .where("t.work_date BETWEEN :start AND :end", {
+        start: startOfDay,
+        end: endOfDay,
+      })
+      .andWhere("t.developer_id = :userId", { userId })
+      .orderBy("t.task_start", "ASC")
+      .select([
+        "t.serial_id AS serial_id",
+        "t.task_id AS task_id",
+        "t.project_id AS project_id",
+        "t.developer_id AS developer_id",
+        "t.work_date AS work_date",
+        "t.task_start AS task_start",
+        "t.task_end AS task_end",
+        "t.created_at AS created_at",
+        "t.updated_at AS updated_at",
+      ])
+      .getRawMany();
 
-  //   // Construct the date range for the given day (from 00:00 to 23:59)
-  //   const startOfDay = `${date} 00:00:00`;
-  //   const endOfDay = `${date} 23:59:59`;
-
-  //   // Query for time-tracking records within the specified date range and user ID (developer_id)
-  //   const rows = await repo
-  //     .createQueryBuilder("t")
-  //     .where("t.work_date BETWEEN :start AND :end", {
-  //       start: startOfDay,
-  //       end: endOfDay,
-  //     })
-  //     .andWhere("t.developer_id = :userId", { userId })
-  //     .orderBy("t.task_start", "ASC")
-  //     .select([
-  //       "t.serial_id AS serial_id",
-  //       "t.task_id AS task_id",
-  //       "t.project_id AS project_id",
-  //       "t.developer_id AS developer_id",
-  //       "t.work_date AS work_date",
-  //       "t.task_start AS task_start",
-  //       "t.task_end AS task_end",
-  //       "t.created_at AS created_at",
-  //       "t.updated_at AS updated_at",
-  //     ])
-  //     .getRawMany();
-
-  //   return rows;
-  // }
+    return rows;
+  }
 }

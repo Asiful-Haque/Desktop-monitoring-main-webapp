@@ -6,7 +6,7 @@ import { signToken, verifyToken } from "./auth";
 
 
 export async function getAuthFromCookie(req) {
-  console.log("getAuthFromCookie called with get time req:", req);
+  // console.log("getAuthFromCookie called with get time req:", req);
   if (!req) { //This is for direct cookie access 
     const cookieStore = await cookies();
     const tokenCookie = cookieStore.get("token");

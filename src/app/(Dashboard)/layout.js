@@ -14,7 +14,7 @@ export default async function DashboardLayout({ children }) {
   const currentUser = token ? jwt.decode(token) : null;
 
   // You can log to verify
-  console.log('Current User in Layout:', currentUser);
+  // console.log('Current User in Layout:', currentUser);
 
   return (
     <SidebarProvider>

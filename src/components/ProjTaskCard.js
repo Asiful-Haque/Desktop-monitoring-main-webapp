@@ -61,7 +61,7 @@ function ProjTaskCard({ tasks: initialTasks, curruser }) {
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          {console.log("Tasks:", tasks)}
+          {/* {console.log("Tasks:", tasks)} */}
           {tasks.map((task) => (
             <div
               key={task.task_id}
