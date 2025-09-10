@@ -8,6 +8,7 @@ import ProjDetailsCard from "@/components/ProjDetailsCard";
 import jwt from "jsonwebtoken";
 import { cookies } from "next/headers";
 import GanttChart from "@/components/commonComponent/GanttChart";
+import { redirect } from "next/navigation";
 
 const getTeamMembers = async (projectId) => {
   // Its the api calling function
@@ -29,7 +30,6 @@ const getTeamMembers = async (projectId) => {
     return [];
   }
 };
-
 
 const getProjectTasks = async (projectId, cookieHeader) => {
   try {
@@ -106,7 +106,7 @@ const getProjectData = async (projectId) => {
 const ProjectDetails = async ({ params }) => {
   const cookieStore = await cookies();
   const tokenCookie = cookieStore.get("token");
-  if (!tokenCookie) throw new Error("Unauthorized");
+  if (!tokenCookie) redirect(`/`);
 
   const raw = jwt.decode(tokenCookie.value);
   if (!raw) throw new Error("Unauthorized");

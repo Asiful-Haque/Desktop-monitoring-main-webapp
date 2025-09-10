@@ -5,7 +5,6 @@ import moment from "moment";
 
 /** -------------------- Utils -------------------- **/
 const getRandomColor = () => {
-  // Soft saturated HSL -> HEX for pleasant colors
   const h = Math.floor(Math.random() * 360);
   const s = 70 + Math.floor(Math.random() * 20);
   const l = 55 + Math.floor(Math.random() * 10);
@@ -14,10 +13,11 @@ const getRandomColor = () => {
 
 const hslToHex = (h, s, l) => {
   s /= 100; l /= 100;
-  const k = n => (n + h / 30) % 12;
+  const k = (n) => (n + h / 30) % 12;
   const a = s * Math.min(l, 1 - l);
-  const f = n => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
-  const toHex = x => Math.round(x * 255).toString(16).padStart(2, "0");
+  const f = (n) =>
+    l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+  const toHex = (x) => Math.round(x * 255).toString(16).padStart(2, "0");
   return `#${toHex(f(0))}${toHex(f(8))}${toHex(f(4))}`;
 };
 
@@ -33,14 +33,23 @@ const darken = (hex, p = 18) => {
 
 const getProjectId = (p) => p?.id ?? p?.project_id;
 const getProjectName = (p) => p?.name ?? p?.project_name;
-const minutesBetween = (a, b) => Math.max(0, Math.round((new Date(b) - new Date(a)) / 60000));
+const minutesBetween = (a, b) =>
+  Math.max(0, Math.round((new Date(b) - new Date(a)) / 60000));
 
-/** Stable pastel color from project name */
 function projectColor(name = "") {
   let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  for (let i = 0; i < name.length; i++)
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
   const h = Math.abs(hash) % 360;
   return hslToHex(h, 65, 60);
+}
+
+function todayLocal() {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
 }
 
 /** -------------------- Component -------------------- **/
@@ -49,23 +58,78 @@ const IndGanttChart = ({ currUser, projects, tasks }) => {
   const [isMounted, setIsMounted] = useState(false);
   const [nowPct, setNowPct] = useState(null);
 
+  // Date state + fetched data (hasLoaded ensures no fallback after first fetch)
+  const [selectedDate, setSelectedDate] = useState(todayLocal());
+  const [fetched, setFetched] = useState({
+    loading: false,
+    error: "",
+    items: [],
+    hasLoaded: false,
+  });
+
+  // Fetch whenever selectedDate or currUser.id changes
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      if (!currUser?.id) return;
+      setFetched((s) => ({ ...s, loading: true, error: "" }));
+
+      try {
+        const base = process.env.NEXT_PUBLIC_MAIN_HOST || "";
+        const url = `${base}/api/time-tracking-dev/${currUser.id}?date=${selectedDate}`;
+        const res = await fetch(url, { method: "GET", cache: "no-store" });
+        const data = await res.json();
+        const items = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.items)
+          ? data.items
+          : [];
+        if (!cancelled)
+          setFetched({ loading: false, error: "", items, hasLoaded: true });
+      } catch (e) {
+        console.error("Failed to fetch time-tracking:", e);
+        if (!cancelled)
+          setFetched({
+            loading: false,
+            error: "Failed to load data",
+            items: [],
+            hasLoaded: true,
+          });
+      }
+    }
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [currUser?.id, selectedDate]);
+
+  // EFFECTIVE TASKS:
+  // - Before first fetch finishes: show parent tasks (initial paint).
+  // - After fetch finishes: always use fetched.items (even if empty).
+  const effectiveTasks = useMemo(() => {
+    return fetched.hasLoaded ? fetched.items : tasks || [];
+  }, [fetched.hasLoaded, fetched.items, tasks]);
+
   // Only current user's tasks
   const userTasks = useMemo(() => {
-    if (!Array.isArray(tasks)) return [];
-    return tasks.filter((t) => String(t.developer_id) === String(currUser?.id));
-  }, [tasks, currUser]);
+    if (!Array.isArray(effectiveTasks)) return [];
+    return effectiveTasks.filter(
+      (t) => String(t.developer_id) === String(currUser?.id)
+    );
+  }, [effectiveTasks, currUser]);
 
-  // Colors (future-friendly if you add more devs)
+  // Colors
   useEffect(() => {
     const colors = {};
-    (tasks || []).forEach((t) => {
+    (effectiveTasks || []).forEach((t) => {
       if (!colors[t.developer_id]) colors[t.developer_id] = getRandomColor();
     });
     setDeveloperColors(colors);
     setIsMounted(true);
-  }, [tasks]);
+  }, [effectiveTasks]);
 
-  // 24h ticks
   const hours = Array.from({ length: 24 }, (_, i) => i);
 
   // Map: project -> tasks for this user
@@ -76,7 +140,10 @@ const IndGanttChart = ({ currUser, projects, tasks }) => {
       if (pid != null) map[pid] = [];
     });
     userTasks.forEach((t) => {
-      if (t?.project_id != null && Object.prototype.hasOwnProperty.call(map, t.project_id)) {
+      if (
+        t?.project_id != null &&
+        Object.prototype.hasOwnProperty.call(map, t.project_id)
+      ) {
         map[t.project_id].push(t);
       }
     });
@@ -86,11 +153,14 @@ const IndGanttChart = ({ currUser, projects, tasks }) => {
     return map;
   }, [projects, userTasks]);
 
-  // Totals per project (minutes)
+  // Totals
   const projectTotals = useMemo(() => {
     const totals = {};
     Object.entries(projectTaskMap).forEach(([pid, list]) => {
-      totals[pid] = list.reduce((sum, t) => sum + minutesBetween(t.task_start, t.task_end), 0);
+      totals[pid] = list.reduce(
+        (sum, t) => sum + minutesBetween(t.task_start, t.task_end),
+        0
+      );
     });
     return totals;
   }, [projectTaskMap]);
@@ -114,12 +184,14 @@ const IndGanttChart = ({ currUser, projects, tasks }) => {
     const startPct = ((start.getHours() + start.getMinutes() / 60) / 24) * 100;
     const endPct = ((end.getHours() + end.getMinutes() / 60) / 24) * 100;
     const width = Math.max(endPct - startPct, 1.25);
-    const sameStart = allTasks.filter((t) => t.task_start === task.task_start).length || 1;
+    const sameStart =
+      allTasks.filter((t) => t.task_start === task.task_start).length || 1;
     const offset = (index / sameStart) * 3.5;
     return { left: `${startPct + offset}%`, width: `${width}%` };
   };
 
-  const fmtMin = (m) => (m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`);
+  const fmtMin = (m) =>
+    m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`;
 
   if (!isMounted) return null;
 
@@ -145,27 +217,23 @@ const IndGanttChart = ({ currUser, projects, tasks }) => {
             </CardDescription>
           </div>
 
-          {/* Legend */}
-          <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white/70 px-3 py-2 shadow-sm">
-            <div
-              className="h-3 w-3 rounded-full ring-2 ring-white"
-              style={{ background: developerColors[currUser?.id] || "#758397FF" }}
+          {/* Date picker */}
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-slate-600">Select date</label>
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="rounded-md border border-slate-300 bg-white px-2 py-1 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
-            <div className="text-xs text-slate-600">
-              <div className="font-medium text-slate-700 leading-none">{currUser?.name || "You"}</div>
-              <div className="opacity-70">Sessions</div>
-            </div>
           </div>
         </div>
 
-        {/* 🔧 Sticky time axis aligned via same 2-col grid (14rem | 1fr) */}
+        {/* Sticky axis aligned to lanes */}
         <div className="sticky top-0 z-10 mt-4 rounded-md bg-white/85 backdrop-blur-sm border border-slate-200">
           <div className="grid" style={{ gridTemplateColumns: "14rem 1fr" }}>
-            {/* Left spacer equal to project column */}
             <div className="h-full w-[14rem] border-r border-slate-200 rounded-l-md" />
-            {/* Hour labels aligned with lanes */}
             <div className="relative">
-              {/* Optional faint grid under axis */}
               <div className="absolute inset-0 pointer-events-none">
                 {hours.map((hour) => (
                   <div
@@ -175,13 +243,14 @@ const IndGanttChart = ({ currUser, projects, tasks }) => {
                   />
                 ))}
               </div>
-
               <div className="relative flex justify-between text-[10px] text-slate-500 py-2 px-2">
-                {hours.filter((_, i) => i % 2 === 0).map((hour) => (
-                  <span key={hour} className="w-8 text-center">
-                    {hour.toString().padStart(2, "0")}:00
-                  </span>
-                ))}
+                {hours
+                  .filter((_, i) => i % 2 === 0)
+                  .map((hour) => (
+                    <span key={hour} className="w-8 text-center">
+                      {hour.toString().padStart(2, "0")}:00
+                    </span>
+                  ))}
               </div>
               <div className="h-px bg-slate-200" />
             </div>
@@ -190,6 +259,21 @@ const IndGanttChart = ({ currUser, projects, tasks }) => {
       </CardHeader>
 
       <CardContent className="pt-0">
+        {/* Loading / empty / error hints */}
+        {fetched.loading && (
+          <div className="mb-3 text-sm text-slate-500">
+            Loading sessions for {selectedDate}…
+          </div>
+        )}
+        {fetched.hasLoaded && !fetched.loading && fetched.items.length === 0 && (
+          <div className="mb-3 text-sm text-slate-500">
+            No sessions on {selectedDate}.
+          </div>
+        )}
+        {fetched.error && (
+          <div className="mb-3 text-sm text-red-600">{fetched.error}</div>
+        )}
+
         <div className="rounded-2xl border border-slate-200 overflow-hidden shadow-lg">
           <div className="divide-y divide-slate-200">
             {(projects || []).map((project, rowIdx) => {
@@ -208,7 +292,7 @@ const IndGanttChart = ({ currUser, projects, tasks }) => {
                     rowIdx % 2 === 0 ? "bg-slate-50/60" : "bg-white"
                   } hover:bg-slate-50`}
                 >
-                  {/* Left project column (fixed 14rem = w-56) */}
+                  {/* Left column */}
                   <div className="w-56 shrink-0 px-4 py-3 border-r border-slate-200">
                     <div className="flex items-center gap-3">
                       <div
@@ -222,7 +306,10 @@ const IndGanttChart = ({ currUser, projects, tasks }) => {
                         </div>
                         <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px]">
                           <span className="inline-flex items-center rounded-full bg-slate-100/80 px-2 py-0.5 text-slate-600">
-                            Total: <span className="ml-1 font-semibold text-slate-700">{fmtMin(totalMin)}</span>
+                            Total:{" "}
+                            <span className="ml-1 font-semibold text-slate-700">
+                              {fmtMin(totalMin)}
+                            </span>
                           </span>
                           {tasksForProject.length === 0 && (
                             <span className="inline-flex items-center rounded-full bg-amber-50 text-amber-700 px-2 py-0.5">
@@ -234,18 +321,18 @@ const IndGanttChart = ({ currUser, projects, tasks }) => {
                     </div>
                   </div>
 
-                  {/* Right timeline lane */}
+                  {/* Right lane */}
                   <div className="relative flex-1 h-16">
                     {/* Hour grid */}
                     {hours.map((hour) => (
                       <div
-                        key={hour}
+                        key={`grid-${hour}`}
                         className="absolute top-0 bottom-0 w-px bg-slate-200/60"
                         style={{ left: `${(hour / 24) * 100}%` }}
                       />
                     ))}
 
-                    {/* “Now” marker */}
+                    {/* Now marker */}
                     {nowPct !== null && nowPct >= 0 && nowPct <= 100 && (
                       <div
                         className="absolute top-0 bottom-0 w-[2px] bg-fuchsia-500/90"
@@ -259,11 +346,18 @@ const IndGanttChart = ({ currUser, projects, tasks }) => {
 
                     {/* Task bars */}
                     {tasksForProject.map((task, idx) => {
-                      const base = developerColors[task.developer_id] || "#64748b";
-                      const grad = `linear-gradient(90deg, ${base} 0%, ${darken(base, 22)} 100%)`;
+                      const base =
+                        developerColors[task.developer_id] || "#64748b";
+                      const grad = `linear-gradient(90deg, ${base} 0%, ${darken(
+                        base,
+                        22
+                      )} 100%)`;
                       const startLabel = moment(task.task_start).format("HH:mm");
                       const endLabel = moment(task.task_end).format("HH:mm");
-                      const mins = minutesBetween(task.task_start, task.task_end);
+                      const mins = minutesBetween(
+                        task.task_start,
+                        task.task_end
+                      );
                       const dur = fmtMin(mins);
 
                       return (
@@ -275,16 +369,16 @@ const IndGanttChart = ({ currUser, projects, tasks }) => {
                             background: grad,
                             boxShadow: `0 6px 18px ${base}35`,
                           }}
-                          title={`Task ${task.task_id} • ${moment(task.work_date).format("YYYY-MM-DD")} • ${startLabel}-${endLabel} • ${dur}`}
+                          title={`Task ${task.task_id} • ${moment(
+                            task.work_date
+                          ).format("YYYY-MM-DD")} • ${startLabel}-${endLabel} • ${dur}`}
                         >
-                          {/* glossy overlay */}
                           <div className="absolute inset-0 rounded-xl bg-gradient-to-b from-white/15 to-transparent" />
-                          {/* labels */}
                           <div className="absolute inset-0 flex items-center justify-between px-2">
                             <span className="truncate text-[11px] font-semibold text-white/95 drop-shadow">
                               T{task.task_id}
                             </span>
-                            <span className="ml-2 text-[10px] font-medium text-white/90 drop-shadow">
+                            <span className="ml-2 text-[10px] font-bold text-black drop-shadow">
                               {startLabel}-{endLabel}
                             </span>
                           </div>
@@ -305,7 +399,9 @@ const IndGanttChart = ({ currUser, projects, tasks }) => {
 
         {/* Empty state */}
         {(!projects || projects.length === 0) && (
-          <div className="mt-6 text-center text-sm text-slate-500">No projects to display.</div>
+          <div className="mt-6 text-center text-sm text-slate-500">
+            No projects to display.
+          </div>
         )}
       </CardContent>
     </Card>

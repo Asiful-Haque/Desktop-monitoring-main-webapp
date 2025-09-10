@@ -42,17 +42,28 @@ ChartJS.register(
 // Tailwind-like palette (approx. 500 shades) for charts
 const chartPalette = {
   status: {
-    pending: "#F59E0B",     // amber-500
+    pending: "#F59E0B", // amber-500
     in_progress: "#3B82F6", // blue-500
-    completed: "#22C55E",   // green-500
+    completed: "#22C55E", // green-500
   },
   priority: {
-    HIGH: "#EF4444",   // red-500
+    HIGH: "#EF4444", // red-500
     MEDIUM: "#F59E0B", // amber-500
-    LOW: "#6B7280",    // gray-500
+    LOW: "#6B7280", // gray-500
   },
   // fallback cycle for per-task bars if needed
-  bars: ["#6366F1","#22C55E","#F59E0B","#EF4444","#06B6D4","#84CC16","#8B5CF6","#F43F5E","#10B981","#EAB308"],
+  bars: [
+    "#6366F1",
+    "#22C55E",
+    "#F59E0B",
+    "#EF4444",
+    "#06B6D4",
+    "#84CC16",
+    "#8B5CF6",
+    "#F43F5E",
+    "#10B981",
+    "#EAB308",
+  ],
 };
 
 const statusColors = {
@@ -73,20 +84,20 @@ const statusIcons = {
   completed: CheckSquare,
 };
 
-  const formatDeadline = (deadline) => {
-    if (!deadline) return "-";
+const formatDeadline = (deadline) => {
+  if (!deadline) return "-";
 
-    // Check if it contains time + 'T' or 'Z' → TIMESTAMP/ISO string
-    if (deadline.includes("T") || deadline.endsWith("Z")) {
-      return moment.utc(deadline).local().format("YYYY-MM-DD HH:mm:ss");
-    } else if (deadline.includes(" ")) {
-      // DATETIME (assume stored in UTC)
-      return moment.utc(deadline).local().format("YYYY-MM-DD HH:mm:ss");
-    } else {
-      // DATE only
-      return moment(deadline).format("YYYY-MM-DD");
-    }
-  };
+  // Check if it contains time + 'T' or 'Z' → TIMESTAMP/ISO string
+  if (deadline.includes("T") || deadline.endsWith("Z")) {
+    return moment.utc(deadline).local().format("YYYY-MM-DD HH:mm:ss");
+  } else if (deadline.includes(" ")) {
+    // DATETIME (assume stored in UTC)
+    return moment.utc(deadline).local().format("YYYY-MM-DD HH:mm:ss");
+  } else {
+    // DATE only
+    return moment(deadline).format("YYYY-MM-DD");
+  }
+};
 
 const Tasks = ({ tasks: initialTasks, projects, curruser, allusers }) => {
   const router = useRouter();
@@ -94,7 +105,8 @@ const Tasks = ({ tasks: initialTasks, projects, curruser, allusers }) => {
   const [addTaskModalOpen, setAddTaskModalOpen] = useState(false);
   const [tasks, setTasks] = useState(initialTasks);
 
-  const handleSeeDetails = (taskId) => router.push(`/task-screenshot/${taskId}`);
+  const handleSeeDetails = (taskId) =>
+    router.push(`/task-screenshot/${taskId}`);
 
   const handleSubmitForReview = async (taskId, status) => {
     try {
@@ -105,10 +117,13 @@ const Tasks = ({ tasks: initialTasks, projects, curruser, allusers }) => {
       });
 
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Failed to update task status");
+      if (!response.ok)
+        throw new Error(data.error || "Failed to update task status");
 
       setTasks((prev) =>
-        prev.map((t) => (t.task_id === taskId ? { ...t, status: data.taskres.status } : t))
+        prev.map((t) =>
+          t.task_id === taskId ? { ...t, status: data.taskres.status } : t
+        )
       );
     } catch (e) {
       console.error(e);
@@ -122,7 +137,9 @@ const Tasks = ({ tasks: initialTasks, projects, curruser, allusers }) => {
     const h = Math.floor(n / 3600);
     const m = Math.floor((n % 3600) / 60);
     const s = n % 60;
-    return [h ? `${h}h` : null, m ? `${m}m` : null, s ? `${s}s` : null].filter(Boolean).join(" ");
+    return [h ? `${h}h` : null, m ? `${m}m` : null, s ? `${s}s` : null]
+      .filter(Boolean)
+      .join(" ");
   };
 
   const filteredTasks = useMemo(() => {
@@ -148,7 +165,10 @@ const Tasks = ({ tasks: initialTasks, projects, curruser, allusers }) => {
 
     // colors for per-task bars by PRIORITY (falls back to rotating palette)
     const perTaskColors = filteredTasks.map((t, i) => {
-      return chartPalette.priority[t.priority] || chartPalette.bars[i % chartPalette.bars.length];
+      return (
+        chartPalette.priority[t.priority] ||
+        chartPalette.bars[i % chartPalette.bars.length]
+      );
     });
 
     return {
@@ -216,7 +236,8 @@ const Tasks = ({ tasks: initialTasks, projects, curruser, allusers }) => {
         tooltip: {
           callbacks: {
             label: (ctx) => {
-              const raw = typeof ctx.raw === "number" ? ctx.raw : Number(ctx.raw || 0);
+              const raw =
+                typeof ctx.raw === "number" ? ctx.raw : Number(ctx.raw || 0);
               return ` ${formatSeconds(raw)}`;
             },
           },
@@ -245,11 +266,12 @@ const Tasks = ({ tasks: initialTasks, projects, curruser, allusers }) => {
           callbacks: {
             label: (ctx) => {
               const label = ctx.label || "";
-              const v = typeof ctx.raw === "number" ? ctx.raw : Number(ctx.raw || 0);
+              const v =
+                typeof ctx.raw === "number" ? ctx.raw : Number(ctx.raw || 0);
               const total =
                 analytics.perStatusCounts.pending +
-                analytics.perStatusCounts.in_progress +
-                analytics.perStatusCounts.completed || 1;
+                  analytics.perStatusCounts.in_progress +
+                  analytics.perStatusCounts.completed || 1;
               const pct = Math.round((v * 100) / total);
               return ` ${label}: ${v} (${pct}%)`;
             },
@@ -263,11 +285,15 @@ const Tasks = ({ tasks: initialTasks, projects, curruser, allusers }) => {
   const currentProjectName =
     selectedProject === "ALL"
       ? "All Projects"
-      : projects.find((p) => String(p.project_id) === String(selectedProject))?.project_name ||
-        "Project";
+      : projects.find((p) => String(p.project_id) === String(selectedProject))
+          ?.project_name || "Project";
 
   return (
-    <div className="p-6 space-y-6 bg-gradient-to-br from-red-50 to-pink-50 min-h-screen">
+    <div
+      className={`p-6 space-y-6 bg-gradient-to-br ${
+        curruser.role === "Admin" ? "from-red-100" : "from-blue-50"
+      } to-indigo-50 min-h-screen`}
+    >
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-bold text-foreground">Tasks</h1>
         {curruser.role !== "Project Manager" && (
@@ -283,17 +309,26 @@ const Tasks = ({ tasks: initialTasks, projects, curruser, allusers }) => {
 
       {/* Project Filter */}
       <div className="mb-2">
-        <label htmlFor="project-select" className="block text-sm font-medium text-foreground mb-2">
+        <label
+          htmlFor="project-select"
+          className="block text-sm font-medium text-foreground mb-2"
+        >
           Select Project
         </label>
-        <Select value={selectedProject} onValueChange={(v) => setSelectedProject(v || "ALL")}>
+        <Select
+          value={selectedProject}
+          onValueChange={(v) => setSelectedProject(v || "ALL")}
+        >
           <SelectTrigger className="w-64">
             <SelectValue placeholder="Choose a project" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="ALL">All Projects</SelectItem>
             {projects.map((project) => (
-              <SelectItem key={project.project_id} value={String(project.project_id)}>
+              <SelectItem
+                key={project.project_id}
+                value={String(project.project_id)}
+              >
                 {project.project_name}
               </SelectItem>
             ))}
@@ -305,26 +340,36 @@ const Tasks = ({ tasks: initialTasks, projects, curruser, allusers }) => {
       <div className="grid grid-cols-1 gap-4">
         <Card className="border-dashed">
           <CardHeader>
-            <CardTitle className="text-lg">Time & Status Overview — {currentProjectName}</CardTitle>
+            <CardTitle className="text-lg">
+              Time & Status Overview — {currentProjectName}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             {/* KPIs */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
               <div className="p-3 rounded-xl bg-white shadow-sm">
                 <div className="text-xs text-muted-foreground">Total Time</div>
-                <div className="text-lg font-semibold">{formatSeconds(analytics.totalSeconds)}</div>
+                <div className="text-lg font-semibold">
+                  {formatSeconds(analytics.totalSeconds)}
+                </div>
               </div>
               <div className="p-3 rounded-xl bg-white shadow-sm">
                 <div className="text-xs text-muted-foreground">Avg / Task</div>
-                <div className="text-lg font-semibold">{formatSeconds(analytics.avgSeconds)}</div>
+                <div className="text-lg font-semibold">
+                  {formatSeconds(analytics.avgSeconds)}
+                </div>
               </div>
               <div className="p-3 rounded-xl bg-white shadow-sm">
                 <div className="text-xs text-muted-foreground">Tasks</div>
-                <div className="text-lg font-semibold">{analytics.taskCount}</div>
+                <div className="text-lg font-semibold">
+                  {analytics.taskCount}
+                </div>
               </div>
               <div className="p-3 rounded-xl bg-white shadow-sm">
                 <div className="text-xs text-muted-foreground">Completed</div>
-                <div className="text-lg font-semibold">{analytics.completedCount}</div>
+                <div className="text-lg font-semibold">
+                  {analytics.completedCount}
+                </div>
               </div>
             </div>
 
@@ -353,11 +398,18 @@ const Tasks = ({ tasks: initialTasks, projects, curruser, allusers }) => {
           filteredTasks.map((task, i) => {
             const StatusIcon = statusIcons[task.status] || Clock;
             return (
-              <Card key={task.task_id} className="hover:shadow-md transition-shadow">
+              <Card
+                key={task.task_id}
+                className="hover:shadow-md transition-shadow"
+              >
                 <CardHeader>
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg text-foreground">{task.task_name}</CardTitle>
-                    {["Project Manager", "CEO", "Admin", "Team Lead"].includes(curruser.role) ? (
+                    <CardTitle className="text-lg text-foreground">
+                      {task.task_name}
+                    </CardTitle>
+                    {["Project Manager", "CEO", "Admin", "Team Lead"].includes(
+                      curruser.role
+                    ) ? (
                       <button
                         type="button"
                         className="px-3 py-1 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors text-sm font-medium"
@@ -380,19 +432,25 @@ const Tasks = ({ tasks: initialTasks, projects, curruser, allusers }) => {
                 </CardHeader>
                 <CardContent>
                   <div className="text-sm text-gray-700 mb-2">
-                    Time Spent: <span className="font-medium">{formatSeconds(task.last_timing)}</span>
+                    Time Spent:{" "}
+                    <span className="font-medium">
+                      {formatSeconds(task.last_timing)}
+                    </span>
                   </div>
                   <div className="flex items-center justify-between text-sm text-muted-foreground">
-                    {["Project Manager", "CEO", "Team Lead", "Admin"].includes(curruser.role) ||
-                    ["pending", "completed"].includes(task.status) ? (
+                    {["Project Manager", "CEO", "Team Lead", "Admin"].includes(
+                      curruser.role
+                    ) || ["pending", "completed"].includes(task.status) ? (
                       <div className="px-3 py-1" />
                     ) : (
                       <button
                         type="button"
                         className="px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm font-medium"
                         onClick={() => {
-                          const confirmed = window.confirm("Submit for review?");
-                          if (confirmed) handleSubmitForReview(task.task_id, "pending");
+                          const confirmed =
+                            window.confirm("Submit for review?");
+                          if (confirmed)
+                            handleSubmitForReview(task.task_id, "pending");
                         }}
                       >
                         Submit for Review
@@ -401,7 +459,7 @@ const Tasks = ({ tasks: initialTasks, projects, curruser, allusers }) => {
 
                     <span className="font-medium">
                       Due:{" "}
-                      <span >
+                      <span>
                         {/* {new Date(task.deadline).toISOString().split("T")[0]} */}
                         {formatDeadline(task.deadline)}
                       </span>
