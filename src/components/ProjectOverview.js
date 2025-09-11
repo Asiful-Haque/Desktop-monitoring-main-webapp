@@ -30,20 +30,20 @@ const getStatusColor = (status) => {
   }
 };
 
-  const formatDeadline = (deadline) => {
-    if (!deadline) return "-";
+const formatDeadline = (deadline) => {
+  if (!deadline) return "-";
 
-    // Check if it contains time + 'T' or 'Z' → TIMESTAMP/ISO string
-    if (deadline.includes("T") || deadline.endsWith("Z")) {
-      return moment.utc(deadline).local().format("YYYY-MM-DD HH:mm:ss");
-    } else if (deadline.includes(" ")) {
-      // DATETIME (assume stored in UTC)
-      return moment.utc(deadline).local().format("YYYY-MM-DD HH:mm:ss");
-    } else {
-      // DATE only
-      return moment(deadline).format("YYYY-MM-DD");
-    }
-  };
+  // Check if it contains time + 'T' or 'Z' → TIMESTAMP/ISO string
+  if (deadline.includes("T") || deadline.endsWith("Z")) {
+    return moment.utc(deadline).local().format("YYYY-MM-DD ");
+  } else if (deadline.includes(" ")) {
+    // DATETIME (assume stored in UTC)
+    return moment.utc(deadline).local().format("YYYY-MM-DD ");
+  } else {
+    // DATE only
+    return moment(deadline).format("YYYY-MM-DD");
+  }
+};
 
 function ProjectOverview({ projects }) {
   const router = useRouter();
@@ -57,30 +57,33 @@ function ProjectOverview({ projects }) {
         </CardHeader>
         <CardContent className="overflow-y-auto h-full">
           <div className="space-y-4">
-            {projects && projects.map((project) => (
-              <div
-                key={project.project_id}
-                className="p-4 border border-blue-100 rounded-lg bg-blue-50/50 cursor-pointer hover:bg-blue-100/50 transition-colors"
-                onClick={() => router.push(`/projectDetails/${project.project_id}`)}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="font-medium text-gray-900">{project.project_name}</h4>
-                  <Badge className={getStatusColor(project.status)}>
-                    {project.status}
-                  </Badge>
-                </div>
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm text-gray-600">
-                    <span>{project.assigned_to_rel.username}</span>
-                    <span>{project.progress}% complete</span>
+            {projects &&
+              projects.map((project) => (
+                <div
+                  key={project.project_id}
+                  className="p-4 border border-blue-100 rounded-lg bg-blue-50/50 cursor-pointer hover:bg-blue-100/50 transition-colors"
+                  onClick={() =>
+                    router.push(`/projectDetails/${project.project_id}`)
+                  }
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="font-medium text-gray-900">
+                      {project.project_name}
+                    </h4>
+                    <Badge className={getStatusColor(project.status)}>
+                      {project.status}
+                    </Badge>
                   </div>
-                  <Progress value={project.progress} className="h-2" />
-                  <p className="text-xs text-gray-500">
-                    Deadline: {formatDeadline(project.deadline)}
-                  </p>
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm text-gray-600">
+                      <span>{project.assigned_to_rel.username}</span>
+                      <p className="text-xs text-gray-500">
+                        Deadline: {formatDeadline(project.deadline)}
+                      </p>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
           </div>
         </CardContent>
       </Card>

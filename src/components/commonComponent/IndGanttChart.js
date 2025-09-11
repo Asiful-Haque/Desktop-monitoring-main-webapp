@@ -1,6 +1,12 @@
 "use client";
 import React, { useEffect, useMemo, useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import moment from "moment";
 
 /** -------------------- Utils -------------------- **/
@@ -12,12 +18,16 @@ const getRandomColor = () => {
 };
 
 const hslToHex = (h, s, l) => {
-  s /= 100; l /= 100;
+  s /= 100;
+  l /= 100;
   const k = (n) => (n + h / 30) % 12;
   const a = s * Math.min(l, 1 - l);
   const f = (n) =>
     l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
-  const toHex = (x) => Math.round(x * 255).toString(16).padStart(2, "0");
+  const toHex = (x) =>
+    Math.round(x * 255)
+      .toString(16)
+      .padStart(2, "0");
   return `#${toHex(f(0))}${toHex(f(8))}${toHex(f(4))}`;
 };
 
@@ -28,7 +38,9 @@ const darken = (hex, p = 18) => {
   const g = parseInt(c.slice(2, 4), 16);
   const b = parseInt(c.slice(4, 6), 16);
   const d = (v) => Math.max(0, Math.min(255, Math.round(v * (1 - p / 100))));
-  return `#${d(r).toString(16).padStart(2, "0")}${d(g).toString(16).padStart(2, "0")}${d(b).toString(16).padStart(2, "0")}`;
+  return `#${d(r).toString(16).padStart(2, "0")}${d(g)
+    .toString(16)
+    .padStart(2, "0")}${d(b).toString(16).padStart(2, "0")}`;
 };
 
 const getProjectId = (p) => p?.id ?? p?.project_id;
@@ -76,9 +88,10 @@ const IndGanttChart = ({ currUser, projects, tasks }) => {
       setFetched((s) => ({ ...s, loading: true, error: "" }));
 
       try {
-        const base = process.env.NEXT_PUBLIC_MAIN_HOST || "";
-        const url = `${base}/api/time-tracking-dev/${currUser.id}?date=${selectedDate}`;
-        const res = await fetch(url, { method: "GET", cache: "no-store" });
+        const res = await fetch(
+          `${process.env.NEXT_PUBLIC_MAIN_HOST}/api/time-tracking-dev/${currUser.id}?date=${selectedDate}`,
+          { method: "GET", cache: "no-store" }
+        );
         const data = await res.json();
         const items = Array.isArray(data)
           ? data
@@ -105,12 +118,11 @@ const IndGanttChart = ({ currUser, projects, tasks }) => {
     };
   }, [currUser?.id, selectedDate]);
 
-  // EFFECTIVE TASKS:
-  // - Before first fetch finishes: show parent tasks (initial paint).
-  // - After fetch finishes: always use fetched.items (even if empty).
-  const effectiveTasks = useMemo(() => {
-    return fetched.hasLoaded ? fetched.items : tasks || [];
-  }, [fetched.hasLoaded, fetched.items, tasks]);
+  // EFFECTIVE TASKS (initial paint vs fetched)
+  const effectiveTasks = useMemo(
+    () => (fetched.hasLoaded ? fetched.items : tasks || []),
+    [fetched.hasLoaded, fetched.items, tasks]
+  );
 
   // Only current user's tasks
   const userTasks = useMemo(() => {
@@ -165,24 +177,33 @@ const IndGanttChart = ({ currUser, projects, tasks }) => {
     return totals;
   }, [projectTaskMap]);
 
-  // “Now” marker
+  // “Now” marker — high precision anchored to selectedDate
   useEffect(() => {
     const updateNow = () => {
-      const d = new Date();
-      const pct = ((d.getHours() + d.getMinutes() / 60) / 24) * 100;
-      setNowPct(pct);
+      const now = new Date();
+      const dayStart = new Date(`${selectedDate}T00:00:00`);
+      const pct = ((now - dayStart) / 86400000) * 100; // seconds + ms precision
+      setNowPct(Math.max(0, Math.min(100, pct)));
     };
     updateNow();
-    const id = setInterval(updateNow, 60 * 1000);
+    const id = setInterval(updateNow, 10 * 1000);
     return () => clearInterval(id);
-  }, []);
+  }, [selectedDate]);
 
-  // Bar geometry
+  // Bar geometry (seconds + ms precision)
   const getTaskBarStyle = (task, index, allTasks) => {
     const start = new Date(task.task_start);
     const end = new Date(task.task_end);
-    const startPct = ((start.getHours() + start.getMinutes() / 60) / 24) * 100;
-    const endPct = ((end.getHours() + end.getMinutes() / 60) / 24) * 100;
+    const toPct = (d) => {
+      const secs =
+        d.getHours() * 3600 +
+        d.getMinutes() * 60 +
+        d.getSeconds() +
+        d.getMilliseconds() / 1000;
+      return (secs / 86400) * 100;
+    };
+    const startPct = toPct(start);
+    const endPct = toPct(end);
     const width = Math.max(endPct - startPct, 1.25);
     const sameStart =
       allTasks.filter((t) => t.task_start === task.task_start).length || 1;
@@ -242,15 +263,22 @@ const IndGanttChart = ({ currUser, projects, tasks }) => {
                     style={{ left: `${(hour / 24) * 100}%` }}
                   />
                 ))}
+                {nowPct !== null && nowPct >= 0 && nowPct <= 100 && (
+                  <div
+                    className="absolute top-0 bottom-0 w-[2px] bg-fuchsia-500/90"
+                    style={{ left: `${nowPct}%` }}
+                    title={`Now: ${moment().format("HH:mm")}`}
+                  />
+                )}
               </div>
+
+              {/* Hourly labels (every hour) */}
               <div className="relative flex justify-between text-[10px] text-slate-500 py-2 px-2">
-                {hours
-                  .filter((_, i) => i % 2 === 0)
-                  .map((hour) => (
-                    <span key={hour} className="w-8 text-center">
-                      {hour.toString().padStart(2, "0")}:00
-                    </span>
-                  ))}
+                {hours.map((hour) => (
+                  <span key={hour} className="w-8 text-center">
+                    {hour.toString().padStart(2, "0")}:00
+                  </span>
+                ))}
               </div>
               <div className="h-px bg-slate-200" />
             </div>
@@ -265,11 +293,13 @@ const IndGanttChart = ({ currUser, projects, tasks }) => {
             Loading sessions for {selectedDate}…
           </div>
         )}
-        {fetched.hasLoaded && !fetched.loading && fetched.items.length === 0 && (
-          <div className="mb-3 text-sm text-slate-500">
-            No sessions on {selectedDate}.
-          </div>
-        )}
+        {fetched.hasLoaded &&
+          !fetched.loading &&
+          fetched.items.length === 0 && (
+            <div className="mb-3 text-sm text-slate-500">
+              No sessions on {selectedDate}.
+            </div>
+          )}
         {fetched.error && (
           <div className="mb-3 text-sm text-red-600">{fetched.error}</div>
         )}
@@ -297,18 +327,28 @@ const IndGanttChart = ({ currUser, projects, tasks }) => {
                     <div className="flex items-center gap-3">
                       <div
                         className="h-8 w-8 rounded-full shadow-sm ring-1 ring-black/5"
-                        style={{ background: chip, boxShadow: `0 2px 10px ${chipShadow}` }}
+                        style={{
+                          background: chip,
+                          boxShadow: `0 2px 10px ${chipShadow}`,
+                        }}
                         title={pname?.[0] || "P"}
                       />
                       <div className="min-w-0">
-                        <div className="font-semibold text-slate-800 truncate" title={pname}>
+                        <div
+                          className="font-semibold text-slate-800 truncate"
+                          title={pname}
+                        >
                           {pname}
                         </div>
                         <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px]">
                           <span className="inline-flex items-center rounded-full bg-slate-100/80 px-2 py-0.5 text-slate-600">
                             Total:{" "}
                             <span className="ml-1 font-semibold text-slate-700">
-                              {fmtMin(totalMin)}
+                              {minutesBetween(0, totalMin * 60000)
+                                ? `${Math.floor(totalMin / 60)}h ${
+                                    totalMin % 60
+                                  }m`
+                                : "0m"}
                             </span>
                           </span>
                           {tasksForProject.length === 0 && (
@@ -352,13 +392,18 @@ const IndGanttChart = ({ currUser, projects, tasks }) => {
                         base,
                         22
                       )} 100%)`;
-                      const startLabel = moment(task.task_start).format("HH:mm");
+                      const startLabel = moment(task.task_start).format(
+                        "HH:mm"
+                      );
                       const endLabel = moment(task.task_end).format("HH:mm");
                       const mins = minutesBetween(
                         task.task_start,
                         task.task_end
                       );
-                      const dur = fmtMin(mins);
+                      const dur =
+                        mins >= 60
+                          ? `${Math.floor(mins / 60)}h ${mins % 60}m`
+                          : `${mins}m`;
 
                       return (
                         <div
@@ -371,7 +416,9 @@ const IndGanttChart = ({ currUser, projects, tasks }) => {
                           }}
                           title={`Task ${task.task_id} • ${moment(
                             task.work_date
-                          ).format("YYYY-MM-DD")} • ${startLabel}-${endLabel} • ${dur}`}
+                          ).format(
+                            "YYYY-MM-DD"
+                          )} • ${startLabel}-${endLabel} • ${dur}`}
                         >
                           <div className="absolute inset-0 rounded-xl bg-gradient-to-b from-white/15 to-transparent" />
                           <div className="absolute inset-0 flex items-center justify-between px-2">
@@ -400,7 +447,7 @@ const IndGanttChart = ({ currUser, projects, tasks }) => {
         {/* Empty state */}
         {(!projects || projects.length === 0) && (
           <div className="mt-6 text-center text-sm text-slate-500">
-            No projects to display.
+            No projects to display. 
           </div>
         )}
       </CardContent>

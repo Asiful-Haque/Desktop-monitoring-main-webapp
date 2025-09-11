@@ -64,7 +64,7 @@ const getProjectTasksByDate = async (projectId, date, cookieHeader) => {
           "Content-Type": "application/json", 
         },
         cache: "no-store",
-                headers: {
+        headers: {
           Cookie: cookieHeader, 
         },
       }
@@ -110,26 +110,27 @@ const ProjectDetails = async ({ params }) => {
 
   const raw = jwt.decode(tokenCookie.value);
   if (!raw) throw new Error("Unauthorized");
-
   const cookieHeader = `token=${tokenCookie.value}`;
   const { projectId } = await params;
 
   const teamMembers = await getTeamMembers(projectId); 
   const tasks = await getProjectTasks(projectId, cookieHeader);
   const currentDate = new Date().toISOString().split('T')[0]; 
-  // const currentDate = "2025-09-08"; 
   const tasksbyDate = await getProjectTasksByDate(projectId, currentDate, cookieHeader);
   const projectData = await getProjectData(projectId);
   const teamCount = teamMembers.members?.length || 0;
 
   const currentUser = raw;
-  // Mock project data - in real app, this would be fetched based on projectId
+  const totalTasks = tasks.length;
+  const completedTasks = tasks.filter((t) => t.status === "completed").length;
+  const completionPercentage =
+    totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
   const project = {
     id: projectId,
     name: projectData.project_name,
     description: projectData.project_description,
     status: projectData.status,
-    progress: 75,
+    progress: completionPercentage,
     deadline: "2024-02-15",
     createdDate: "2023-10-01",
     budget: "$150,000",
@@ -201,7 +202,7 @@ const ProjectDetails = async ({ params }) => {
 
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <ProjOverviewCards project={project} teamCount={teamCount} />
+        <ProjOverviewCards project={project} teamCount={teamCount}/>
         <UserManagementCard users={teamMembers} />
       </div>
             <GanttChart projectId={projectId || '1'} tasks={tasksbyDate} />
