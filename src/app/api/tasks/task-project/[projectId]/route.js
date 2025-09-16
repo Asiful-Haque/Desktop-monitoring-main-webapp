@@ -7,7 +7,7 @@ import { NextResponse } from "next/server";
 const taskService = new TaskService();
 
 export async function GET(req, context) {
-      console.log('GET request received for tasks by project');
+      console.log('GET request received for tasks by project-----------------||||11');
   try {
 
     const auth =  await getAuthFromCookie(req);           

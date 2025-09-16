@@ -10,23 +10,27 @@ import { cookies } from "next/headers";
 import GanttChart from "@/components/commonComponent/GanttChart";
 import { redirect } from "next/navigation";
 
-const getTeamMembers = async (projectId) => {
-  // Its the api calling function
+/** ---------- Simple SSR cookie header (no refresh here) ---------- */
+async function buildCookieHeader() {
+  const store = await cookies();
+  const token = store.get("token")?.value;
+  const refresh = store.get("refresh_token")?.value;
+  return [token && `token=${token}`, refresh && `refresh_token=${refresh}`]
+    .filter(Boolean)
+    .join("; ");
+}
+
+/** ---------- API wrappers (plain fetch, just forwards cookies) ---------- */
+const getTeamMembers = async (projectId, cookieHeader) => {
   try {
     const res = await fetch(
       `${process.env.NEXT_PUBLIC_MAIN_HOST}/api/team-member/${projectId}`,
-      {
-        // To ensure data is fresh on every SSR request:
-        cache: "no-store",
-      }
+      { cache: "no-store", headers: { Cookie: cookieHeader } }
     );
-    if (!res.ok) {
-      // throw new Error("Failed to fetch team members");
-    }
-    const data = await res.json();
-    return data;
-  } catch (error) {
-    console.error("Error fetching team members:", error);
+    if (!res.ok) return [];
+    return await res.json();
+  } catch (e) {
+    console.error("Error fetching team members:", e);
     return [];
   }
 };
@@ -34,109 +38,91 @@ const getTeamMembers = async (projectId) => {
 const getProjectTasks = async (projectId, cookieHeader) => {
   try {
     const res = await fetch(
-      `${process.env.NEXT_PUBLIC_MAIN_HOST}/api/tasks/task-project/${projectId}`, // Its the api calling function
-      {
-        cache: "no-store",
-        headers: {
-          Cookie: cookieHeader, // <-- send cookie manually
-        },
-      }
+      `${process.env.NEXT_PUBLIC_MAIN_HOST}/api/tasks/task-project/${projectId}`,
+      { cache: "no-store", headers: { Cookie: cookieHeader } }
     );
-    if (!res.ok) {
-      throw new Error("Failed to fetch tasks");
-    }
+    if (!res.ok) throw new Error("Failed to fetch tasks");
     const data = await res.json();
     return data.tasks || [];
-  } catch (error) {
-    console.error("Error fetching tasks:", error);
+  } catch (e) {
+    console.error("Error fetching tasks:", e);
     return [];
   }
 };
 
-// Fetching the project tasks for a specific date (using GET and sending date in the query)
 const getProjectTasksByDate = async (projectId, date, cookieHeader) => {
   try {
     const res = await fetch(
-      `${process.env.NEXT_PUBLIC_MAIN_HOST}/api/time-tracking/${projectId}?date=${date}`, // Use GET method with date in the query string
-      {
-        method: "GET", 
-        headers: {
-          "Content-Type": "application/json", 
-        },
-        cache: "no-store",
-        headers: {
-          Cookie: cookieHeader, 
-        },
-      }
+      `${process.env.NEXT_PUBLIC_MAIN_HOST}/api/time-tracking/${projectId}?date=${encodeURIComponent(date)}`,
+      { cache: "no-store", headers: { Cookie: cookieHeader } }
     );
-    
-    // Check if the response is OK
-    if (!res.ok) {
-      console.error("Failed to fetch tasks by date");
-    }
-    
-    const data = await res.json(); 
-    return data.items || []; 
-  } catch (error) {
-    console.error("Error fetching tasks by date:", error); 
-    return []; 
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.items || [];
+  } catch (e) {
+    console.error("Error fetching tasks by date:", e);
+    return [];
   }
 };
 
-
-const getProjectData = async (projectId) => {
+const getProjectData = async (projectId, cookieHeader) => {
   try {
     const res = await fetch(
       `${process.env.NEXT_PUBLIC_MAIN_HOST}/api/projects/details/${projectId}`,
-      {
-        cache: "no-store", // SSR fresh data
-      }
+      { cache: "no-store", headers: { Cookie: cookieHeader } }
     );
-    if (!res.ok) {
-      throw new Error("Failed to fetch project data");
-    }
+    if (!res.ok) throw new Error("Failed to fetch project data");
     const data = await res.json();
     return data.projectDetailsResponse || {};
-  } catch (error) {
-    console.error("Error fetching project data:", error);
+  } catch (e) {
+    console.error("Error fetching project data:", e);
     return {};
   }
 };
 
+/** ---------- Page ---------- */
 const ProjectDetails = async ({ params }) => {
-  const cookieStore = await cookies();
-  const tokenCookie = cookieStore.get("token");
-  if (!tokenCookie) redirect(`/`);
+  const store = await cookies();
+  const token = store.get("token")?.value;
+  const refresh = store.get("refresh_token")?.value;
 
-  const raw = jwt.decode(tokenCookie.value);
-  if (!raw) throw new Error("Unauthorized");
-  const cookieHeader = `token=${tokenCookie.value}`;
+  // If no tokens at all → go to login
+  if (!token && !refresh) return redirect(`/logggg`);
+
+  // Build Cookie header for SSR -> API calls (auth happens in API routes)
+  const cookieHeader = await buildCookieHeader();
+
+  const raw = token ? jwt.decode(token) : null;
   const { projectId } = await params;
 
-  const teamMembers = await getTeamMembers(projectId); 
-  const tasks = await getProjectTasks(projectId, cookieHeader);
-  const currentDate = new Date().toISOString().split('T')[0]; 
-  const tasksbyDate = await getProjectTasksByDate(projectId, currentDate, cookieHeader);
-  const projectData = await getProjectData(projectId);
-  const teamCount = teamMembers.members?.length || 0;
+  const [teamMembers, tasks, projectData] = await Promise.all([
+    getTeamMembers(projectId, cookieHeader),
+    getProjectTasks(projectId, cookieHeader),
+    getProjectData(projectId, cookieHeader),
+  ]);
 
+  const currentDate = new Date().toISOString().split("T")[0];
+  const tasksbyDate = await getProjectTasksByDate(projectId, currentDate, cookieHeader);
+
+  const teamCount = teamMembers.members?.length || 0;
   const currentUser = raw;
+
   const totalTasks = tasks.length;
   const completedTasks = tasks.filter((t) => t.status === "completed").length;
-  const completionPercentage =
-    totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+  const completionPercentage = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
   const project = {
     id: projectId,
     name: projectData.project_name,
     description: projectData.project_description,
     status: projectData.status,
     progress: completionPercentage,
-    deadline: "2024-02-15",
-    createdDate: "2023-10-01",
-    budget: "$150,000",
-    client: "TechCorp Inc.",
-    category: "Web Development",
-    priority: "High",
+    deadline: projectData.deadline || "2024-02-15",
+    createdDate: projectData.created_at || "2023-10-01",
+    budget: projectData.budget || "$150,000",
+    client: projectData.client_name || "TechCorp Inc.",
+    category: projectData.category || "Web Development",
+    priority: projectData.priority || "High",
   };
 
   const getStatusColor = (status) => {
@@ -144,11 +130,10 @@ const ProjectDetails = async ({ params }) => {
       case "Completed":
         return "bg-green-100 text-green-800";
       case "In Progress":
+      case "On Track":
         return "bg-blue-100 text-blue-800";
       case "pending":
         return "bg-yellow-100 text-yellow-800";
-      case "On Track":
-        return "bg-blue-100 text-blue-800";
       case "Active":
         return "bg-green-100 text-green-800";
       case "Away":
@@ -179,12 +164,8 @@ const ProjectDetails = async ({ params }) => {
           <h1 className="text-5xl font-bold text-gray-900">{project.name}</h1>
           <p className="text-gray-600 mt-5">{project.description}</p>
           <div className="flex items-center space-x-4 mt-4">
-            <Badge className={getStatusColor(project.status)}>
-              {project.status}
-            </Badge>
-            <Badge className={getPriorityColor(project.priority)}>
-              {project.priority} Priority
-            </Badge>
+            <Badge className={getStatusColor(project.status)}>{project.status}</Badge>
+            <Badge className={getPriorityColor(project.priority)}>{project.priority} Priority</Badge>
           </div>
         </div>
         <div className="flex space-x-2">
@@ -199,13 +180,12 @@ const ProjectDetails = async ({ params }) => {
         </div>
       </div>
 
-
-
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <ProjOverviewCards project={project} teamCount={teamCount}/>
+        <ProjOverviewCards project={project} teamCount={teamCount} />
         <UserManagementCard users={teamMembers} />
       </div>
-            <GanttChart projectId={projectId || '1'} tasks={tasksbyDate} />
+
+      <GanttChart projectId={projectId} tasks={tasksbyDate} />
       <ProjTaskCard tasks={tasks} curruser={currentUser} />
       <ProjDetailsCard project={project} />
     </div>
