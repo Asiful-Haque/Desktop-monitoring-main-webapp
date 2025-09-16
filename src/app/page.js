@@ -1,42 +1,19 @@
 "use client";
 import React, { useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation"; 
 
 export default function Login() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const nextDest = searchParams?.get("next") || "/adminDashboard";
+  const nextDest = "/adminDashboard"; 
 
   const THEMES = [
-    {
-      key: "ocean",
-      name: "Ocean",
-      pageBg: "from-blue-500 via-blue-400 to-blue-900",
-      panelGrad: "from-sky-500 via-blue-500 to-sky-600",
-      buttonGrad: "from-sky-500 via-indigo-600 to-cyan-600",
-      dot: "bg-sky-500",
-    },
-    {
-      key: "tropical",
-      name: "Tropical",
-      pageBg: "from-emerald-600 via-teal-600 to-cyan-600",
-      panelGrad: "from-emerald-500 via-teal-500 to-cyan-500",
-      buttonGrad: "from-emerald-500 via-teal-600 to-cyan-600",
-      dot: "bg-emerald-500",
-    },
-    {
-      key: "ash",
-      name: "Ash",
-      pageBg: "from-neutral-900 via-slate-800 to-zinc-900",
-      panelGrad: "from-zinc-700 via-slate-600 to-neutral-700",
-      buttonGrad: "from-slate-800 via-zinc-700 to-neutral-800",
-      dot: "bg-zinc-600",
-    },
+    { key: "ocean", name: "Ocean", pageBg: "from-blue-500 via-blue-400 to-blue-900", panelGrad: "from-sky-500 via-blue-500 to-sky-600", buttonGrad: "from-sky-500 via-indigo-600 to-cyan-600", dot: "bg-sky-500" },
+    { key: "tropical", name: "Tropical", pageBg: "from-emerald-600 via-teal-600 to-cyan-600", panelGrad: "from-emerald-500 via-teal-500 to-cyan-500", buttonGrad: "from-emerald-500 via-teal-600 to-cyan-600", dot: "bg-emerald-500" },
+    { key: "ash", name: "Ash", pageBg: "from-neutral-900 via-slate-800 to-zinc-900", panelGrad: "from-zinc-700 via-slate-600 to-neutral-700", buttonGrad: "from-slate-800 via-zinc-700 to-neutral-800", dot: "bg-zinc-600" },
   ];
 
   const [themeKey, setThemeKey] = useState(THEMES[0].key);
   const theme = useMemo(() => THEMES.find(t => t.key === themeKey) || THEMES[0], [themeKey]);
-
   const [showPwd, setShowPwd] = useState(false);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
@@ -45,6 +22,7 @@ export default function Login() {
     e.preventDefault();
     setErr("");
     setLoading(true);
+
     const fd = new FormData(e.target);
     const payload = { email: fd.get("email"), password: fd.get("password") };
 
@@ -53,13 +31,17 @@ export default function Login() {
         method: "POST",
         body: JSON.stringify(payload),
       });
+      console.log("Login response status------------------:", res);
       const data = await res.json();
       if (!res.ok) {
         setErr(data?.error || "Invalid email or password");
         return;
       }
+
       e.target.reset();
-      router.push(nextDest);
+      console.log("Login successful:", data);
+      router.push(nextDest); // simple redirect
+      console.log("Redirecting to:", nextDest);
     } catch {
       setErr("Network error. Please try again.");
     } finally {

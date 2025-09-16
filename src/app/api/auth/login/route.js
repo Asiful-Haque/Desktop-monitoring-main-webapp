@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { signToken } from "@/app/lib/auth";
 import { LoginService } from "@/app/services/login/loginService";
+import { Big_Shoulders } from "next/font/google";
 
 const loginService = new LoginService();
 
@@ -46,12 +47,14 @@ export async function POST(req) {
       tenant_name: user.tenant_name,
     });
 
-    // console.log("About to set cookie…");
+    console.log("About to set cookie…...........with token:", token);
     response.cookies.set("token", token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      // secure: process.env.NODE_ENV === "production",
+      secure: true,
       maxAge: 60 * 60, // 1 hour
-      sameSite: "lax",
+      // sameSite: "lax", 
+      sameSite: "none", 
     });
     console.log("Token added in cookie successfully:", token);
     console.log("Response:", response);

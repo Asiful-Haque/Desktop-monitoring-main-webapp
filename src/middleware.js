@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server';
 
 const ORIGIN_WHITELIST = new Set([
   'http://localhost:3000',
+  'null',
 ]);
 
 function buildCorsHeaders(req) {
@@ -11,6 +12,7 @@ function buildCorsHeaders(req) {
   const headers = new Headers();
 
   if (ORIGIN_WHITELIST.has(origin)) {
+    console.log(`origin from header ------------------- : ${origin}`);
     headers.set('Access-Control-Allow-Origin', origin);
     headers.set('Access-Control-Allow-Credentials', 'true');
   }

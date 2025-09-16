@@ -15,7 +15,7 @@ export async function POST(req) {
 
     const { p_id } = req.params;
     if (!p_id) {
-      return NextResponse.json({ error: "User ID is required" }, { status: 400 });
+      return NextResponse.json({ error: "project ID is required" }, { status: 400 });
     }
     const projectId = p_id;
     const date = url.searchParams.get("date");  
@@ -53,7 +53,6 @@ export async function POST(req) {
 
 // GET route to fetch time-tracking data for a specific project and date
 export async function GET(req) {
-
   try {
     // Authentication check
     const auth = await getAuthFromCookie(req);
