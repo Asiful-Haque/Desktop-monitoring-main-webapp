@@ -1,32 +1,58 @@
-// middleware.ts
+// middleware.js
 import { NextResponse } from "next/server";
 import { verifyToken, verifyRefreshToken, signToken, signRefreshToken } from "@/app/lib/auth";
 
-const ORIGIN_WHITELIST = new Set(["http://localhost:3000","null"]);
+const ORIGIN_WHITELIST = new Set(["http://localhost:3000", "null"]); // "null" for Electron file://
+const PROTECTED_PAGES = ["/adminDashboard", "/tasks", "/assign_task", "/projectDetails"];
 
 function buildCorsHeaders(req) {
   const origin = req.headers.get("origin") || "";
-  const headers = new Headers();
+  const h = new Headers();
   if (ORIGIN_WHITELIST.has(origin)) {
-    console.log(`origin from header ------------------- : ${origin}`);
-    headers.set("Access-Control-Allow-Origin", origin);
-    headers.set("Access-Control-Allow-Credentials", "true");
+    h.set("Access-Control-Allow-Origin", origin);
+    h.set("Access-Control-Allow-Credentials", "true");
   }
-  headers.set("Vary", "Origin");
-  headers.set("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
-  headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With");
-  return headers;
+  h.set("Vary", "Origin");
+  h.set("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
+  h.set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With");
+  return h;
 }
 
-// 👇 Use this instead of BASE_COOKIE:
 function cookieAttrsFor(req) {
   const isHttps = new URL(req.url).protocol === "https:";
-  if (isHttps) {
-    // HTTPS (prod, or dev over https): allow cross-site
-    return { httpOnly: true, sameSite: "none" , secure: true, path: "/" };
+  return isHttps
+    ? { httpOnly: true, sameSite: "none", secure: true,  path: "/" }   // prod/https
+    : { httpOnly: true, sameSite: "lax",  secure: false, path: "/" };  // http localhost
+}
+
+/**
+ * If access token is valid -> returns NextResponse.next().
+ * Else if refresh is valid -> rotates cookies and returns NextResponse with Set-Cookie.
+ * Else -> returns null.
+ */
+async function ensureFreshAuth(req) {
+  const token   = req.cookies?.get?.("token")?.value || null;
+  const refresh = req.cookies?.get?.("refresh_token")?.value || null;
+
+  if (token) {
+    const ok = await verifyToken(token).catch(() => null);
+    if (ok) return NextResponse.next();
   }
-  // HTTP localhost dev: avoid None+Secure rejection
-  return { httpOnly: true, sameSite: "lax" , secure: false, path: "/" };
+
+  if (refresh) {
+    const payload = await verifyRefreshToken(refresh).catch(() => null);
+    if (payload) {
+      const newAccess  = await signToken(payload);
+      const newRefresh = await signRefreshToken(payload);
+      const res = NextResponse.next();
+      const attrs = cookieAttrsFor(req);
+      res.cookies.set("token",         newAccess,  { ...attrs, maxAge: 60 * 60 });          // 1h
+      res.cookies.set("refresh_token", newRefresh, { ...attrs, maxAge: 30 * 24 * 3600 });   // 30d
+      return res;
+    }
+  }
+
+  return null;
 }
 
 export async function middleware(req) {
@@ -34,48 +60,29 @@ export async function middleware(req) {
   const pathname = url.pathname;
   const method = req.method;
 
-  // ------------------ CORS for API routes ------------------
+  // ---------- API: CORS + silent refresh ----------
   if (pathname.startsWith("/api")) {
     if (method === "OPTIONS") {
       return new NextResponse(null, { status: 204, headers: buildCorsHeaders(req) });
     }
-    const res = NextResponse.next();
+
+    const maybeAuthed = await ensureFreshAuth(req);
+    const res = maybeAuthed ?? NextResponse.next();
+
+    // Always attach CORS on API
     const cors = buildCorsHeaders(req);
     cors.forEach((v, k) => res.headers.set(k, v));
     return res;
   }
 
-  // --------------- Auth for protected frontend routes ---------------
-  const protectedPaths = ["/adminDashboard", "/tasks", "/assign_task", "/projectDetails"];
-  const isProtected = protectedPaths.some((p) => pathname.startsWith(p));
+  // ---------- Frontend protected routes ----------
+  const isProtected = PROTECTED_PAGES.some((p) => pathname.startsWith(p));
   if (!isProtected) return NextResponse.next();
 
-  const token = req.cookies?.get?.("token")?.value || null;
-  const refresh = req.cookies?.get?.("refresh_token")?.value || null;
+  const maybeAuthed = await ensureFreshAuth(req);
+  if (maybeAuthed) return maybeAuthed;
 
-  if (token) { // if token is there..no need for refresh token
-    const payload = await verifyToken(token).catch(() => null);
-    if (payload) return NextResponse.next();
-  }
-
-  if (refresh) { // if no token is there..i mean deleted or removed by time out or manually...then 
-    // the refresh token will be there to generate new access and refresh token....cz refresh also 
-    // has the same payload as access token...but longer expiry time...this way it helps in absence of access token
-    const payload = await verifyRefreshToken(refresh).catch(() => null);
-    if (payload) {
-      const newAccess = await signToken(payload);
-      const newRefresh = await signRefreshToken(payload);
-
-      const res = NextResponse.next();
-      const attrs = cookieAttrsFor(req);
-      console.log("Setting new cookies from middleware (refresh succeeded)");
-      res.cookies.set("token", newAccess, { ...attrs, maxAge: 60 * 60 });                 // 1h
-      res.cookies.set("refresh_token", newRefresh, { ...attrs, maxAge: 30 * 24 * 3600 }); // 30d
-      return res;
-    }
-  }
-
-  // No valid tokens -> login
+  // Not authed -> go to login/root
   return NextResponse.redirect(new URL("/", req.url));
 }
 
