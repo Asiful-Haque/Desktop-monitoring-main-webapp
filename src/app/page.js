@@ -43,7 +43,7 @@ export default function Login() {
       router.push(nextDest); // simple redirect
       console.log("Redirecting to:", nextDest);
     } catch {
-      setErr("Network error. Please try again.");
+      setErr("Log in failed. Please try again.");
     } finally {
       setLoading(false);
     }

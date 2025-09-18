@@ -41,6 +41,13 @@ export const Project = new EntitySchema({
       type: "int",
       nullable: false,
     },
+        budget: {
+      type: "decimal",
+      precision: 12,
+      scale: 2,
+      nullable: true,
+      default: null,
+    },
   },
   relations: {
     assigned_to_rel: {

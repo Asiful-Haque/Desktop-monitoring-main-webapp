@@ -53,7 +53,9 @@ const getProjectTasks = async (projectId, cookieHeader) => {
 const getProjectTasksByDate = async (projectId, date, cookieHeader) => {
   try {
     const res = await fetch(
-      `${process.env.NEXT_PUBLIC_MAIN_HOST}/api/time-tracking/${projectId}?date=${encodeURIComponent(date)}`,
+      `${
+        process.env.NEXT_PUBLIC_MAIN_HOST
+      }/api/time-tracking/${projectId}?date=${encodeURIComponent(date)}`,
       { cache: "no-store", headers: { Cookie: cookieHeader } }
     );
     if (!res.ok) return [];
@@ -100,26 +102,37 @@ const ProjectDetails = async ({ params }) => {
     getProjectTasks(projectId, cookieHeader),
     getProjectData(projectId, cookieHeader),
   ]);
+  console.log("pro data aaaaaaaaaa", projectData);
 
   const currentDate = new Date().toISOString().split("T")[0];
-  const tasksbyDate = await getProjectTasksByDate(projectId, currentDate, cookieHeader);
+  const tasksbyDate = await getProjectTasksByDate(
+    projectId,
+    currentDate,
+    cookieHeader
+  );
 
   const teamCount = teamMembers.members?.length || 0;
   const currentUser = raw;
 
   const totalTasks = tasks.length;
   const completedTasks = tasks.filter((t) => t.status === "completed").length;
-  const completionPercentage = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+  const completionPercentage =
+    totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
+  const asLocalDate = (v) =>
+    v ? new Date(v).toLocaleDateString("en-CA") : "Not set yet";
   const project = {
     id: projectId,
     name: projectData.project_name,
     description: projectData.project_description,
     status: projectData.status,
     progress: completionPercentage,
-    deadline: projectData.deadline || "2024-02-15",
-    createdDate: projectData.created_at || "2023-10-01",
-    budget: projectData.budget || "$150,000",
+    deadline: asLocalDate(projectData.deadline),
+    createdDate: asLocalDate(projectData.created_at),
+    budget:
+      projectData.budget == null
+        ? "Not set yet"
+        : `$${Number(projectData.budget).toFixed(2)}`,
     client: projectData.client_name || "TechCorp Inc.",
     category: projectData.category || "Web Development",
     priority: projectData.priority || "High",
@@ -164,8 +177,12 @@ const ProjectDetails = async ({ params }) => {
           <h1 className="text-5xl font-bold text-gray-900">{project.name}</h1>
           <p className="text-gray-600 mt-5">{project.description}</p>
           <div className="flex items-center space-x-4 mt-4">
-            <Badge className={getStatusColor(project.status)}>{project.status}</Badge>
-            <Badge className={getPriorityColor(project.priority)}>{project.priority} Priority</Badge>
+            <Badge className={getStatusColor(project.status)}>
+              {project.status}
+            </Badge>
+            <Badge className={getPriorityColor(project.priority)}>
+              {project.priority} Priority
+            </Badge>
           </div>
         </div>
         <div className="flex space-x-2">

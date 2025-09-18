@@ -9,6 +9,7 @@ const usersService = new UsersService();
 
 export async function GET(req) {
   try {
+    console.log("Its called ............................from electron............");
     const token = await getAuthFromCookie(req);
     if (!token) {
       console.log("Unauthorized: No token found");
@@ -16,6 +17,7 @@ export async function GET(req) {
     }
     console.log("Token in GET users/route.js:", token);
     const users = await usersService.getUsers(token.tenant_id);
+    console.log("It got .................", users);
     return NextResponse.json({ users });
   } catch (error) {
     console.error('Error fetching users:', error);

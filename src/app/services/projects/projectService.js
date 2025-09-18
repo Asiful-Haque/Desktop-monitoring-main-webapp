@@ -239,6 +239,7 @@ export class ProjectService {
         "project.start_date",
         "project.deadline",
         "project.assigned_to",
+        "project.budget",
         "user.user_id",
         "user.username",
       ])
