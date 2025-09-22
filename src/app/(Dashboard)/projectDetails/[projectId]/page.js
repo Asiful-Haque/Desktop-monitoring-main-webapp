@@ -102,7 +102,6 @@ const ProjectDetails = async ({ params }) => {
     getProjectTasks(projectId, cookieHeader),
     getProjectData(projectId, cookieHeader),
   ]);
-  console.log("pro data aaaaaaaaaa", projectData);
 
   const currentDate = new Date().toISOString().split("T")[0];
   const tasksbyDate = await getProjectTasksByDate(
@@ -198,7 +197,7 @@ const ProjectDetails = async ({ params }) => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <ProjOverviewCards project={project} teamCount={teamCount} />
+        <ProjOverviewCards project={project} teamCount={teamCount} curruser={currentUser} />
         <UserManagementCard users={teamMembers} />
       </div>
 

@@ -20,3 +20,21 @@ export async function GET(req, context) {
     return NextResponse.json({ error: 'Failed to fetch project details' }, { status: 500 });
   }
 }
+
+
+export async function PUT(req, { params }) {
+  console.log("Came here --------- in route.js");
+  const projectId = Number(params.projectId);
+  if (!projectId) {
+    return NextResponse.json({ error: "Invalid projectId" }, { status: 400 });
+  }
+
+  const body = await req.json();
+  const updated = await projectService.updateProject(projectId, body);
+
+  if (!updated) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  return NextResponse.json(updated);
+}

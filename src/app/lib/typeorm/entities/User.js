@@ -24,6 +24,12 @@ export const User = new EntitySchema({
       type: "varchar",
       length: 255,
     },
+    default_hour_rate: {   
+      type: "decimal",
+      precision: 10,
+      scale: 2,
+      nullable: true,
+    },
     created_at: {
       type: "timestamp",
       default: () => "CURRENT_TIMESTAMP",

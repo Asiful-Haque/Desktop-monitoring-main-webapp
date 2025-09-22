@@ -18,9 +18,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { toast } from "sonner"; // ✅ Sonner toast
+import { toast } from "sonner"; 
 
-// 🧠 Component Definition
+
 const AddUserModal = ({ addUserModalOpen, setAddUserModalOpen }) => {
   // 📝 Form State
   const [formData, setFormData] = useState({
@@ -28,6 +28,7 @@ const AddUserModal = ({ addUserModalOpen, setAddUserModalOpen }) => {
     email: "",
     role: "",
     password: "",
+    defaultRate: "", 
   });
 
   const handleSubmit = async (e) => {
@@ -38,7 +39,8 @@ const AddUserModal = ({ addUserModalOpen, setAddUserModalOpen }) => {
       !formData.name ||
       !formData.email ||
       !formData.role ||
-      !formData.password
+      !formData.password ||
+      !formData.defaultRate
     ) {
       toast.error("Please fill in all fields");
       return;
@@ -55,6 +57,7 @@ const AddUserModal = ({ addUserModalOpen, setAddUserModalOpen }) => {
           email: formData.email,
           role: formData.role,
           password: formData.password,
+          default_hour_rate: parseFloat(formData.defaultRate), 
         }),
       });
 
@@ -71,7 +74,13 @@ const AddUserModal = ({ addUserModalOpen, setAddUserModalOpen }) => {
       toast.success(`User ${data.user.username} has been added successfully`);
 
       // 🔄 Reset form and close modal
-      setFormData({ name: "", email: "", role: "", password: "" });
+      setFormData({
+        name: "",
+        email: "",
+        role: "",
+        password: "",
+        defaultRate: "",
+      });
       setAddUserModalOpen(false);
     } catch (error) {
       console.error("Error adding user:", error);
@@ -139,6 +148,24 @@ const AddUserModal = ({ addUserModalOpen, setAddUserModalOpen }) => {
                 }
                 className="col-span-3"
                 placeholder="Enter password"
+              />
+            </div>
+
+            {/* Default Hourly Rate Field */}
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="defaultRate" className="text-right">
+                Hourly Rate
+              </Label>
+              <Input
+                id="defaultRate"
+                type="number"
+                step="0.01"
+                value={formData.defaultRate}
+                onChange={(e) =>
+                  setFormData({ ...formData, defaultRate: e.target.value })
+                }
+                className="col-span-3"
+                placeholder="Enter default hourly rate"
               />
             </div>
 

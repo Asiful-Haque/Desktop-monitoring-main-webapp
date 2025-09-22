@@ -247,4 +247,16 @@ export class ProjectService {
 
     return project || null;
   }
+
+  async updateProject(projectId, data) {
+    const ds = await getDataSource();
+    const repo = ds.getRepository(Project);
+
+    const project = await repo.findOne({ where: { project_id: projectId } });
+    if (!project) return null;
+
+    Object.assign(project, data, { updated_at: new Date() });
+
+    return repo.save(project);
+  }
 }
