@@ -17,19 +17,26 @@ export const AssignedUsersToProjects = new EntitySchema({
       type: "timestamp",
       default: () => "CURRENT_TIMESTAMP",
     },
+    user_rate_for_this_project: {
+      type: "decimal",
+      precision: 12,
+      scale: 2,
+      nullable: true,
+      default: null,
+    },
   },
   relations: {
     user_rel: {
       type: "many-to-one",
       target: "User",
       joinColumn: { name: "user_id", referencedColumnName: "user_id" },
-      inverseSide: "assigned_users_rel", // will add in User entity
+      inverseSide: "assigned_users_rel",
     },
     project_rel: {
       type: "many-to-one",
       target: "Project",
       joinColumn: { name: "project_id", referencedColumnName: "project_id" },
-      inverseSide: "assigned_users_rel", // will add in Project entity
+      inverseSide: "assigned_users_rel",
     },
   },
 });

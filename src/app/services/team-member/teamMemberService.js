@@ -1,4 +1,4 @@
-// app/services/teamMember/teamMemberService.ts (or .js)
+
 import { getDataSource } from "@/app/lib/typeorm/db/getDataSource";
 import { AssignedUsersToProjects } from "@/app/lib/typeorm/entities/AssignedUsersToProject";
 
@@ -8,10 +8,21 @@ export class TeamMemberService {
       const ds = await getDataSource();
       const repo = ds.getRepository(AssignedUsersToProjects);
 
+      const toNumberOrNull = (v) => {
+        if (v === undefined || v === null || v === "") return null;
+        const n = Number(v);
+        return Number.isFinite(n) ? n : null;
+      };
+
       const newUser = repo.create({
         user_id: data.user_id,
         project_id: data.project_id,
+        // NEW: persist optional per-project rate (nullable)
+        user_rate_for_this_project: toNumberOrNull(
+          data.user_rate_for_this_project
+        ),
       });
+
       const savedUser = await repo.save(newUser);
       return savedUser;
     } catch (error) {
@@ -21,7 +32,7 @@ export class TeamMemberService {
   }
 
   async getMembersByProjectId(projectId) {
-    console.log("Fetching members for projectId:", projectId);
+    // console.log("Fetching members for projectId:", projectId);
     try {
       const ds = await getDataSource();
       const repo = ds.getRepository(AssignedUsersToProjects);
@@ -35,6 +46,8 @@ export class TeamMemberService {
         .select([
           "aup.project_id AS project_id",
           "aup.assigned_at AS assigned_at",
+          // NEW: include the stored per-project rate in the result
+          "aup.user_rate_for_this_project AS user_rate_for_this_project",
           "user.user_id AS user_id",
           "user.username AS username",
           "user.email AS email",
@@ -42,7 +55,6 @@ export class TeamMemberService {
         ])
         .getRawMany();
 
-      // console.log("Raw members:", rawMembers);
       return rawMembers;
     } catch (error) {
       console.error("Error fetching members by projectId:", error);

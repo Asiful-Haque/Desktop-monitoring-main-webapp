@@ -41,7 +41,29 @@ export const Project = new EntitySchema({
       type: "int",
       nullable: false,
     },
-        budget: {
+    budget: {
+      type: "decimal",
+      precision: 12,
+      scale: 2,
+      nullable: true,
+      default: null,
+    },
+    client_name: {
+      type: "varchar",
+      length: 255,
+    },
+    project_type: {
+      type: "varchar",
+      length: 255,
+    },
+    total_budget: {
+      type: "decimal",
+      precision: 12,
+      scale: 2,
+      nullable: true,
+      default: null,
+    },
+    project_hour_rate: {
       type: "decimal",
       precision: 12,
       scale: 2,
