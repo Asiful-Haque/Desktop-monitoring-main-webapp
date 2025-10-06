@@ -6,17 +6,15 @@ export const TimeTracking = new EntitySchema({
   tableName: "time_tracking",
   columns: {
     serial_id: { primary: true, type: "int", generated: "increment" },
-
-    // scalar FK values
     task_id: { type: "int", nullable: false },
     project_id: { type: "int", nullable: false },
     developer_id: { type: "int", nullable: true },
-
-    // avoid reserved word "Date" — use work_date (or keep "Date" if you must)
     work_date: { type: "date", nullable: false },
-
     task_start: { type: "datetime", nullable: false },
-    task_end: { type: "datetime", nullable: true }, // allow running timers
+    task_end: { type: "datetime", nullable: true }, 
+    duration: { type: "int", nullable: true, unsigned: true },
+    session_payment: { type: "decimal", precision: 12, scale: 2, default: 0, nullable: false },
+    flagger: { type: "int", default: 0, nullable: false },
 
     created_at: { type: "timestamp", default: () => "CURRENT_TIMESTAMP" },
     updated_at: {

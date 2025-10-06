@@ -10,6 +10,7 @@ import {
   BarChart3,
   Settings,
   Home,
+  CalendarDays,
 } from "lucide-react";
 import {
   Sidebar,
@@ -31,19 +32,18 @@ const navigationItems = [
   { title: "Team", url: "/team", icon: Users, roles: ["Developer", "Admin", "Project Manager", "CEO", "Team Lead"] },
   { title: "Analytics", url: "/analytics", icon: BarChart3, roles: ["Admin", "Project Manager"] },
   { title: "Settings", url: "/settings", icon: Settings, roles: ["Admin"] },
+  { title: "Time Sheet", url: "/time-sheet", icon: CalendarDays, roles: ["Developer"] },
 ];
 
 export function AppSidebar({ user }) {
     const { open } = useSidebar();
     const pathname = usePathname(); // ✅ Hook used in client context
 
-  // Filter nav items by user role
   const filteredItems = navigationItems.filter(
     (item) => user && user.role && item.roles.includes(user.role)
   );
   console.log("user role is :", user );
 
-  // Class for active/inactive links
   const getNavCls = (url) =>
     url === pathname
       ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"

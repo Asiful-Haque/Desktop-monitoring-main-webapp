@@ -31,9 +31,8 @@ const taskService = new TaskService();
 
 export async function PUT(req, context) {
   try {
-    const { params } = context;
-    const taskId = Number(params.taskId);
-    console.log('Fetching for taskId:', taskId); // getting taskId from param
+    const { taskId: taskIdParam } = await context.params;
+    const taskId = Number(taskIdParam);
     if (isNaN(taskId)) {
       return NextResponse.json({ error: 'Invalid taskId' }, { status: 400 });
     }

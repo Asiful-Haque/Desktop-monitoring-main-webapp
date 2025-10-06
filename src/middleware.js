@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { verifyToken, verifyRefreshToken, signToken, signRefreshToken } from "@/app/lib/auth";
 
 const ORIGIN_WHITELIST = new Set(["http://localhost:3000", "null"]); // "null" for Electron file://
-const PROTECTED_PAGES = ["/adminDashboard", "/tasks", "/assign_task", "/projectDetails"];
+const PROTECTED_PAGES = ["/adminDashboard", "/tasks", "/assign_task", "/time-sheet", "/projectDetails", "/profile"];
 
 function buildCorsHeaders(req) {
   const origin = req.headers.get("origin") || "";
@@ -87,5 +87,5 @@ export async function middleware(req) {
 }
 
 export const config = {
-  matcher: ["/api/:path*", "/adminDashboard", "/tasks", "/assign_task", "/projectDetails/:path*"],
+  matcher: ["/api/:path*", "/adminDashboard", "/tasks", "/assign_task", "/time-sheet", "/projectDetails/:path*", "/profile/:path*"],
 };

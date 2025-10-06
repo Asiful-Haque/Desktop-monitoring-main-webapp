@@ -13,6 +13,7 @@ function ProjOverviewCards({ project, teamCount, curruser }) {
   const norm = (project?.budget ?? "").toString().trim().toLowerCase();
   const hasBudget = norm !== "" && norm !== "not set yet" && norm !== "not set";
   const budgetButtonLabel = hasBudget ? "Update budget" : "Set budget";
+  // console.log("Project in ProjOverviewCards----------------:", project);
 
   return (
     <>
@@ -81,7 +82,6 @@ function ProjOverviewCards({ project, teamCount, curruser }) {
               <div className="text-lg font-bold text-orange-600">
                 {project.budget}
               </div>
-              <p className="text-xs text-muted-foreground">Total budget</p>
             </CardContent>
           </Card>
         </div>

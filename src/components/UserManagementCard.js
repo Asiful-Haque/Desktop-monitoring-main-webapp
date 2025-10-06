@@ -27,7 +27,7 @@ function getRoleColor(role) {
   }
 }
 
-export default function UserManagementCard({ users }) {
+export default function UserManagementCard({ users, teamCount }) {
   const pathname = usePathname();
   // console.log("usesrs data:", users);
   
@@ -60,7 +60,7 @@ export default function UserManagementCard({ users }) {
           <CardDescription>
             {pathname.includes("adminDashboard")
               ? "Active users and their current roles"
-              : "People working on this project"}
+              : "Total: " + teamCount}
           </CardDescription>
         </div>
 

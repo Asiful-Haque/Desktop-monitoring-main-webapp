@@ -76,7 +76,7 @@ export default function EditProjectModal({ open, onOpenChange, projectId }) {
             status: p.status || "",
             start_date: toLocalYMD(p.start_date),
             deadline: toLocalYMD(p.deadline),
-            budget: p.budget == null ? "" : String(p.budget),
+            budget: p.total_budget == null ? "" : String(p.total_budget),
             assigned_to_name: p.assigned_to_rel?.username || "",
           });
           setInitialLoaded(true);

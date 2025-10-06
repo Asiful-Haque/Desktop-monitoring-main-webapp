@@ -6,7 +6,7 @@ const usersService = new UsersService();
 
 export async function GET(req) {
   try {
-    console.log("Its called ............................from electron............");
+    // console.log("Its called ............................from electron............");
     const auth = await getAuthFromCookie(req);
     if (!auth) {
       console.log("Unauthorized: No token found");
@@ -14,7 +14,7 @@ export async function GET(req) {
     }
     console.log("Token in GET users/route.js:", auth);
     const users = await usersService.getUsers(auth.tenant_id);
-    console.log("It got .................", users);
+    // console.log("It got .................", users);
     return NextResponse.json({ users });
   } catch (error) {
     console.error('Error fetching users:', error);
@@ -29,7 +29,7 @@ export async function POST(request) {
       console.log("Unauthorized: No token found");
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
-    console.log('Auth from Cookie:---------route.js---------------------', auth);
+    // console.log('Auth from Cookie:---------route.js---------------------', auth);
 
     const { username, email, role, password, default_hour_rate } = await request.json();
 
