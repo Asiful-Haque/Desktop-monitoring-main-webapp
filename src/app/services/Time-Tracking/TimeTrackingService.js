@@ -252,10 +252,15 @@ export class TimeTrackingService {
     return rows;
   }
 
-  async findByDateRangeAll({ startDate, endDate }) {
+  async findByDateRangeAll({ startDate, endDate, userId }) {
     const repo = await this.repo();
-    return repo.createQueryBuilder("t")
-      .where("t.work_date BETWEEN :start AND :end", { start: startDate, end: endDate })
+    return repo
+      .createQueryBuilder("t")
+      .where("t.work_date BETWEEN :start AND :end", {
+        start: startDate,
+        end: endDate,
+      })
+      .andWhere("t.developer_id = :uid", { uid: userId })
       .orderBy("t.work_date", "ASC")
       .addOrderBy("t.task_start", "ASC")
       .select([
@@ -273,13 +278,15 @@ export class TimeTrackingService {
       .getRawMany();
   }
 
-  async findByDateRangePaged({ startDate, endDate, skip = 0, take = 10 }) {
+  async findAllSubmittedForPayment({ userId }) {
     const repo = await this.repo();
 
-    const baseWhere = { start: startDate, end: endDate };
+    const baseWhere = { uid: userId, flag: 0 };
 
-    const qb = repo.createQueryBuilder("t")
-      .where("t.work_date BETWEEN :start AND :end", baseWhere)
+    const qb = repo
+      .createQueryBuilder("t")
+      .where("t.developer_id = :uid", baseWhere)
+      .andWhere("t.flagger = :flag", baseWhere)
       .orderBy("t.work_date", "ASC")
       .addOrderBy("t.task_start", "ASC")
       .select([
@@ -294,13 +301,13 @@ export class TimeTrackingService {
         "t.session_payment AS session_payment",
         "t.flagger AS flagger",
       ])
-      .skip(skip)
-      .take(take);
 
     const [rows, total] = await Promise.all([
       qb.getRawMany(),
-      repo.createQueryBuilder("t")
-        .where("t.work_date BETWEEN :start AND :end", baseWhere)
+      repo
+        .createQueryBuilder("t")
+        .where("t.developer_id = :uid", baseWhere)
+        .andWhere("t.flagger = :flag", baseWhere)
         .getCount(),
     ]);
 

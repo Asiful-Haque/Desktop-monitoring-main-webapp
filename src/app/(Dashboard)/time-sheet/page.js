@@ -1,6 +1,8 @@
 import TimeSheet from "@/components/TimeSheet/TimeSheet";
-
-export const dynamic = "force-dynamic"; // always fresh
+import { cookies } from "next/headers";
+import jwt from "jsonwebtoken";
+import { use } from "react";
+export const dynamic = "force-dynamic"; 
 
 /** ----------------------- helpers ----------------------- **/
 function ymd(d) {
@@ -64,13 +66,6 @@ function computeSeconds(row) {
 
   if (typeof row?.duration === "number" && !Number.isNaN(row.duration)) {
     const d = row.duration;
-
-    // If you KNOW the exact unit, convert explicitly and return.
-    // Example (if seconds): return Math.max(0, Math.floor(d));
-    // Example (if minutes): return Math.max(0, Math.floor(d * 60));
-    // Example (if ms):      return Math.max(0, Math.floor(d / 1000));
-
-    // Heuristic (keeps every second while being conservative):
     if (d >= 3600000) {
       // looks like ms
       return Math.max(0, Math.floor(d / 1000));
@@ -120,6 +115,12 @@ function logPerDaySessions(daySessionsMap) {
 
 /** ----------------------- page ----------------------- **/
 export default async function Page() {
+    const cookieStore = await cookies();
+    const token = cookieStore.get("token")?.value;
+    const currentUser = token ? jwt.decode(token) : null;
+    const userId = currentUser ? currentUser.id : null;
+  
+    console.log("Current User:", currentUser);
   // last 31 days (inclusive)
   const end = new Date();
   const start = new Date(end);
@@ -129,6 +130,7 @@ export default async function Page() {
     startDate: ymd(start),
     endDate: ymd(end),
     all: true,
+    userId,
   };
 
   const apiUrl = process.env.NEXT_PUBLIC_MAIN_HOST
@@ -152,9 +154,6 @@ export default async function Page() {
   } catch (e) {
     console.error("Fetch failed:", e);
   }
-
-  // Group per local day, keep every session for logs AND totals
-  // daySessions: Map<YYYY-MM-DD, Array<{ secs, leftText }>>
   const daySessions = new Map();
 
   for (const row of rows) {
@@ -179,10 +178,8 @@ export default async function Page() {
     daySessions.set(dayKey, arr);
   }
 
-  // Log: per-session lines, then a day total line
   logPerDaySessions(daySessions);
 
-  // Build data for TimeSheet: sum seconds per day -> hours + label
   const data = Array.from(daySessions.entries())
     .map(([date, sessions]) => {
       const totalSecs = sessions.reduce((acc, s) => acc + s.secs, 0);
@@ -190,6 +187,7 @@ export default async function Page() {
       return { date, hours, label: formatHMS(totalSecs) };
     })
     .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+    console.log("Prepared data for TimeSheet-------------final:", data);
 
   return (
     <div className="min-h-screen">

@@ -264,7 +264,7 @@ export default function TimeSheet({
       <div className="flex flex-wrap items-center gap-4 text-xxs text-neutral-600 dark:text-neutral-300">
         <div className="flex items-center gap-2">
           <span className="h-3.5 w-3.5 rounded bg-rose-100 border border-rose-300 dark:bg-rose-950/30 dark:border-rose-800" />
-          1–3h
+          0–3h
         </div>
         <div className="flex items-center gap-2">
           <span className="h-3.5 w-3.5 rounded bg-amber-100 border border-amber-300 dark:bg-amber-950/30 dark:border-amber-800" />
@@ -272,7 +272,7 @@ export default function TimeSheet({
         </div>
         <div className="flex items-center gap-2">
           <span className="h-3.5 w-3.5 rounded bg-emerald-100 border border-emerald-300 dark:bg-emerald-950/30 dark:border-emerald-800" />
-          6–8h
+          6–8+h
         </div>
       </div>
 
