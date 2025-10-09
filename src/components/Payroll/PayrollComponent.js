@@ -1,7 +1,6 @@
-// components/Payroll/PayrollComponent.jsx
-"use client";
+"use client"; // Ensure the page is client-side rendered
 
-import React, { useMemo, useState } from "react";
+import React, { useState, useMemo } from "react";
 import { Toaster, toast } from "sonner";
 import {
   Card,
@@ -24,13 +23,14 @@ import {
 import { DollarSign, CheckCircle, Clock, Calendar } from "lucide-react";
 
 export default function PayrollComponent({
-  initialDailyData = [],
+  initialDailyData = [], // Data passed from parent
   pageSize = 10,
 }) {
   const [rows] = useState(
     Array.isArray(initialDailyData) ? initialDailyData : []
   );
   const [currentPage, setCurrentPage] = useState(1);
+  const [activeTab, setActiveTab] = useState("hourly"); // State for active tab
 
   // payable only
   const payableRows = useMemo(
@@ -91,23 +91,63 @@ export default function PayrollComponent({
     <div className="space-y-6">
       <Toaster richColors position="top-right" />
 
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <DollarSign className="h-8 w-8 text-primary" />
-            Payroll (Daily Summary)
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Payable days only (payment &gt; 0)
-          </p>
+      {/* Tab Navigation - Move this section above the header */}
+      <div className="rounded-2xl bg-white/60 backdrop-blur border border-white/50 p-2 shadow-sm">
+        <div className="flex items-center gap-2">
+          <button
+            className={`px-4 py-2 text-sm font-medium transition-colors rounded-xl hover:bg-white/60 focus:outline-none ${
+              activeTab === "hourly"
+                ? "text-indigo-700 shadow-sm ring-2 ring-indigo-300"
+                : "text-gray-600"
+            }`}
+            onClick={() => setActiveTab("hourly")}
+          >
+            Hourly Pay
+          </button>
+          <button
+            className={`px-4 py-2 text-sm font-medium transition-colors rounded-xl hover:bg-white/60 focus:outline-none ${
+              activeTab === "fixed"
+                ? "text-indigo-700 shadow-sm ring-2 ring-indigo-300"
+                : "text-gray-600"
+            }`}
+            onClick={() => setActiveTab("fixed")}
+          >
+            Fixed Pay
+          </button>
+          <button
+            className={`px-4 py-2 text-sm font-medium transition-colors rounded-xl hover:bg-white/60 focus:outline-none ${
+              activeTab === "history"
+                ? "text-indigo-700 shadow-sm ring-2 ring-indigo-300"
+                : "text-gray-600"
+            }`}
+            onClick={() => setActiveTab("history")}
+          >
+            Payment History
+          </button>
         </div>
+      </div>
 
-        {/* Submit All -> turns green when all visible are processed */}
-        <Button
-          onClick={handleProcessAllVisible}
-          disabled={allVisibleProcessed || currentRows.length === 0}
-          className={`w-full sm:w-auto px-3 py-2 rounded-md text-sm font-medium transition
+      {/* Tab Content */}
+      <div className="mt-6">
+        {activeTab === "hourly" && (
+          <div className="space-y-3">
+            {/* Header */}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div>
+                <h1 className="text-3xl font-bold flex items-center gap-2">
+                  <DollarSign className="h-8 w-8 text-primary" />
+                  Payroll (Daily Summary)
+                </h1>
+                <p className="text-muted-foreground mt-1">
+                  Payable days only (payment &gt; 0)
+                </p>
+              </div>
+
+              {/* Submit All -> turns green when all visible are processed */}
+              <Button
+                onClick={handleProcessAllVisible}
+                disabled={allVisibleProcessed || currentRows.length === 0}
+                className={`w-full sm:w-auto px-3 py-2 rounded-md text-sm font-medium transition
     shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70
     ${
       allVisibleProcessed
@@ -115,84 +155,85 @@ export default function PayrollComponent({
         : "bg-indigo-600 text-white hover:bg-indigo-700"
     }
     disabled:opacity-100 disabled:bg-emerald-600 disabled:text-white disabled:cursor-not-allowed`}
-        >
-          <CheckCircle className="mr-2 h-4 w-4" />
-          {allVisibleProcessed ? "All Submitted" : "Submit All"}
-        </Button>
-      </div>
+              >
+                <CheckCircle className="mr-2 h-4 w-4" />
+                {allVisibleProcessed ? "All Submitted" : "Submit All"}
+              </Button>
+            </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Payable Days</CardDescription>
-            <CardTitle className="text-3xl">{payableRows.length}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Total Hours (payable)</CardDescription>
-            <CardTitle className="text-3xl">{totalHours}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Total Payment</CardDescription>
-            <CardTitle className="text-3xl text-primary">
-              ${totalPayment.toLocaleString()}
-            </CardTitle>
-          </CardHeader>
-        </Card>
-      </div>
-
-      {/* Daily rows (payable only) */}
-      <div className="space-y-3">
-        {currentRows.map((r) => {
-          const isDone = !!processed[r.date];
-          return (
-            <Card
-              key={r.date}
-              className={`hover:shadow-md transition-shadow border-l-4 ${
-                isDone ? "border-green-500" : "border-blue-500"
-              }`}
-            >
-              <CardContent className="px-4">
-                <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-                  <div className="flex-1 space-y-2">
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h3 className="font-semibold text-lg flex items-center gap-2">
-                            <Calendar className="h-4 w-4" />
-                            {r.date}
-                          </h3>
-                          <Badge
-                            variant="outline"
-                            className={getStatusColor(r)}
-                          >
-                            {isDone ? "processed" : "payable"}
-                          </Badge>
+            {/* Summary Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardDescription>Payable Days</CardDescription>
+                  <CardTitle className="text-3xl">
+                    {payableRows.length}
+                  </CardTitle>
+                </CardHeader>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardDescription>Total Hours (payable)</CardDescription>
+                  <CardTitle className="text-3xl">{totalHours}</CardTitle>
+                </CardHeader>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardDescription>Total Payment</CardDescription>
+                  <CardTitle className="text-3xl text-primary">
+                    ${totalPayment.toLocaleString()}
+                  </CardTitle>
+                </CardHeader>
+              </Card>
+            </div>
+            <h2 className="text-2xl font-semibold">Hourly Pay Content</h2>
+            {currentRows.map((r) => {
+              const isDone = !!processed[r.date];
+              return (
+                <Card
+                  key={r.date}
+                  className={`hover:shadow-md transition-shadow border-l-4 ${
+                    isDone ? "border-green-500" : "border-blue-500"
+                  }`}
+                >
+                  <CardContent className="px-4">
+                    <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+                      <div className="flex-1 space-y-2">
+                        <div className="flex items-start justify-between gap-4">
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h3 className="font-semibold text-lg flex items-center gap-2">
+                                <Calendar className="h-4 w-4" />
+                                {r.date}
+                              </h3>
+                              <Badge
+                                variant="outline"
+                                className={getStatusColor(r)}
+                              >
+                                {isDone ? "processed" : "payable"}
+                              </Badge>
+                            </div>
+                            <p className="text-sm text-muted-foreground mt-1 flex items-center gap-2">
+                              <Clock className="h-3 w-3" /> {r.label} ({r.hours}{" "}
+                              h)
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-2xl font-bold text-primary">
+                              ${Number(r.payment || 0).toLocaleString()}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              Per-day total payment
+                            </p>
+                          </div>
                         </div>
-                        <p className="text-sm text-muted-foreground mt-1 flex items-center gap-2">
-                          <Clock className="h-3 w-3" /> {r.label} ({r.hours} h)
-                        </p>
                       </div>
-                      <div className="text-right">
-                        <p className="text-2xl font-bold text-primary">
-                          ${Number(r.payment || 0).toLocaleString()}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          Per-day total payment
-                        </p>
-                      </div>
-                    </div>
-                  </div>
 
-                  {/* Per-row button -> turns green when processed */}
-                  <Button
-                    onClick={() => handleProcess(r.date, r.payment || 0)}
-                    disabled={isDone}
-                    className={`w-full lg:w-auto px-3 py-2 rounded-md text-sm font-medium transition
+                      {/* Per-row button -> turns green when processed */}
+                      <Button
+                        onClick={() => handleProcess(r.date, r.payment || 0)}
+                        disabled={isDone}
+                        className={`w-full lg:w-auto px-3 py-2 rounded-md text-sm font-medium transition
     shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70
     ${
       isDone
@@ -200,22 +241,38 @@ export default function PayrollComponent({
         : "bg-indigo-600 text-white hover:bg-indigo-700"
     }
     disabled:opacity-100 disabled:bg-emerald-600 disabled:text-white disabled:cursor-not-allowed`}
-                  >
-                    <CheckCircle className="mr-2 h-4 w-4" />
-                    {isDone ? "Submitted" : "Submit"}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
+                      >
+                        <CheckCircle className="mr-2 h-4 w-4" />
+                        {isDone ? "Submitted" : "Submit"}
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
 
-        {payableRows.length === 0 && (
-          <Card>
-            <CardContent className="p-8 text-center text-muted-foreground">
-              No payable days found.
-            </CardContent>
-          </Card>
+            {payableRows.length === 0 && (
+              <Card>
+                <CardContent className="p-8 text-center text-muted-foreground">
+                  No payable days found.
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
+        {activeTab === "fixed" && (
+          <div>
+            {/* Fixed Pay Content */}
+            <h2 className="text-2xl font-semibold">Fixed Pay Content</h2>
+            {/* Replace with actual Fixed Pay content */}
+          </div>
+        )}
+        {activeTab === "history" && (
+          <div>
+            {/* Payment History Content */}
+            <h2 className="text-2xl font-semibold">Payment History Content</h2>
+            {/* Replace with actual Payment History content */}
+          </div>
         )}
       </div>
 

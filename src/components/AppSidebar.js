@@ -11,6 +11,7 @@ import {
   Settings,
   Home,
   CalendarDays,
+  DollarSign,
 } from "lucide-react";
 import {
   Sidebar,
@@ -33,6 +34,7 @@ const navigationItems = [
   { title: "Analytics", url: "/analytics", icon: BarChart3, roles: ["Admin", "Project Manager"] },
   { title: "Settings", url: "/settings", icon: Settings, roles: ["Admin"] },
   { title: "Time Sheet", url: "/time-sheet", icon: CalendarDays, roles: ["Developer"] },
+  { title: "Payroll", url: "/payroll", icon: DollarSign, roles: ["Developer", "Admin", "Project Manager", "CEO", "Team Lead"] },
 ];
 
 export function AppSidebar({ user }) {

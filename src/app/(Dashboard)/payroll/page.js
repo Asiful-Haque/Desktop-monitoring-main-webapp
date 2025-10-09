@@ -60,10 +60,7 @@ export default async function Page() {
   const currentUser = token ? jwt.decode(token) : null;
   const userId = currentUser ? currentUser.id : null;
   console.log("[Payroll] Current User:", currentUser);
-
-  // we'll fill this from the API
-  let data = []; // << define OUTSIDE try so it's visible later
-
+  let data = []; 
   const apiUrl = process.env.NEXT_PUBLIC_MAIN_HOST
     ? `${process.env.NEXT_PUBLIC_MAIN_HOST}/api/time-sheet/by-date-range`
     : "/api/time-sheet/by-date-range";
