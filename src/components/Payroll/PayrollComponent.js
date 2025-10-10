@@ -167,47 +167,154 @@ export default function PayrollComponent({
     // }
   };
 
-  const handleProcessAllVisible = async () => {
-    const toProcess = currentRows.filter((r) => !processed[r.date]);
-    if (toProcess.length === 0) return;
-    const sum = toProcess.reduce((acc, r) => acc + (r.payment || 0), 0);
+  // const handleProcessAllVisible = async () => {
+  //   const toProcess = currentRows.filter((r) => !processed[r.date]);
+  //   if (toProcess.length === 0) return;
+  //   const sum = toProcess.reduce((acc, r) => acc + (r.payment || 0), 0);
 
-    // Collecting the dates to submit
-    const datesToProcess = toProcess.map((r) => r.date);
+  //   // Collecting the dates to submit
+  //   const datesToProcess = toProcess.map((r) => r.date);
 
-    try {
-      // API Call for submitting all visible dates (Using PUT)
-      const response = await fetch("/api/update-flagger", {
-        method: "PUT", // Change to PUT method for updating
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          dates: datesToProcess, // Send all dates in an array
-          flagger: 1,
-          userId: currentUser?.id || null,
-        }),
-      });
+  //   try {
+  //     // API Call for submitting all visible dates (Using PUT)
+  //     const response = await fetch("/api/update-flagger", {
+  //       method: "PUT", // Change to PUT method for updating
+  //       headers: { "Content-Type": "application/json" },
+  //       body: JSON.stringify({
+  //         dates: datesToProcess, // Send all dates in an array
+  //         flagger: 1,
+  //         userId: currentUser?.id || null,
+  //       }),
+  //     });
 
-      if (response.ok) {
-        const updates = {};
-        toProcess.forEach((r) => (updates[r.date] = true));
-        setProcessed((prev) => ({ ...prev, ...updates }));
-        toast.success("Processed visible days", {
-          description: `${toProcess.length} day(s) • $${sum.toLocaleString()}`,
-        });
-        // Optionally remove processed rows from the list
-        setRows((prevRows) =>
-          prevRows.filter((r) => !toProcess.some((t) => t.date === r.date))
-        );
-      } else {
-        toast.error("Failed to process all visible dates");
-      }
-    } catch (error) {
-      console.error("Error processing all visible dates:", error);
-      toast.error("Error processing all visible dates");
-    }
-  };
+  //     if (response.ok) {
+  //       const updates = {};
+  //       toProcess.forEach((r) => (updates[r.date] = true));
+  //       setProcessed((prev) => ({ ...prev, ...updates }));
+  //       toast.success("Processed visible days", {
+  //         description: `${toProcess.length} day(s) • $${sum.toLocaleString()}`,
+  //       });
+  //       // Optionally remove processed rows from the list
+  //       setRows((prevRows) =>
+  //         prevRows.filter((r) => !toProcess.some((t) => t.date === r.date))
+  //       );
+  //     } else {
+  //       toast.error("Failed to process all visible dates");
+  //     }
+  //   } catch (error) {
+  //     console.error("Error processing all visible dates:", error);
+  //     toast.error("Error processing all visible dates");
+  //   }
+  // };
 
   // all visible rows processed?
+  
+  const handleProcessAllVisible = async () => {
+  // Get the rows that need to be processed
+  const toProcess = currentRows.filter((r) => !processed[r.date]);
+  
+  if (toProcess.length === 0) {
+    toast.error("No rows to process.");
+    return;
+  }
+
+  // Optimistic update: mark all rows as processed immediately
+  const updatedProcessed = {};
+  toProcess.forEach((r) => {
+    updatedProcessed[r.date] = true;
+  });
+  setProcessed((prev) => ({ ...prev, ...updatedProcessed }));
+
+  // Get the last transaction number
+  const lastTransactionNumber = await getLastTransaction();
+  console.log("Last Transaction Number:", lastTransactionNumber);
+
+  if (!lastTransactionNumber) {
+    toast.error("Failed to fetch the last transaction number.");
+    setProcessed((prev) => {
+      toProcess.forEach((r) => {
+        prev[r.date] = false;
+      });
+      return { ...prev };
+    });
+    return;
+  }
+
+  // Extract the numeric part from the last transaction number (e.g., 5 from "Trx_tnt1_5")
+  const lastTransactionValue = parseInt(lastTransactionNumber.split('_')[2], 10) || 0;
+  const tenantId = currentUser?.tenant_id;  // Assuming tenant_id is available from currentUser
+
+  // Iterate over each row and create a transaction
+  for (const [index, row] of toProcess.entries()) {
+    const newTransactionNumber = `Trx_tnt${tenantId}_${lastTransactionValue + 1 + index}`;
+    const transactionData = {
+      transaction_number: newTransactionNumber,
+      hours: row.hours,
+      payment_of_transaction: row.payment,
+      developer_id: currentUser?.id, // Developer ID from currentUser
+      status: "pending", // Default status to 'pending'
+    };
+
+    try {
+      // Step 1: Create a new transaction for each row
+      const transactionResponse = await fetch("/api/create-transaction", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(transactionData),
+      });
+
+      if (transactionResponse.ok) {
+        const data = await transactionResponse.json();
+        toast.success(`Transaction created: ${data.transaction.transaction_number}`);
+      } else {
+        toast.error("Failed to create transaction");
+        // Rollback optimistic update if failed for this row
+        setProcessed((prev) => {
+          prev[row.date] = false;
+          return { ...prev };
+        });
+        return; // Stop if any transaction fails
+      }
+    } catch (error) {
+      console.error("Error creating the transaction:", error);
+      toast.error("Error creating the transaction");
+      // Rollback optimistic update if failed
+      setProcessed((prev) => {
+        prev[row.date] = false;
+        return { ...prev };
+      });
+      return;
+    }
+  }
+
+  // Step 2: Process the dates after all transactions are created
+  try {
+    const datesToProcess = toProcess.map((r) => r.date);
+    const response = await fetch("/api/update-flagger", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        dates: datesToProcess,
+        flagger: 1,
+        userId: currentUser?.id || null,
+      }),
+    });
+
+    if (response.ok) {
+      toast.success(`Marked ${toProcess.length} day(s) as processed`);
+      setRows((prevRows) =>
+        prevRows.filter((r) => !datesToProcess.includes(r.date))
+      );
+    } else {
+      toast.error("Failed to mark all rows as processed");
+    }
+  } catch (error) {
+    console.error("Error processing all dates:", error);
+    toast.error("Error processing all dates");
+  }
+};
+
+
   const allVisibleProcessed =
     currentRows.length > 0 && currentRows.every((r) => processed[r.date]);
 
