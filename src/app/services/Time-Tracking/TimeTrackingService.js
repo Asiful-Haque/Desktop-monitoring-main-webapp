@@ -313,4 +313,22 @@ export class TimeTrackingService {
 
     return { rows, total };
   }
+
+    async updateFlaggerForDates(dates, flagger, userId) {
+    try {
+      const repo = await this.repo();
+
+      const updatedItems = await repo
+        .createQueryBuilder()
+        .update(TimeTracking) 
+        .set({ flagger })
+        .where("work_date IN (:...dates)", { dates })
+        .andWhere("developer_id = :userId", { userId })
+        .execute();  
+      return updatedItems;
+    } catch (err) {
+      console.error("Error updating flagger:", err);
+      throw new Error("Failed to update flagger for the dates.");
+    }
+  }
 }

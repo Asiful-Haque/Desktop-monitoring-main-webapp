@@ -66,5 +66,10 @@ export const User = new EntitySchema({
       target: "TimeTracking",
       inverseSide: "developer_rel",
     },
+    transactions_rel: {
+      type: "one-to-many",
+      target: "Transaction",  
+      inverseSide: "developer_rel", 
+    },
   },
 });

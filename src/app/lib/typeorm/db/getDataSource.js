@@ -8,6 +8,8 @@ import { AssignedUsersToProjects } from "../entities/AssignedUsersToProject.js";
 import Screenshot from "../entities/Screenshot.js";
 import { Tenant } from "../entities/Tenant.js";
 import { TimeTracking } from "../entities/TimeTracking.js";
+import { Transaction } from "../entities/Transaction.js";
+import { PaymentLog } from "../entities/PaymentLog.js";
 
 
 
@@ -21,7 +23,7 @@ export const AppDataSource = new DataSource({
   database: process.env.MYSQL_DATABASE || "task_monitor_demo",
   synchronize: false,
   logging: false,
-  entities: [User, Role, UserRoles, Project, Task, AssignedUsersToProjects, Screenshot, Tenant, TimeTracking ],
+  entities: [User, Role, UserRoles, Project, Task, AssignedUsersToProjects, Screenshot, Tenant, TimeTracking, Transaction, PaymentLog ],
   extra: { connectionLimit: 10, decimalNumbers: true },
 });
 

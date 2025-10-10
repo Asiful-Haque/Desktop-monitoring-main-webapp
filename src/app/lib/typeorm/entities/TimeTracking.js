@@ -45,5 +45,10 @@ export const TimeTracking = new EntitySchema({
       inverseSide: "time_trackings_rel",
       onDelete: "CASCADE",
     },
+    payment_logs_rel: {
+      type: "one-to-many",
+      target: "PaymentLog", 
+      inverseSide: "time_tracking_rel",
+    },
   },
 });

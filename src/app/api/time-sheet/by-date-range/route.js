@@ -5,11 +5,9 @@ const service = new TimeTrackingService();
 console.log("TimeTrackingService initialized in /api/time-sheet/by-date-range");
 
 export async function POST(req) {
-  console.log("POST /api/time-sheet/by-date-range called---------------------------------");
   try {
     const { startDate, endDate, userId, all = false } = await req.json();
     if (!all) {
-      console.log("calling your function---------------:");
       const { rows, total } = await service.findAllSubmittedForPayment({ userId });
       return NextResponse.json({
         ok: true,

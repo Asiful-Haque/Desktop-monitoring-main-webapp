@@ -29,7 +29,10 @@ function formatHMS(totalSeconds) {
   const h = Math.floor(s / 3600);
   const m = Math.floor((s % 3600) / 60);
   const sec = s % 60;
-  return `${h}h ${String(m).padStart(2, "0")}m ${String(sec).padStart(2, "0")}s`;
+  return `${h}h ${String(m).padStart(2, "0")}m ${String(sec).padStart(
+    2,
+    "0"
+  )}s`;
 }
 
 // Prefer task_start/task_end; else infer from duration
@@ -44,9 +47,9 @@ function computeSeconds(row) {
   const d = row?.duration;
   if (typeof d === "number" && !Number.isNaN(d)) {
     if (d >= 3600000) return Math.max(0, Math.floor(d / 1000)); // ms
-    if (d >= 3600)    return Math.max(0, Math.floor(d));        // sec
-    if (d >= 60)      return Math.max(0, Math.floor(d * 60));   // min
-    return Math.max(0, Math.floor(d * 60));                     // tiny → min
+    if (d >= 3600) return Math.max(0, Math.floor(d)); // sec
+    if (d >= 60) return Math.max(0, Math.floor(d * 60)); // min
+    return Math.max(0, Math.floor(d * 60)); // tiny → min
   }
 
   return 0;
@@ -59,8 +62,8 @@ export default async function Page() {
   const token = cookieStore.get("token")?.value;
   const currentUser = token ? jwt.decode(token) : null;
   const userId = currentUser ? currentUser.id : null;
-  console.log("[Payroll] Current User:", currentUser);
-  let data = []; 
+
+  let data = [];
   const apiUrl = process.env.NEXT_PUBLIC_MAIN_HOST
     ? `${process.env.NEXT_PUBLIC_MAIN_HOST}/api/time-sheet/by-date-range`
     : "/api/time-sheet/by-date-range";
@@ -74,7 +77,6 @@ export default async function Page() {
     const res = await fetch(apiUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      cache: "no-store",
       body: JSON.stringify(body),
     });
 
@@ -84,10 +86,9 @@ export default async function Page() {
     } else {
       const payload = await res.json();
       const rows = Array.isArray(payload?.items) ? payload.items : [];
-      console.log("[Payroll] API call OK, got", rows.length, "rows");
 
       // Group by local day: sum seconds and session_payment
-      const dayMap = new Map(); // key -> { secs, payment }
+      const dayMap = new Map(); // key -> { secs, payment, serial_ids }
       for (const row of rows) {
         const startDt = parseISO(row?.task_start);
         const endDt = parseISO(row?.task_end);
@@ -98,31 +99,41 @@ export default async function Page() {
         const secs = computeSeconds(row);
         const pay = Number(row?.session_payment) || 0;
 
-        const agg = dayMap.get(key) || { secs: 0, payment: 0 };
+        if (pay === 0) continue; // Filter out rows where payment is 0
+
+        // Retrieve the current day entry from the map (if it exists)
+        const agg = dayMap.get(key) || { secs: 0, payment: 0, serial_ids: [] };
+
+        // Update the aggregated values (seconds and payment)
         agg.secs += secs;
         agg.payment += pay;
+
+        // Add the serial_id to the session details
+        agg.serial_ids.push(row?.serial_id); // Include the serial_id here
+
+        // Set or update the entry for the specific day
         dayMap.set(key, agg);
       }
 
       data = Array.from(dayMap.entries())
-        .map(([date, { secs, payment }]) => ({
+        .map(([date, { secs, payment, serial_ids }]) => ({
           date,
           hours: Math.round((secs / 3600) * 100) / 100,
           label: formatHMS(secs),
           payment,
+          serial_ids, // Include the list of serial_ids for each day
         }))
+        .filter((item) => item.payment > 0) // Filter out rows with zero payment after aggregation
         .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
-
-      console.log("Prepared data for Payroll-------------final:", data);
+      
     }
   } catch (err) {
     console.error("[Payroll] API call ERROR:", err);
   }
 
-  // Render the client component with the server-built daily summaries
   return (
     <div className="p-6 bg-gradient-to-br from-blue-50 to-indigo-50 min-h-screen">
-      <PayrollComponent initialDailyData={data} />
+      <PayrollComponent initialDailyData={data} currentUser={currentUser} />
     </div>
   );
 }
