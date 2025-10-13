@@ -130,7 +130,7 @@ export default async function Page() {
   } catch (err) {
     console.error("[Payroll] API call ERROR:", err);
   }
-
+ console.log("[Payroll]---------------|| data:", data);
   return (
     <div className="p-6 bg-gradient-to-br from-blue-50 to-indigo-50 min-h-screen">
       <PayrollComponent initialDailyData={data} currentUser={currentUser} />

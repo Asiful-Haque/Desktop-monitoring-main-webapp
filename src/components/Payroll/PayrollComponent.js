@@ -21,20 +21,233 @@ import {
 } from "@/components/ui/pagination";
 import { DollarSign, CheckCircle, Clock, Calendar } from "lucide-react";
 import FixedPayment from "../FixedPayment";
+import PaymentHistory from "./PaymentHistory";
+import AdminPayrollComponent from "./AdminPayrollComponent";
+
+/* -------------------------- REUSABLE HELPERS (same file) -------------------------- */
+
+// API helpers (local, reusable)
+async function apiGetLastTransaction() {
+  const res = await fetch("/api/get-last-transaction");
+  if (!res.ok) throw new Error("Failed to fetch last transaction number");
+  const j = await res.json();
+  return j.lastTransactionNumber;
+}
+
+async function apiCreateTransaction(payload) {
+  const res = await fetch("/api/create-transaction", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const j = await res.json().catch(() => ({}));
+    throw new Error(j?.error || "Failed to create transaction");
+  }
+  return res.json();
+}
+
+async function apiPostPaymentLogs({ currentUser, transaction_number, logs }) {
+  const res = await fetch("/api/fit-payment-logs", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ currentUser, transaction_number, logs }),
+  });
+  if (!res.ok) {
+    const j = await res.json().catch(() => ({}));
+    throw new Error(j?.error || "Failed to save payment logs");
+  }
+  return res.json();
+}
+
+async function apiMarkDatesProcessed({ dates, userId }) {
+  const res = await fetch("/api/update-flagger", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ dates, flagger: 1, userId: userId || null }),
+  });
+  if (!res.ok) {
+    const j = await res.json().catch(() => ({}));
+    throw new Error(j?.error || "Failed to mark dates processed");
+  }
+  return res.json();
+}
+
+// format helpers (local, reusable)
+const fmtMoney = (n) => `$${Number(n || 0).toLocaleString()}`;
+const getStatusColor = (isDone) =>
+  isDone
+    ? "bg-green-500/10 text-green-500 border-green-500/20"
+    : "bg-blue-500/10 text-blue-500 border-blue-500/20";
+
+/* -------------------------- REUSABLE UI SUBCOMPONENTS -------------------------- */
+
+function TabsNav({ activeTab, setActiveTab, canShowFixed }) {
+  return (
+    <div className="rounded-2xl bg-white/60 backdrop-blur border border-white/50 p-2 shadow-sm">
+      <div className="flex items-center gap-2">
+        <button
+          className={`px-4 py-2 text-sm font-medium transition-colors rounded-xl hover:bg-white/60 focus:outline-none ${
+            activeTab === "hourly"
+              ? "text-indigo-700 shadow-sm ring-2 ring-indigo-300"
+              : "text-gray-600"
+          }`}
+          onClick={() => setActiveTab("hourly")}
+        >
+          Hourly Pay
+        </button>
+
+        {canShowFixed && (
+          <button
+            className={`px-4 py-2 text-sm font-medium transition-colors rounded-xl hover:bg-white/60 focus:outline-none ${
+              activeTab === "fixed"
+                ? "text-indigo-700 shadow-sm ring-2 ring-indigo-300"
+                : "text-gray-600"
+            }`}
+            onClick={() => setActiveTab("fixed")}
+          >
+            Fixed Pay
+          </button>
+        )}
+
+        <button
+          className={`px-4 py-2 text-sm font-medium transition-colors rounded-xl hover:bg-white/60 focus:outline-none ${
+            activeTab === "history"
+              ? "text-indigo-700 shadow-sm ring-2 ring-indigo-300"
+              : "text-gray-600"
+          }`}
+          onClick={() => setActiveTab("history")}
+        >
+          Payment History
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function SummaryCards({ payableCount, totalHours, totalPayment }) {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <Card>
+        <CardHeader className="pb-2">
+          <CardDescription>Payable Days</CardDescription>
+          <CardTitle className="text-3xl">{payableCount}</CardTitle>
+        </CardHeader>
+      </Card>
+      <Card>
+        <CardHeader className="pb-2">
+          <CardDescription>Total Hours (payable)</CardDescription>
+          <CardTitle className="text-3xl">{totalHours}</CardTitle>
+        </CardHeader>
+      </Card>
+      <Card>
+        <CardHeader className="pb-2">
+          <CardDescription>Total Payment</CardDescription>
+          <CardTitle className="text-3xl text-primary">
+            {fmtMoney(totalPayment)}
+          </CardTitle>
+        </CardHeader>
+      </Card>
+    </div>
+  );
+}
+
+function HeaderWithSubmitAll({
+  hasRows,
+  allVisibleProcessed,
+  onSubmitAll,
+}) {
+  if (!hasRows) return null;
+  return (
+    <Button
+      onClick={onSubmitAll}
+      disabled={allVisibleProcessed}
+      className={`w-full sm:w-auto px-3 py-2 rounded-md text-sm font-medium transition
+        shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70
+        ${
+          allVisibleProcessed
+            ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+            : "bg-indigo-600 text-white hover:bg-indigo-700"
+        }
+        disabled:opacity-100 disabled:bg-emerald-600 disabled:text-white disabled:cursor-not-allowed`}
+    >
+      <CheckCircle className="mr-2 h-4 w-4" />
+      {allVisibleProcessed ? "All Submitted" : "Submit All"}
+    </Button>
+  );
+}
+
+function PayableRowCard({ row, isDone, onSubmit }) {
+  return (
+    <Card
+      className={`hover:shadow-md transition-shadow border-l-4 ${
+        isDone ? "border-green-500" : "border-blue-500"
+      }`}
+    >
+      <CardContent className="px-4">
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+          <div className="flex-1 space-y-2">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="font-semibold text-lg flex items-center gap-2">
+                    <Calendar className="h-4 w-4" />
+                    {row.date}
+                  </h3>
+                  <Badge variant="outline" className={getStatusColor(isDone)}>
+                    {isDone ? "processed" : "payable"}
+                  </Badge>
+                </div>
+                <p className="text-sm text-muted-foreground mt-1 flex items-center gap-2">
+                  <Clock className="h-3 w-3" /> {row.label} ({row.hours} h)
+                </p>
+              </div>
+
+              <div className="text-right">
+                <p className="text-2xl font-bold text-primary">
+                  {fmtMoney(row.payment)}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Per-day total payment
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <Button
+            onClick={onSubmit}
+            disabled={isDone}
+            className={`w-full lg:w-auto px-3 py-2 rounded-md text-sm font-medium transition
+              shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70
+              ${
+                isDone
+                  ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                  : "bg-indigo-600 text-white hover:bg-indigo-700"
+              }
+              disabled:opacity-100 disabled:bg-emerald-600 disabled:text-white disabled:cursor-not-allowed`}
+          >
+            <CheckCircle className="mr-2 h-4 w-4" />
+            {isDone ? "Submitted" : "Submit"}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/* -------------------------------- MAIN COMPONENT -------------------------------- */
 
 export default function PayrollComponent({
-  initialDailyData = [], // Data passed from parent
+  initialDailyData = [],
   pageSize = 10,
-  currentUser, // Added currentUser prop here
+  currentUser,
 }) {
-  console.log("Sample data:", initialDailyData.slice(0, 3));
-  console.log("Current User:", currentUser);
   const [rows, setRows] = useState(
     Array.isArray(initialDailyData) ? initialDailyData : []
   );
   const [currentPage, setCurrentPage] = useState(1);
-  const [activeTab, setActiveTab] = useState("hourly"); // State for active tab
-  const [processed, setProcessed] = useState({}); // Track processed rows
+  const [activeTab, setActiveTab] = useState("hourly");
+  const [processed, setProcessed] = useState({}); // keyed by date
 
   // payable only
   const payableRows = useMemo(
@@ -57,470 +270,234 @@ export default function PayrollComponent({
     return { totalHours: Math.round(h * 100) / 100, totalPayment: p };
   }, [payableRows]);
 
-  const getStatusColor = (r) => {
-    return processed[r.date]
-      ? "bg-green-500/10 text-green-500 border-green-500/20"
-      : "bg-blue-500/10 text-blue-500 border-blue-500/20";
+  const allVisibleProcessed =
+    currentRows.length > 0 && currentRows.every((r) => processed[r.date]);
+
+  const isEmpty = payableRows.length === 0;
+  const isAdmin = currentUser?.role === "Admin";
+
+  // compose: compute next transaction number factory
+  const getNextTxnFactory = async () => {
+    const last = await apiGetLastTransaction(); // e.g., Trx_tnt1_5
+    const lastVal = parseInt(String(last).split("_")[2] || "0", 10);
+    const tenantId = currentUser?.tenant_id;
+    return (offset = 1) => `Trx_tnt${tenantId}_${lastVal + offset}`;
   };
 
-  const getLastTransaction = async () => {
-    try {
-      const response = await fetch("/api/get-last-transaction");
-      if (response.ok) {
-        const data = await response.json();
-        return data.lastTransactionNumber;
-      } else {
-        toast.error("Failed to fetch the last transaction number.");
-        return null;
-      }
-    } catch (error) {
-      console.error("Error fetching the last transaction number:", error);
-      toast.error("Error fetching the last transaction number.");
-      return null;
-    }
+  // create + logs for one transaction
+  const createTxnAndLogs = async ({ hours, payment, txnNumber }) => {
+    await apiCreateTransaction({
+      transaction_number: txnNumber,
+      hours,
+      payment_of_transaction: payment,
+      developer_id: currentUser?.id,
+      status: "pending",
+    });
+
+    await apiPostPaymentLogs({
+      currentUser,
+      transaction_number: txnNumber,
+      logs: initialDailyData,
+    });
+
+    toast.success(`Transaction created: ${txnNumber}`);
   };
 
+  // Single-row submit
   const handleProcess = async (date, payment, hours, label) => {
     setProcessed((prev) => ({ ...prev, [date]: true }));
 
-    const lastTransactionNumber = await getLastTransaction();
-    console.log("Last Transaction Number:", lastTransactionNumber);
-
-    if (!lastTransactionNumber) {
-      toast.error("Failed to fetch the last transaction number.");
+    let makeTxn;
+    try {
+      makeTxn = await getNextTxnFactory();
+    } catch (e) {
+      toast.error(e.message || "Failed to prepare transaction number");
       setProcessed((prev) => ({ ...prev, [date]: false }));
       return;
     }
 
-    // Extract the numeric part from the last transaction number (e.g., 5 from "Trx_tnt1_5")
-    const lastTransactionValue =
-      parseInt(lastTransactionNumber.split("_")[2], 10) || 0;
+    const newTransactionNumber = makeTxn(1);
 
-    // Create the new transaction number (increment by 1)
-    const tenantId = currentUser?.tenant_id; // Assuming tenant_id is available from currentUser
-    const newTransactionNumber = `Trx_tnt${tenantId}_${
-      lastTransactionValue + 1
-    }`;
-    console.log("New Transaction Number:", newTransactionNumber);
-
-    // Collect data for creating the transaction
-    const transactionData = {
-      transaction_number: newTransactionNumber,
-      hours,
-      payment_of_transaction: payment,
-      developer_id: currentUser?.id, // Developer ID from currentUser
-      status: "pending", // Default status to 'pending'
-    };
-
-    // Step 1: Create a new transaction by calling the API
     try {
-      const transactionResponse = await fetch("/api/create-transaction", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(transactionData), // Send the transaction data to the backend
+      await createTxnAndLogs({
+        hours,
+        payment,
+        txnNumber: newTransactionNumber,
+      });
+    } catch (error) {
+      console.error("create transaction/logs error:", error);
+      toast.error(error.message || "Error creating the transaction");
+      setProcessed((prev) => ({ ...prev, [date]: false }));
+      return;
+    }
+
+    // mark date processed on backend (optional step as in your current code)
+    try {
+      await apiMarkDatesProcessed({
+        dates: [date],
+        userId: currentUser?.id,
       });
 
-      if (transactionResponse.ok) {
-        const data = await transactionResponse.json();
-        toast.success(
-          `Transaction created: ${data.transaction.transaction_number}`
-        );
-      } else {
-        toast.error("Failed to create transaction");
-        setProcessed((prev) => ({ ...prev, [date]: false }));
-        return;
-      }
+      toast.success("Marked as processed", {
+        description: `Date ${date} • ${fmtMoney(payment)} processed.`,
+      });
+
+      setRows((prevRows) => prevRows.filter((r) => r.date !== date));
     } catch (error) {
-      console.error("Error creating the transaction:", error);
-      toast.error("Error creating the transaction");
+      console.error("mark processed error:", error);
+      toast.error("Failed to process the date");
       setProcessed((prev) => ({ ...prev, [date]: false }));
-      return;
     }
-
-    // try {
-    //   const response = await fetch("/api/update-flagger", {
-    //     method: "PUT",
-    //     headers: { "Content-Type": "application/json" },
-    //     body: JSON.stringify({
-    //       dates: [date],
-    //       flagger: 1,
-    //       userId: currentUser?.id || null,
-    //     }),
-    //   });
-
-    //   if (response.ok) {
-    //     toast.success("Marked as processed", {
-    //       description: `Date ${date} • $${Number(
-    //         payment || 0
-    //       ).toLocaleString()} processed.`,
-    //     });
-
-    //     setRows((prevRows) => prevRows.filter((r) => r.date !== date));
-    //   } else {
-    //     toast.error("Failed to process the date");
-    //     setProcessed((prev) => ({ ...prev, [date]: false }));
-    //   }
-    // } catch (error) {
-    //   console.error("Error processing the date:", error);
-    //   toast.error("Error processing the date");
-    //   setProcessed((prev) => ({ ...prev, [date]: false }));
-    // }
   };
 
-  // const handleProcessAllVisible = async () => {
-  //   const toProcess = currentRows.filter((r) => !processed[r.date]);
-  //   if (toProcess.length === 0) return;
-  //   const sum = toProcess.reduce((acc, r) => acc + (r.payment || 0), 0);
-
-  //   // Collecting the dates to submit
-  //   const datesToProcess = toProcess.map((r) => r.date);
-
-  //   try {
-  //     // API Call for submitting all visible dates (Using PUT)
-  //     const response = await fetch("/api/update-flagger", {
-  //       method: "PUT", // Change to PUT method for updating
-  //       headers: { "Content-Type": "application/json" },
-  //       body: JSON.stringify({
-  //         dates: datesToProcess, // Send all dates in an array
-  //         flagger: 1,
-  //         userId: currentUser?.id || null,
-  //       }),
-  //     });
-
-  //     if (response.ok) {
-  //       const updates = {};
-  //       toProcess.forEach((r) => (updates[r.date] = true));
-  //       setProcessed((prev) => ({ ...prev, ...updates }));
-  //       toast.success("Processed visible days", {
-  //         description: `${toProcess.length} day(s) • $${sum.toLocaleString()}`,
-  //       });
-  //       // Optionally remove processed rows from the list
-  //       setRows((prevRows) =>
-  //         prevRows.filter((r) => !toProcess.some((t) => t.date === r.date))
-  //       );
-  //     } else {
-  //       toast.error("Failed to process all visible dates");
-  //     }
-  //   } catch (error) {
-  //     console.error("Error processing all visible dates:", error);
-  //     toast.error("Error processing all visible dates");
-  //   }
-  // };
-
-  // all visible rows processed?
-  
+  // Submit all visible
   const handleProcessAllVisible = async () => {
-  // Get the rows that need to be processed
-  const toProcess = currentRows.filter((r) => !processed[r.date]);
-  
-  if (toProcess.length === 0) {
-    toast.error("No rows to process.");
-    return;
-  }
+    const toProcess = currentRows.filter((r) => !processed[r.date]);
+    if (toProcess.length === 0) {
+      toast.error("No rows to process.");
+      return;
+    }
 
-  // Optimistic update: mark all rows as processed immediately
-  const updatedProcessed = {};
-  toProcess.forEach((r) => {
-    updatedProcessed[r.date] = true;
-  });
-  setProcessed((prev) => ({ ...prev, ...updatedProcessed }));
+    // optimistic
+    const updates = {};
+    toProcess.forEach((r) => (updates[r.date] = true));
+    setProcessed((prev) => ({ ...prev, ...updates }));
 
-  // Get the last transaction number
-  const lastTransactionNumber = await getLastTransaction();
-  console.log("Last Transaction Number:", lastTransactionNumber);
-
-  if (!lastTransactionNumber) {
-    toast.error("Failed to fetch the last transaction number.");
-    setProcessed((prev) => {
-      toProcess.forEach((r) => {
-        prev[r.date] = false;
-      });
-      return { ...prev };
-    });
-    return;
-  }
-
-  // Extract the numeric part from the last transaction number (e.g., 5 from "Trx_tnt1_5")
-  const lastTransactionValue = parseInt(lastTransactionNumber.split('_')[2], 10) || 0;
-  const tenantId = currentUser?.tenant_id;  // Assuming tenant_id is available from currentUser
-
-  // Iterate over each row and create a transaction
-  for (const [index, row] of toProcess.entries()) {
-    const newTransactionNumber = `Trx_tnt${tenantId}_${lastTransactionValue + 1 + index}`;
-    const transactionData = {
-      transaction_number: newTransactionNumber,
-      hours: row.hours,
-      payment_of_transaction: row.payment,
-      developer_id: currentUser?.id, // Developer ID from currentUser
-      status: "pending", // Default status to 'pending'
-    };
-
+    let makeTxn;
     try {
-      // Step 1: Create a new transaction for each row
-      const transactionResponse = await fetch("/api/create-transaction", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(transactionData),
-      });
-
-      if (transactionResponse.ok) {
-        const data = await transactionResponse.json();
-        toast.success(`Transaction created: ${data.transaction.transaction_number}`);
-      } else {
-        toast.error("Failed to create transaction");
-        // Rollback optimistic update if failed for this row
-        setProcessed((prev) => {
-          prev[row.date] = false;
-          return { ...prev };
-        });
-        return; // Stop if any transaction fails
-      }
-    } catch (error) {
-      console.error("Error creating the transaction:", error);
-      toast.error("Error creating the transaction");
-      // Rollback optimistic update if failed
+      makeTxn = await getNextTxnFactory();
+    } catch (e) {
+      toast.error(e.message || "Failed to prepare transaction number");
+      // rollback optimistic flags
       setProcessed((prev) => {
-        prev[row.date] = false;
+        toProcess.forEach((r) => (prev[r.date] = false));
         return { ...prev };
       });
       return;
     }
-  }
 
-  // Step 2: Process the dates after all transactions are created
-  try {
-    const datesToProcess = toProcess.map((r) => r.date);
-    const response = await fetch("/api/update-flagger", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        dates: datesToProcess,
-        flagger: 1,
-        userId: currentUser?.id || null,
-      }),
-    });
+    // create each
+    for (let i = 0; i < toProcess.length; i++) {
+      const row = toProcess[i];
+      const txn = makeTxn(1 + i);
 
-    if (response.ok) {
+      try {
+        await createTxnAndLogs({
+          hours: row.hours,
+          payment: row.payment,
+          txnNumber: txn,
+        });
+      } catch (err) {
+        console.error("create transaction/logs error:", err);
+        toast.error(err.message || "Error creating the transaction");
+        // rollback just this row
+        setProcessed((prev) => {
+          prev[row.date] = false;
+          return { ...prev };
+        });
+        return; // stop further processing
+      }
+    }
+
+    // optional backend flag update
+    try {
+      const dates = toProcess.map((r) => r.date);
+      await apiMarkDatesProcessed({
+        dates,
+        userId: currentUser?.id,
+      });
+
       toast.success(`Marked ${toProcess.length} day(s) as processed`);
-      setRows((prevRows) =>
-        prevRows.filter((r) => !datesToProcess.includes(r.date))
-      );
-    } else {
+      setRows((prev) => prev.filter((r) => !dates.includes(r.date)));
+    } catch (error) {
+      console.error("mark processed all error:", error);
       toast.error("Failed to mark all rows as processed");
     }
-  } catch (error) {
-    console.error("Error processing all dates:", error);
-    toast.error("Error processing all dates");
-  }
-};
-
-
-  const allVisibleProcessed =
-    currentRows.length > 0 && currentRows.every((r) => processed[r.date]);
-
-  // Display a message if no payable rows
-  const isEmpty = payableRows.length === 0;
+  };
 
   return (
     <div className="space-y-6">
       <Toaster richColors position="top-right" />
 
-      {/* Tab Navigation */}
-      <div className="rounded-2xl bg-white/60 backdrop-blur border border-white/50 p-2 shadow-sm">
-        <div className="flex items-center gap-2">
-          <button
-            className={`px-4 py-2 text-sm font-medium transition-colors rounded-xl hover:bg-white/60 focus:outline-none ${
-              activeTab === "hourly"
-                ? "text-indigo-700 shadow-sm ring-2 ring-indigo-300"
-                : "text-gray-600"
-            }`}
-            onClick={() => setActiveTab("hourly")}
-          >
-            Hourly Pay
-          </button>
-
-          {currentUser?.role !== "Developer" && (
-            <button
-              className={`px-4 py-2 text-sm font-medium transition-colors rounded-xl hover:bg-white/60 focus:outline-none ${
-                activeTab === "fixed"
-                  ? "text-indigo-700 shadow-sm ring-2 ring-indigo-300"
-                  : "text-gray-600"
-              }`}
-              onClick={() => setActiveTab("fixed")}
-            >
-              Fixed Pay
-            </button>
-          )}
-          <button
-            className={`px-4 py-2 text-sm font-medium transition-colors rounded-xl hover:bg-white/60 focus:outline-none ${
-              activeTab === "history"
-                ? "text-indigo-700 shadow-sm ring-2 ring-indigo-300"
-                : "text-gray-600"
-            }`}
-            onClick={() => setActiveTab("history")}
-          >
-            Payment History
-          </button>
-        </div>
-      </div>
+      {/* Tabs */}
+      <TabsNav
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        canShowFixed={currentUser?.role !== "Developer"}
+      />
 
       {/* Tab Content */}
       <div className="mt-6">
-        {activeTab === "hourly" && (
-          <div className="space-y-3">
-            {/* Hourly Tab Content */}
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-              <div>
-                <h1 className="text-3xl font-bold flex items-center gap-2">
-                  <DollarSign className="h-8 w-8 text-primary" />
-                  Payroll (Daily Summary)
-                </h1>
-                <p className="text-muted-foreground mt-1">
-                  Payable days only (payment &gt; 0)
-                </p>
+        {activeTab === "hourly" &&
+          (isAdmin ? (
+            <div>
+              <AdminPayrollComponent currentUser={currentUser} />
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {/* Header + Submit All */}
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                  <h1 className="text-3xl font-bold flex items-center gap-2">
+                    <DollarSign className="h-8 w-8 text-primary" />
+                    Payroll (Daily Summary)
+                  </h1>
+                  <p className="text-muted-foreground mt-1">
+                    Payable days only (payment &gt; 0)
+                  </p>
+                </div>
+
+                <HeaderWithSubmitAll
+                  hasRows={currentRows.length !== 0}
+                  allVisibleProcessed={allVisibleProcessed}
+                  onSubmitAll={handleProcessAllVisible}
+                />
               </div>
 
-              {currentRows.length !== 0 && (
-                <Button
-                  onClick={handleProcessAllVisible}
-                  disabled={allVisibleProcessed || currentRows.length === 0}
-                  className={`w-full sm:w-auto px-3 py-2 rounded-md text-sm font-medium transition
-                  shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70
-                  ${
-                    allVisibleProcessed
-                      ? "bg-emerald-600 hover:bg-emerald-700 text-white"
-                      : "bg-indigo-600 text-white hover:bg-indigo-700"
-                  }
-                  disabled:opacity-100 disabled:bg-emerald-600 disabled:text-white disabled:cursor-not-allowed`}
-                >
-                  <CheckCircle className="mr-2 h-4 w-4" />
-                  {allVisibleProcessed ? "All Submitted" : "Submit All"}
-                </Button>
+              {/* Summary */}
+              <SummaryCards
+                payableCount={payableRows.length}
+                totalHours={totalHours}
+                totalPayment={totalPayment}
+              />
+
+              {/* List */}
+              {isEmpty ? (
+                <div className="text-center text-muted-foreground">
+                  <h2 className="text-lg font-semibold">
+                    Nothing to submit for payment.
+                  </h2>
+                  <p className="mt-2">No payable days available.</p>
+                </div>
+              ) : (
+                currentRows.map((r) => (
+                  <PayableRowCard
+                    key={r.date}
+                    row={r}
+                    isDone={!!processed[r.date]}
+                    onSubmit={() =>
+                      handleProcess(r.date, r.payment, r.hours, r.label || 0)
+                    }
+                  />
+                ))
               )}
             </div>
+          ))}
 
-            {/* Summary Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardDescription>Payable Days</CardDescription>
-                  <CardTitle className="text-3xl">
-                    {payableRows.length}
-                  </CardTitle>
-                </CardHeader>
-              </Card>
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardDescription>Total Hours (payable)</CardDescription>
-                  <CardTitle className="text-3xl">{totalHours}</CardTitle>
-                </CardHeader>
-              </Card>
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardDescription>Total Payment</CardDescription>
-                  <CardTitle className="text-3xl text-primary">
-                    ${totalPayment.toLocaleString()}
-                  </CardTitle>
-                </CardHeader>
-              </Card>
-            </div>
-
-            {/* Displaying hourly content */}
-            {isEmpty ? (
-              <div className="text-center text-muted-foreground">
-                <h2 className="text-lg font-semibold">
-                  Nothing to submit for payment.
-                </h2>
-                <p className="mt-2">No payable days available.</p>
-              </div>
-            ) : (
-              currentRows.map((r) => {
-                const isDone = !!processed[r.date];
-                return (
-                  <Card
-                    key={r.date}
-                    className={`hover:shadow-md transition-shadow border-l-4 ${
-                      isDone ? "border-green-500" : "border-blue-500"
-                    }`}
-                  >
-                    <CardContent className="px-4">
-                      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-                        <div className="flex-1 space-y-2">
-                          <div className="flex items-start justify-between gap-4">
-                            <div>
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <h3 className="font-semibold text-lg flex items-center gap-2">
-                                  <Calendar className="h-4 w-4" />
-                                  {r.date}
-                                </h3>
-                                <Badge
-                                  variant="outline"
-                                  className={getStatusColor(r)}
-                                >
-                                  {isDone ? "processed" : "payable"}
-                                </Badge>
-                              </div>
-                              <p className="text-sm text-muted-foreground mt-1 flex items-center gap-2">
-                                <Clock className="h-3 w-3" /> {r.label} (
-                                {r.hours} h)
-                              </p>
-                            </div>
-                            <div className="text-right">
-                              <p className="text-2xl font-bold text-primary">
-                                ${Number(r.payment || 0).toLocaleString()}
-                              </p>
-                              <p className="text-xs text-muted-foreground">
-                                Per-day total payment
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Per-row button */}
-                        <Button
-                          onClick={() =>
-                            handleProcess(
-                              r.date,
-                              r.payment,
-                              r.hours,
-                              r.label || 0
-                            )
-                          }
-                          disabled={isDone}
-                          className={`w-full lg:w-auto px-3 py-2 rounded-md text-sm font-medium transition
-                            shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70
-                            ${
-                              isDone
-                                ? "bg-emerald-600 hover:bg-emerald-700 text-white"
-                                : "bg-indigo-600 text-white hover:bg-indigo-700"
-                            }
-                            disabled:opacity-100 disabled:bg-emerald-600 disabled:text-white disabled:cursor-not-allowed`}
-                        >
-                          <CheckCircle className="mr-2 h-4 w-4" />
-                          {isDone ? "Submitted" : "Submit"}
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })
-            )}
-          </div>
-        )}
         {activeTab === "fixed" && currentUser?.role !== "Developer" && (
           <div>
             <FixedPayment />
           </div>
         )}
+
         {activeTab === "history" && (
           <div>
-            {/* Payment History Content */}
-            <h2 className="text-2xl font-semibold">Payment History Content</h2>
+            <PaymentHistory currentUser={currentUser} />
           </div>
         )}
       </div>
 
-      {/* Pagination */}
+      {/* Pagination for the hourly (payableRows) list */}
       {totalPages > 1 && payableRows.length > 0 && (
         <Pagination>
           <PaginationContent>
@@ -561,9 +538,7 @@ export default function PayrollComponent({
 
             <PaginationItem>
               <PaginationNext
-                onClick={() =>
-                  setCurrentPage((p) => Math.min(totalPages, p + 1))
-                }
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                 className={
                   currentPage === totalPages
                     ? "pointer-events-none opacity-50"
