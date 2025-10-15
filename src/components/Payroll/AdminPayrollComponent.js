@@ -1,18 +1,9 @@
-"use client";
 import React, { useEffect, useState, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  Pagination,
-  PaginationContent,
-  PaginationEllipsis,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from "@/components/ui/pagination";
 import { CreditCard, XCircle } from "lucide-react";
+import PaginationComponent from "../commonComponent/PaginationComponent";
 
 const getStatusColor = (status) => {
   switch (status) {
@@ -259,7 +250,7 @@ function AdminPayrollComponent({ currentUser }) {
 
                     <div className="text-right">
                       <p className="text-2xl font-bold text-primary">
-                        $
+                        $$
                         {Number(
                           item.payment_of_transaction ?? 0
                         ).toLocaleString(undefined, {
@@ -289,15 +280,8 @@ function AdminPayrollComponent({ currentUser }) {
                         onClick={() => handleReject(item.transaction_number)}
                         variant="destructive"
                         className="flex-1 lg:flex-initial"
-                        disabled={
-                          !!busy[item.transaction_number] ||
-                          item.status === "rejected"
-                        }
-                        title={
-                          item.status === "rejected"
-                            ? "Already rejected"
-                            : undefined
-                        }
+                        disabled={!!busy[item.transaction_number] || item.status === "rejected"}
+                        title={item.status === "rejected" ? "Already rejected" : undefined}
                       >
                         <XCircle className="mr-2 h-4 w-4" />
                         {busy[item.transaction_number] ? "Rejecting…" : "Reject"}
@@ -327,51 +311,12 @@ function AdminPayrollComponent({ currentUser }) {
         ))}
       </div>
 
-      {totalPages > 1 && (
-        <Pagination>
-          <PaginationContent>
-            <PaginationItem>
-              <PaginationPrevious
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                className={
-                  page === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"
-                }
-              />
-            </PaginationItem>
-
-            {Array.from({ length: totalPages }).map((_, i) => {
-              const p = i + 1;
-              if (p === 1 || p === totalPages || (p >= page - 1 && p <= page + 1)) {
-                return (
-                  <PaginationItem key={p}>
-                    <PaginationLink
-                      onClick={() => setPage(p)}
-                      isActive={page === p}
-                      className="cursor-pointer"
-                    >
-                      {p}
-                    </PaginationLink>
-                  </PaginationItem>
-                );
-              } else if (p === page - 2 || p === page + 2) {
-                return <PaginationEllipsis key={p} />;
-              }
-              return null;
-            })}
-
-            <PaginationItem>
-              <PaginationNext
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                className={
-                  page === totalPages
-                    ? "pointer-events-none opacity-50"
-                    : "cursor-pointer"
-                }
-              />
-            </PaginationItem>
-          </PaginationContent>
-        </Pagination>
-      )}
+      {/* Pagination Component */}
+      <PaginationComponent
+        currentPage={page}
+        totalPages={totalPages}
+        setCurrentPage={setPage}
+      />
     </div>
   );
 }

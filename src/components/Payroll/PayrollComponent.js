@@ -23,6 +23,7 @@ import { DollarSign, CheckCircle, Clock, Calendar } from "lucide-react";
 import FixedPayment from "../FixedPayment";
 import PaymentHistory from "./PaymentHistory";
 import AdminPayrollComponent from "./AdminPayrollComponent";
+import PaginationComponent from "../commonComponent/PaginationComponent";
 
 // API helpers (local, reusable)
 async function apiGetLastTransaction() {
@@ -498,59 +499,12 @@ export default function PayrollComponent({
         )}
       </div>
 
-      {totalPages > 1 && payableRows.length > 0 && (
-        <Pagination>
-          <PaginationContent>
-            <PaginationItem>
-              <PaginationPrevious
-                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                className={
-                  currentPage === 1
-                    ? "pointer-events-none opacity-50"
-                    : "cursor-pointer"
-                }
-              />
-            </PaginationItem>
-
-            {Array.from({ length: totalPages }).map((_, i) => {
-              const page = i + 1;
-              if (
-                page === 1 ||
-                page === totalPages ||
-                (page >= currentPage - 1 && page <= currentPage + 1)
-              ) {
-                return (
-                  <PaginationItem key={page}>
-                    <PaginationLink
-                      onClick={() => setCurrentPage(page)}
-                      isActive={currentPage === page}
-                      className="cursor-pointer"
-                    >
-                      {page}
-                    </PaginationLink>
-                  </PaginationItem>
-                );
-              } else if (page === currentPage - 2 || page === currentPage + 2) {
-                return <PaginationEllipsis key={page} />;
-              }
-              return null;
-            })}
-
-            <PaginationItem>
-              <PaginationNext
-                onClick={() =>
-                  setCurrentPage((p) => Math.min(totalPages, p + 1))
-                }
-                className={
-                  currentPage === totalPages
-                    ? "pointer-events-none opacity-50"
-                    : "cursor-pointer"
-                }
-              />
-            </PaginationItem>
-          </PaginationContent>
-        </Pagination>
-      )}
+      {/* Pagination */}
+      <PaginationComponent
+        currentPage={currentPage}
+        totalPages={totalPages}
+        setCurrentPage={setCurrentPage}
+      />
     </div>
   );
 }
