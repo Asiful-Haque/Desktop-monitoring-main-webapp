@@ -250,7 +250,7 @@ function AdminPayrollComponent({ currentUser }) {
 
                     <div className="text-right">
                       <p className="text-2xl font-bold text-primary">
-                        $$
+                        $
                         {Number(
                           item.payment_of_transaction ?? 0
                         ).toLocaleString(undefined, {

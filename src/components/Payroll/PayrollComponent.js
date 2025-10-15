@@ -281,6 +281,7 @@ export default function PayrollComponent({
   };
 
   const createTxnAndLogs = async ({ hours, payment, txnNumber, data }) => {
+    console.log("data to send to apiCreateTransaction:---------------------", data);
     await apiCreateTransaction({
       transaction_number: txnNumber,
       hours,
@@ -360,6 +361,7 @@ export default function PayrollComponent({
   // Submit all visible
   const handleProcessAllVisible = async () => {
     const toProcess = currentRows.filter((r) => !processed[r.id]);
+    console.log("toProcesssssssssssssssssssssssssss:", toProcess);
     if (toProcess.length === 0) {
       toast.error("No rows to process.");
       return;
@@ -386,10 +388,12 @@ export default function PayrollComponent({
       const txn = makeTxn(1 + i);
 
       try {
+        console.log("row to send to createTxnAndLogs:>>>>>>>>>>>>>>>-", row);
         await createTxnAndLogs({
           hours: row.hours,
           payment: row.payment,
           txnNumber: txn,
+          data: row, 
         });
       } catch (err) {
         console.error("create transaction/logs error:", err);
@@ -403,9 +407,10 @@ export default function PayrollComponent({
     }
 
     try {
-      console.log("toProcesssssssssssssssssssssssssss before apiMarkIdsProcessed:", toProcess);
+      console.log("toProcesssssssssssssssssssssssssss :", toProcess);
       const dates = toProcess.map((r) => r.date);
       const data = toProcess.map((r) => r.serial_ids);
+      console.log("data to send to apiMarkIdsProcessed:..........................", data.flat());
       await apiMarkIdsProcessed({
         dates,
         userId: currentUser?.id,

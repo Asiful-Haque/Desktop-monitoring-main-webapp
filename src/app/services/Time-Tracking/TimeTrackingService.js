@@ -315,19 +315,40 @@ export class TimeTrackingService {
   }
 
 async updateFlaggerForSerialIds(data, flagger, userId) {
-  console.log("I got data in updateFlaggerForSerialIds:", data);
+  console.log("In /api/update-flagger, received data:", data);
+
   try {
     const repo = await this.repo();
-    const serialIdsRaw = Array.isArray(data)
-      ? data.flatMap(d => d?.serial_ids ?? [])
-      : (data?.serial_ids ?? []);
 
-    const serialIds = [...new Set(serialIdsRaw.map(n => Number(n)).filter(n => !Number.isNaN(n)))];
+    let serialIdsRaw = [];
 
-    if (serialIds.length === 0) {
-      return { affected: 0, raw: [], info: "No serial_ids provided" };
+    // Case 1: If data is an array of serial IDs (flat array)
+    if (Array.isArray(data) && data.every(d => typeof d === 'number')) {
+      serialIdsRaw = data; // Directly use data if it's already an array of numbers
+      console.log("Serial IDs received directly:", serialIdsRaw);
+    }
+    // Case 2: If data is an array of objects with serial_ids
+    else if (Array.isArray(data)) {
+      serialIdsRaw = data.flatMap((d) => d?.serial_ids ?? []); // Flatten serial_ids from array of objects
+      console.log("Flattened serialIds from array of objects:", serialIdsRaw);
+    } 
+    // Case 3: If data is a single object containing serial_ids
+    else if (data?.serial_ids) {
+      serialIdsRaw = data.serial_ids || [];
+      console.log("Serial IDs extracted from single object:", serialIdsRaw);
+    } else {
+      console.error("Invalid data format. Expected an array of serial IDs or array of objects with `serial_ids`.");
+      return { affected: 0, raw: [], info: "Invalid data format" };
     }
 
+    // Process the serialIds to remove duplicates and ensure they are numbers
+    const serialIds = [...new Set(serialIdsRaw.map(n => Number(n)).filter(n => !Number.isNaN(n)))];
+
+    console.log("Parsed serialIds:", serialIds);
+    if (serialIds.length === 0) {
+      console.warn("No valid serial_ids provided.");
+      return { affected: 0, raw: [], info: "No serial_ids provided" };
+    }
     const result = await repo
       .createQueryBuilder()
       .update(TimeTracking)
@@ -335,7 +356,8 @@ async updateFlaggerForSerialIds(data, flagger, userId) {
       .where("serial_id IN (:...serialIds)", { serialIds })
       .andWhere("developer_id = :userId", { userId })
       .execute();
-      console.log("Update result:", result);
+
+    console.log("Update result:", result);
 
     return result;
   } catch (err) {
@@ -343,5 +365,4 @@ async updateFlaggerForSerialIds(data, flagger, userId) {
     throw new Error("Failed to update flagger for the provided serial_ids.");
   }
 }
-
 }
