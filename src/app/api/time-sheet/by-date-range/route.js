@@ -8,7 +8,7 @@ export async function POST(req) {
   try {
     const { startDate, endDate, userId, all = false } = await req.json();
     if (!all) {
-      const { rows, total } = await service.findAllSubmittedForPayment({ userId });
+      const { rows, total } = await service.findAllToSubmitForPayment({ userId });
       return NextResponse.json({
         ok: true,
         mode: "all-user",

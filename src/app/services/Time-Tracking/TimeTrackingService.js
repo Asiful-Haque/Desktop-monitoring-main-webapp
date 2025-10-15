@@ -278,7 +278,7 @@ export class TimeTrackingService {
       .getRawMany();
   }
 
-  async findAllSubmittedForPayment({ userId }) {
+  async findAllToSubmitForPayment({ userId }) {
     const repo = await this.repo();
 
     const baseWhere = { uid: userId, flag: 0 };
@@ -314,21 +314,34 @@ export class TimeTrackingService {
     return { rows, total };
   }
 
-    async updateFlaggerForDates(dates, flagger, userId) {
-    try {
-      const repo = await this.repo();
+async updateFlaggerForSerialIds(data, flagger, userId) {
+  console.log("I got data in updateFlaggerForSerialIds:", data);
+  try {
+    const repo = await this.repo();
+    const serialIdsRaw = Array.isArray(data)
+      ? data.flatMap(d => d?.serial_ids ?? [])
+      : (data?.serial_ids ?? []);
 
-      const updatedItems = await repo
-        .createQueryBuilder()
-        .update(TimeTracking) 
-        .set({ flagger })
-        .where("work_date IN (:...dates)", { dates })
-        .andWhere("developer_id = :userId", { userId })
-        .execute();  
-      return updatedItems;
-    } catch (err) {
-      console.error("Error updating flagger:", err);
-      throw new Error("Failed to update flagger for the dates.");
+    const serialIds = [...new Set(serialIdsRaw.map(n => Number(n)).filter(n => !Number.isNaN(n)))];
+
+    if (serialIds.length === 0) {
+      return { affected: 0, raw: [], info: "No serial_ids provided" };
     }
+
+    const result = await repo
+      .createQueryBuilder()
+      .update(TimeTracking)
+      .set({ flagger })
+      .where("serial_id IN (:...serialIds)", { serialIds })
+      .andWhere("developer_id = :userId", { userId })
+      .execute();
+      console.log("Update result:", result);
+
+    return result;
+  } catch (err) {
+    console.error("Error updating flagger by serial_ids:", err);
+    throw new Error("Failed to update flagger for the provided serial_ids.");
   }
+}
+
 }

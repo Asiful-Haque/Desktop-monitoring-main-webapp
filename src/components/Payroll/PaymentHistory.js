@@ -112,15 +112,15 @@ function PaymentHistory({
     if (page > totalPages) setPage(totalPages);
   }, [page, totalPages]);
 
-  if (loading) {
-    return (
-      <Card className="border-dashed">
-        <CardContent className="p-6 text-center text-muted-foreground">
-          Loading…
-        </CardContent>
-      </Card>
-    );
-  }
+  // if (loading) {
+  //   return (
+  //     <Card className="border-dashed">
+  //       <CardContent className="p-6 text-center text-muted-foreground">
+  //         Loading…
+  //       </CardContent>
+  //     </Card>
+  //   );
+  // }
   if (error) {
     return (
       <Card className="border-dashed">
@@ -130,15 +130,15 @@ function PaymentHistory({
       </Card>
     );
   }
-  if (filteredRows.length === 0) {
-    return (
-      <Card className="border-dashed">
-        <CardContent className="p-6 text-center text-muted-foreground">
-          No data.
-        </CardContent>
-      </Card>
-    );
-  }
+  // if (filteredRows.length === 0) {
+  //   return (
+  //     <Card className="border-dashed">
+  //       <CardContent className="p-6 text-center text-muted-foreground">
+  //         No data.
+  //       </CardContent>
+  //     </Card>
+  //   );
+  // }
 
   return (
     <div className="space-y-4">
@@ -162,9 +162,7 @@ function PaymentHistory({
                         </h3>
                       </div>
                       <div className="mt-1 text-xs text-muted-foreground">
-                        {item.created_at
-                          ? new Date(item.created_at).toLocaleString()
-                          : ""}
+                        Transaction: {item.transaction_number} 
                       </div>
                     </div>
 

@@ -18,8 +18,7 @@ export async function POST(req) {
 
     const isScoped = ["Developer", "Team Lead"].includes(currentUser.role);
     const developerId = isScoped ? currentUser.id : undefined;
-
-    const data = await transactionService.findPendingTransactions({ developerId });
+    const data = await transactionService.findHistoryData({ developerId });
 
     return corsJson({ data }, 200);
   } catch (error) {

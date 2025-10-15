@@ -1,6 +1,5 @@
 "use client";
-import React from "react";
-import { usePathname } from "next/navigation";
+import React, { useEffect, useState, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -14,16 +13,7 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 import { CreditCard, XCircle } from "lucide-react";
-import { Admin } from "typeorm";
 
-/**
- * Helpers limited strictly to API fields:
- * - transaction_number -> used as title and avatar initials
- * - status -> badge
- * - payment_of_transaction -> amount
- * - hour -> hours
- * - created_at -> date
- */
 const getStatusColor = (status) => {
   switch (status) {
     case "pending":
@@ -33,12 +23,10 @@ const getStatusColor = (status) => {
     case "rejected":
       return "bg-red-500/10 text-red-500 border-red-500/20";
     default:
-      // for "submitted" or other strings if they ever appear
       return "bg-blue-500/10 text-blue-500 border-blue-500/20";
   }
 };
 
-// Derive two-letter initials from transaction_number (e.g., "Trx_tnt1_12" -> "TR")
 const initialsFromTrx = (trx = "") => {
   if (!trx) return "";
   const clean = String(trx).replace(/[^A-Za-z]/g, "");
@@ -47,73 +35,174 @@ const initialsFromTrx = (trx = "") => {
   return "";
 };
 
-function AdminPayrollComponent({ currentUser, endpoint = "/api/get-transaction-for-history" }) {
-  const pathname = usePathname() || "";
+function AdminPayrollComponent({ currentUser }) {
   const isAdmin = currentUser?.role === "Admin";
 
-  const [rows, setRows] = React.useState([]); // holds array of API items (no extra fields)
-  const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState("");
-  const [page, setPage] = React.useState(1);
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [page, setPage] = useState(1);
+  const [busy, setBusy] = useState({}); // { [transaction_number]: boolean }
   const itemsPerPage = 10;
 
   const avatarClass =
-    "w-10 h-10 bg-gradient-to-r from-blue-400 to-blue-500 rounded-full flex items-center justify-center text-white font-medium"
+    "w-10 h-10 bg-gradient-to-r from-blue-400 to-blue-500 rounded-full flex items-center justify-center text-white font-medium";
 
-  // Fetch strictly from API, send currentUser in body
-  React.useEffect(() => {
-    let cancel = false;
+  // Memoized fetcher (optional AbortSignal)
+  const reload = useCallback(
+    async (signal) => {
+      const res = await fetch("/api/payment-issuing-data-for-admin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ currentUser }),
+        signal,
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j?.error || `Request failed: ${res.status}`);
+      }
+      const json = await res.json();
+      return Array.isArray(json?.data) ? json.data : [];
+    },
+    [currentUser]
+  );
+
+  // Load history
+  useEffect(() => {
+    const ac = new AbortController();
+    let cancelled = false;
+
     (async () => {
       try {
         setLoading(true);
         setError("");
-        const res = await fetch(endpoint, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include", // send auth cookie
-          body: JSON.stringify({ currentUser }),
-        });
-        if (!res.ok) {
-          const j = await res.json().catch(() => ({}));
-          throw new Error(j?.error || `Request failed: ${res.status}`);
-        }
-        const json = await res.json();
-        if (cancel) return;
-        // Expecting shape: { data: [ { id, transaction_number, hour, payment_of_transaction, status, created_at, ... } ] }
-        const data = Array.isArray(json?.data) ? json.data : [];
+        const data = await reload(ac.signal);
+        if (cancelled) return;
         setRows(data);
       } catch (e) {
-        if (!cancel) setError(e.message || "Failed to load data");
+        if (!cancelled && e?.name !== "AbortError")
+          setError(e?.message || "Failed to load data");
       } finally {
-        if (!cancel) setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     })();
+
     return () => {
-      cancel = true;
+      cancelled = true;
+      ac.abort();
     };
-  }, [endpoint, currentUser]);
+  }, [reload]);
 
   const totalPages = Math.max(1, Math.ceil(rows.length / itemsPerPage));
   const start = (page - 1) * itemsPerPage;
   const end = start + itemsPerPage;
   const visible = rows.slice(start, end);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (page > totalPages) setPage(totalPages);
   }, [page, totalPages]);
 
-  // Local state updates only; no extra fields added
-  const handlePay = (id) => {
-    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, status: "processed" } : r)));
+  // Handle the Pay button click - update status to "processed"
+  const handlePay = async (transaction_number) => {
+    if (!transaction_number) return;
+    if (busy[transaction_number]) return;
+
+    setBusy((b) => ({ ...b, [transaction_number]: true }));
+    const prevRows = rows;
+
+    // Optimistic remove
+    const nextRows = prevRows.filter(
+      (r) => r.transaction_number !== transaction_number
+    );
+    setRows(nextRows);
+
+    // Keep pagination sane if page empties
+    const newTotalPages = Math.max(1, Math.ceil(nextRows.length / itemsPerPage));
+    if (page > newTotalPages) setPage(newTotalPages);
+
+    try {
+      const res = await fetch("/api/pay-payment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ transaction_number }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j?.error || `Payment failed: ${res.status}`);
+      }
+
+      // Hard refresh to show newest data
+      const fresh = await reload();
+      setRows(fresh);
+      const freshTotal = Math.max(1, Math.ceil(fresh.length / itemsPerPage));
+      if (page > freshTotal) setPage(freshTotal);
+    } catch (e) {
+      setRows(prevRows); // rollback
+      setError(e?.message || "Failed to mark payment as processed");
+    } finally {
+      setBusy((b) => {
+        const copy = { ...b };
+        delete copy[transaction_number];
+        return copy;
+      });
+    }
   };
-  const handleReject = (id) => {
-    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, status: "rejected" } : r)));
+
+  // Handle the Reject button click - update status to "rejected"
+  const handleReject = async (transaction_number) => {
+    if (!transaction_number) return;
+    if (busy[transaction_number]) return;
+
+    setBusy((b) => ({ ...b, [transaction_number]: true }));
+    const prevRows = rows;
+
+    // Optimistic remove
+    const nextRows = prevRows.filter(
+      (r) => r.transaction_number !== transaction_number
+    );
+    setRows(nextRows);
+
+    // Keep pagination sane if page empties
+    const newTotalPages = Math.max(1, Math.ceil(nextRows.length / itemsPerPage));
+    if (page > newTotalPages) setPage(newTotalPages);
+
+    try {
+      const res = await fetch("/api/reject-payment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ transaction_number }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j?.error || `Reject failed: ${res.status}`);
+      }
+
+      // Hard refresh to show newest data
+      const fresh = await reload();
+      setRows(fresh);
+      const freshTotal = Math.max(1, Math.ceil(fresh.length / itemsPerPage));
+      if (page > freshTotal) setPage(freshTotal);
+    } catch (e) {
+      setRows(prevRows); // rollback
+      setError(e?.message || "Failed to reject transaction");
+    } finally {
+      setBusy((b) => {
+        const copy = { ...b };
+        delete copy[transaction_number];
+        return copy;
+      });
+    }
   };
 
   if (loading) {
     return (
       <Card className="border-dashed">
-        <CardContent className="p-6 text-center text-muted-foreground">Loading…</CardContent>
+        <CardContent className="p-6 text-center text-muted-foreground">
+          Loading…
+        </CardContent>
       </Card>
     );
   }
@@ -121,7 +210,9 @@ function AdminPayrollComponent({ currentUser, endpoint = "/api/get-transaction-f
   if (error) {
     return (
       <Card className="border-dashed">
-        <CardContent className="p-6 text-center text-red-500">{error}</CardContent>
+        <CardContent className="p-6 text-center text-red-500">
+          {error}
+        </CardContent>
       </Card>
     );
   }
@@ -129,7 +220,9 @@ function AdminPayrollComponent({ currentUser, endpoint = "/api/get-transaction-f
   if (rows.length === 0) {
     return (
       <Card className="border-dashed">
-        <CardContent className="p-6 text-center text-muted-foreground">No data.</CardContent>
+        <CardContent className="p-6 text-center text-muted-foreground">
+          No data.
+        </CardContent>
       </Card>
     );
   }
@@ -139,7 +232,7 @@ function AdminPayrollComponent({ currentUser, endpoint = "/api/get-transaction-f
       <div className="space-y-3">
         {visible.map((item) => (
           <Card
-            key={item.id}
+            key={`${item.transaction_number}-${item.id ?? ""}`}
             className="hover:shadow-md transition-shadow border-l-4 border-blue-500"
           >
             <CardContent>
@@ -148,21 +241,28 @@ function AdminPayrollComponent({ currentUser, endpoint = "/api/get-transaction-f
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <div className="flex items-center gap-3 flex-wrap">
-                        <div className={avatarClass}>{initialsFromTrx(item.developer_name)}</div>
+                        <div className={avatarClass}>
+                          {initialsFromTrx(item.developer_rel.username)}
+                        </div>
                         <div className="flex items-center gap-2 flex-wrap">
-                          <h3 className="font-semibold text-lg">{item.developer_name}</h3>
+                          <h3 className="font-semibold text-lg">
+                            {item.developer_rel?.username }
+                          </h3>
                         </div>
                       </div>
-                      {/* Under-title meta (using only allowed fields) */}
                       <div className="mt-1 text-xs text-muted-foreground">
-                        {item.created_at ? new Date(item.created_at).toLocaleString() : ""}
+                        {item.created_at
+                          ? new Date(item.created_at).toLocaleString()
+                          : ""}
                       </div>
                     </div>
 
                     <div className="text-right">
                       <p className="text-2xl font-bold text-primary">
                         $
-                        {Number(item.payment_of_transaction ?? 0).toLocaleString(undefined, {
+                        {Number(
+                          item.payment_of_transaction ?? 0
+                        ).toLocaleString(undefined, {
                           maximumFractionDigits: 2,
                         })}
                       </p>
@@ -173,25 +273,41 @@ function AdminPayrollComponent({ currentUser, endpoint = "/api/get-transaction-f
                   </div>
                 </div>
 
-                {/* Right side: Admin actions OR big status badge */}
                 {isAdmin ? (
-                  <div className="flex gap-2 w-full lg:w-auto">
-                    <Button
-                      onClick={() => handlePay(item.id)}
-                      variant="default"
-                      className="flex-1 lg:flex-initial bg-indigo-600 text-white hover:bg-indigo-700"
-                    >
-                      <CreditCard className="mr-2 h-4 w-4" />
-                      Pay
-                    </Button>
-                    <Button
-                      onClick={() => handleReject(item.id)}
-                      variant="destructive"
-                      className="flex-1 lg:flex-initial"
-                    >
-                      <XCircle className="mr-2 h-4 w-4" />
-                      Reject
-                    </Button>
+                  <div>
+                    <div className="flex gap-2 w-full lg:w-auto">
+                      <Button
+                        onClick={() => handlePay(item.transaction_number)}
+                        variant="default"
+                        className="flex-1 lg:flex-initial bg-indigo-600 text-white hover:bg-indigo-700"
+                        disabled={!!busy[item.transaction_number]}
+                      >
+                        <CreditCard className="mr-2 h-4 w-4" />
+                        Pay
+                      </Button>
+                      <Button
+                        onClick={() => handleReject(item.transaction_number)}
+                        variant="destructive"
+                        className="flex-1 lg:flex-initial"
+                        disabled={
+                          !!busy[item.transaction_number] ||
+                          item.status === "rejected"
+                        }
+                        title={
+                          item.status === "rejected"
+                            ? "Already rejected"
+                            : undefined
+                        }
+                      >
+                        <XCircle className="mr-2 h-4 w-4" />
+                        {busy[item.transaction_number] ? "Rejecting…" : "Reject"}
+                      </Button>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Transaction: {item.transaction_number}
+                      </p>
+                    </div>
                   </div>
                 ) : (
                   <div className="w-full lg:w-auto">
@@ -217,11 +333,13 @@ function AdminPayrollComponent({ currentUser, endpoint = "/api/get-transaction-f
             <PaginationItem>
               <PaginationPrevious
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
-                className={page === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                className={
+                  page === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"
+                }
               />
             </PaginationItem>
 
-            {[...Array(totalPages)].map((_, i) => {
+            {Array.from({ length: totalPages }).map((_, i) => {
               const p = i + 1;
               if (p === 1 || p === totalPages || (p >= page - 1 && p <= page + 1)) {
                 return (
@@ -244,7 +362,11 @@ function AdminPayrollComponent({ currentUser, endpoint = "/api/get-transaction-f
             <PaginationItem>
               <PaginationNext
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                className={page === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                className={
+                  page === totalPages
+                    ? "pointer-events-none opacity-50"
+                    : "cursor-pointer"
+                }
               />
             </PaginationItem>
           </PaginationContent>

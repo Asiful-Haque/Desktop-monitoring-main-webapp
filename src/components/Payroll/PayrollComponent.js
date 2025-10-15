@@ -24,8 +24,6 @@ import FixedPayment from "../FixedPayment";
 import PaymentHistory from "./PaymentHistory";
 import AdminPayrollComponent from "./AdminPayrollComponent";
 
-/* -------------------------- REUSABLE HELPERS (same file) -------------------------- */
-
 // API helpers (local, reusable)
 async function apiGetLastTransaction() {
   const res = await fetch("/api/get-last-transaction");
@@ -48,6 +46,7 @@ async function apiCreateTransaction(payload) {
 }
 
 async function apiPostPaymentLogs({ currentUser, transaction_number, logs }) {
+  console.log("logs to send to apiPostPaymentLogs:(((((((((((((((((", logs);
   const res = await fetch("/api/fit-payment-logs", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -60,11 +59,12 @@ async function apiPostPaymentLogs({ currentUser, transaction_number, logs }) {
   return res.json();
 }
 
-async function apiMarkDatesProcessed({ dates, userId }) {
+async function apiMarkIdsProcessed({ dates, userId, data }) {
+  console.log("Before api logs are ..........................", data);
   const res = await fetch("/api/update-flagger", {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ dates, flagger: 1, userId: userId || null }),
+    body: JSON.stringify({ dates, flagger: 1, userId: userId || null, data }),
   });
   if (!res.ok) {
     const j = await res.json().catch(() => ({}));
@@ -152,11 +152,7 @@ function SummaryCards({ payableCount, totalHours, totalPayment }) {
   );
 }
 
-function HeaderWithSubmitAll({
-  hasRows,
-  allVisibleProcessed,
-  onSubmitAll,
-}) {
+function HeaderWithSubmitAll({ hasRows, allVisibleProcessed, onSubmitAll }) {
   if (!hasRows) return null;
   return (
     <Button
@@ -271,12 +267,11 @@ export default function PayrollComponent({
   }, [payableRows]);
 
   const allVisibleProcessed =
-    currentRows.length > 0 && currentRows.every((r) => processed[r.date]);
+    currentRows.length > 0 && currentRows.every((r) => processed[r.id]);
 
   const isEmpty = payableRows.length === 0;
   const isAdmin = currentUser?.role === "Admin";
 
-  // compose: compute next transaction number factory
   const getNextTxnFactory = async () => {
     const last = await apiGetLastTransaction(); // e.g., Trx_tnt1_5
     const lastVal = parseInt(String(last).split("_")[2] || "0", 10);
@@ -284,8 +279,7 @@ export default function PayrollComponent({
     return (offset = 1) => `Trx_tnt${tenantId}_${lastVal + offset}`;
   };
 
-  // create + logs for one transaction
-  const createTxnAndLogs = async ({ hours, payment, txnNumber }) => {
+  const createTxnAndLogs = async ({ hours, payment, txnNumber, data }) => {
     await apiCreateTransaction({
       transaction_number: txnNumber,
       hours,
@@ -297,70 +291,81 @@ export default function PayrollComponent({
     await apiPostPaymentLogs({
       currentUser,
       transaction_number: txnNumber,
-      logs: initialDailyData,
+      logs: data,//-------------------------------------
     });
 
     toast.success(`Transaction created: ${txnNumber}`);
   };
 
   // Single-row submit
-  const handleProcess = async (date, payment, hours, label) => {
-    setProcessed((prev) => ({ ...prev, [date]: true }));
+  const handleProcess = async (id, date, payment, hours, label) => {
+    setProcessed((prev) => ({ ...prev, [id]: true }));
 
     let makeTxn;
     try {
       makeTxn = await getNextTxnFactory();
     } catch (e) {
       toast.error(e.message || "Failed to prepare transaction number");
-      setProcessed((prev) => ({ ...prev, [date]: false }));
+      setProcessed((prev) => ({ ...prev, [id]: false }));
       return;
     }
 
     const newTransactionNumber = makeTxn(1);
 
     try {
+      // Only send the logs related to the clicked row
+      const clickedRowLogs = rows.find((r) => r.id === id);
+      console.log("clickedRowLogsxxxxxxxxxxxxxxxxxxxxxxxxxxxx:", clickedRowLogs);
+      if (!clickedRowLogs) {
+        toast.error("Clicked row not found.");
+        setProcessed((prev) => ({ ...prev, [id]: false }));
+        return;
+      }
+
       await createTxnAndLogs({
-        hours,
-        payment,
+        hours: clickedRowLogs.hours,
+        payment: clickedRowLogs.payment,
         txnNumber: newTransactionNumber,
+        data: clickedRowLogs, //-------------------------------------
       });
     } catch (error) {
       console.error("create transaction/logs error:", error);
       toast.error(error.message || "Error creating the transaction");
-      setProcessed((prev) => ({ ...prev, [date]: false }));
+      setProcessed((prev) => ({ ...prev, [id]: false }));
       return;
     }
 
-    // mark date processed on backend (optional step as in your current code)
     try {
-      await apiMarkDatesProcessed({
+      const clickedRowLogs = rows.find((r) => r.id === id);
+      console.log("clickedRowLogsxxxxxxxxxxxxxxxxxxxxxxxxxxxx:", clickedRowLogs);
+      await apiMarkIdsProcessed({
         dates: [date],
         userId: currentUser?.id,
+        data: clickedRowLogs, //-------------------------------------
       });
 
       toast.success("Marked as processed", {
         description: `Date ${date} • ${fmtMoney(payment)} processed.`,
       });
 
-      setRows((prevRows) => prevRows.filter((r) => r.date !== date));
+      setRows((prevRows) => prevRows.filter((r) => r.id !== id));
     } catch (error) {
       console.error("mark processed error:", error);
       toast.error("Failed to process the date");
-      setProcessed((prev) => ({ ...prev, [date]: false }));
+      setProcessed((prev) => ({ ...prev, [id]: false }));
     }
   };
 
   // Submit all visible
   const handleProcessAllVisible = async () => {
-    const toProcess = currentRows.filter((r) => !processed[r.date]);
+    const toProcess = currentRows.filter((r) => !processed[r.id]);
     if (toProcess.length === 0) {
       toast.error("No rows to process.");
       return;
     }
 
-    // optimistic
     const updates = {};
-    toProcess.forEach((r) => (updates[r.date] = true));
+    toProcess.forEach((r) => (updates[r.id] = true));
     setProcessed((prev) => ({ ...prev, ...updates }));
 
     let makeTxn;
@@ -368,15 +373,13 @@ export default function PayrollComponent({
       makeTxn = await getNextTxnFactory();
     } catch (e) {
       toast.error(e.message || "Failed to prepare transaction number");
-      // rollback optimistic flags
       setProcessed((prev) => {
-        toProcess.forEach((r) => (prev[r.date] = false));
+        toProcess.forEach((r) => (prev[r.id] = false));
         return { ...prev };
       });
       return;
     }
 
-    // create each
     for (let i = 0; i < toProcess.length; i++) {
       const row = toProcess[i];
       const txn = makeTxn(1 + i);
@@ -390,21 +393,22 @@ export default function PayrollComponent({
       } catch (err) {
         console.error("create transaction/logs error:", err);
         toast.error(err.message || "Error creating the transaction");
-        // rollback just this row
         setProcessed((prev) => {
-          prev[row.date] = false;
+          prev[row.id] = false;
           return { ...prev };
         });
-        return; // stop further processing
+        return;
       }
     }
 
-    // optional backend flag update
     try {
+      console.log("toProcesssssssssssssssssssssssssss before apiMarkIdsProcessed:", toProcess);
       const dates = toProcess.map((r) => r.date);
-      await apiMarkDatesProcessed({
+      const data = toProcess.map((r) => r.serial_ids);
+      await apiMarkIdsProcessed({
         dates,
         userId: currentUser?.id,
+        data: data.flat(), 
       });
 
       toast.success(`Marked ${toProcess.length} day(s) as processed`);
@@ -435,7 +439,6 @@ export default function PayrollComponent({
             </div>
           ) : (
             <div className="space-y-3">
-              {/* Header + Submit All */}
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
                   <h1 className="text-3xl font-bold flex items-center gap-2">
@@ -454,14 +457,12 @@ export default function PayrollComponent({
                 />
               </div>
 
-              {/* Summary */}
               <SummaryCards
                 payableCount={payableRows.length}
                 totalHours={totalHours}
                 totalPayment={totalPayment}
               />
 
-              {/* List */}
               {isEmpty ? (
                 <div className="text-center text-muted-foreground">
                   <h2 className="text-lg font-semibold">
@@ -472,11 +473,11 @@ export default function PayrollComponent({
               ) : (
                 currentRows.map((r) => (
                   <PayableRowCard
-                    key={r.date}
+                    key={r.id}
                     row={r}
-                    isDone={!!processed[r.date]}
+                    isDone={!!processed[r.id]}
                     onSubmit={() =>
-                      handleProcess(r.date, r.payment, r.hours, r.label || 0)
+                      handleProcess(r.id, r.date, r.payment, r.hours, r.label || 0)
                     }
                   />
                 ))
@@ -497,7 +498,6 @@ export default function PayrollComponent({
         )}
       </div>
 
-      {/* Pagination for the hourly (payableRows) list */}
       {totalPages > 1 && payableRows.length > 0 && (
         <Pagination>
           <PaginationContent>
@@ -512,7 +512,7 @@ export default function PayrollComponent({
               />
             </PaginationItem>
 
-            {[...Array(totalPages)].map((_, i) => {
+            {Array.from({ length: totalPages }).map((_, i) => {
               const page = i + 1;
               if (
                 page === 1 ||
@@ -538,7 +538,9 @@ export default function PayrollComponent({
 
             <PaginationItem>
               <PaginationNext
-                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                onClick={() =>
+                  setCurrentPage((p) => Math.min(totalPages, p + 1))
+                }
                 className={
                   currentPage === totalPages
                     ? "pointer-events-none opacity-50"

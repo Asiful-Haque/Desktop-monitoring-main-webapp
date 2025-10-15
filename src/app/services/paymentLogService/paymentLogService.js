@@ -8,6 +8,7 @@ export class PaymentLogService {
     // Flatten input -> rows to insert (no session_id on purpose)
     const rows = [];
     for (const item of logs) {
+      console.log("item in logsvvvvvvvvvvvvvvvvvvvv:", item);
       if (!item) continue;
 
       const { date, serial_ids = [], transaction_number: perItemTxn } = item;

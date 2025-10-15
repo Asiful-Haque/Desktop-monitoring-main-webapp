@@ -7,6 +7,7 @@ const transactionService = new TransactionService();
 
 export async function GET(req) {
   try {
+    console.log("🔍 GET request received for last transaction number called");
     const token = await getAuthFromCookie(req); 
     if (!token) {
       return corsJson({ error: "Token missing or invalid" }, 401);
