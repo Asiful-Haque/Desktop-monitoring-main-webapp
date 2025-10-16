@@ -38,6 +38,8 @@ export async function PUT(req, context) {
     }
 
     const body = await req.json(); // getting the task from req
+
+    console.log('Updating taskId:<<<<<<<<<<<<<<', taskId, 'with body:', body); // Log the taskId and body
     const { newStatus, last_timing } = body; // destructuring newStatus and last_timing from the body
 
     // Validate that either newStatus or last_timing is present in the body

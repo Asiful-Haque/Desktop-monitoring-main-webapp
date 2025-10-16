@@ -11,8 +11,7 @@ export function OPTIONS() {
 export async function POST(req) {
   try {
     const body = await req.json();
-
-    // If it's an array, createMany; otherwise, createOne
+    console.log("Received POST /api/time-tracking with body:<<<<<<<<<<<<<", body);
     if (Array.isArray(body)) {
       if (body.length === 0) {
         return NextResponse.json({ error: "Empty array payload" }, { status: 400 });
