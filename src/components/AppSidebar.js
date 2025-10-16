@@ -12,6 +12,7 @@ import {
   Home,
   CalendarDays,
   DollarSign,
+  Clock,
 } from "lucide-react";
 import {
   Sidebar,
@@ -35,12 +36,12 @@ const navigationItems = [
   { title: "Settings", url: "/settings", icon: Settings, roles: ["Admin"] },
   { title: "Time Sheet", url: "/time-sheet", icon: CalendarDays, roles: ["Developer"] },
   { title: "Payroll", url: "/payroll", icon: DollarSign, roles: ["Developer", "Admin", "Project Manager", "CEO", "Team Lead"] },
-  { title: "Manual Time", url: "/manual-time", icon: Users, roles: ["Admin", "Developer", "CEO"] },
+  { title: "Manual Time", url: "/manual-time", icon: Clock, roles: ["Developer"] },
 ];
 
 export function AppSidebar({ user }) {
     const { open } = useSidebar();
-    const pathname = usePathname(); // ✅ Hook used in client context
+    const pathname = usePathname(); 
 
   const filteredItems = navigationItems.filter(
     (item) => user && user.role && item.roles.includes(user.role)

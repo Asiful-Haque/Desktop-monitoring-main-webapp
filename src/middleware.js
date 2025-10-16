@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { verifyToken, verifyRefreshToken, signToken, signRefreshToken } from "@/app/lib/auth";
 
 const ORIGIN_WHITELIST = new Set(["http://localhost:3000", "null"]); // "null" for Electron file://
-const PROTECTED_PAGES = ["/adminDashboard", "/tasks", "/assign_task", "/time-sheet","/payroll", "/projectDetails", "/profile"];
+const PROTECTED_PAGES = ["/adminDashboard", "/tasks", "/assign_task", "/time-sheet","/payroll", "/manual-time", "/projectDetails", "/profile"];
 
 function buildCorsHeaders(req) {
   const origin = req.headers.get("origin") || "";
@@ -17,19 +17,12 @@ function buildCorsHeaders(req) {
   h.set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With");
   return h;
 }
-
 function cookieAttrsFor(req) {
   const isHttps = new URL(req.url).protocol === "https:";
   return isHttps
     ? { httpOnly: true, sameSite: "none", secure: true,  path: "/" }   // prod/https
     : { httpOnly: true, sameSite: "lax",  secure: false, path: "/" };  // http localhost
 }
-
-/**
- * If access token is valid -> returns NextResponse.next().
- * Else if refresh is valid -> rotates cookies and returns NextResponse with Set-Cookie.
- * Else -> returns null.
- */
 async function ensureFreshAuth(req) {
   const token   = req.cookies?.get?.("token")?.value || null;
   const refresh = req.cookies?.get?.("refresh_token")?.value || null;
@@ -55,6 +48,21 @@ async function ensureFreshAuth(req) {
   return null;
 }
 
+const ROLE_GUARDS = [
+  { prefix: "/adminDashboard", allowed: ["Developer", "Admin", "Project Manager", "CEO", "Team Lead"] },
+  { prefix: "/tasks",          allowed: ["Developer", "Admin", "Project Manager", "Team Lead"] },
+  { prefix: "/meetings",       allowed: ["Developer", "Admin", "Project Manager", "Team Lead"] },
+  { prefix: "/gallery",        allowed: ["Admin", "Project Manager", "CEO"] },
+  { prefix: "/team",           allowed: ["Developer", "Admin", "Project Manager", "CEO", "Team Lead"] },
+  { prefix: "/analytics",      allowed: ["Admin", "Project Manager"] },
+  { prefix: "/settings",       allowed: ["Admin"] },
+  { prefix: "/time-sheet",     allowed: ["Developer"] },
+  { prefix: "/payroll",        allowed: ["Developer", "Admin", "Project Manager", "CEO", "Team Lead"] },
+  { prefix: "/manual-time",    allowed: ["Developer"] },
+];
+function findGuard(pathname) {
+  return ROLE_GUARDS.find(g => pathname.startsWith(g.prefix)) || null;
+}
 export async function middleware(req) {
   const url = new URL(req.url);
   const pathname = url.pathname;
@@ -76,16 +84,28 @@ export async function middleware(req) {
   }
 
   // ---------- Frontend protected routes ----------
+  // 1. checks only authorized or not. If authorized, go next.
+  // 2. If not authorized, redirect to / (login)
+  // 3. If authorized, check role rules (if any)
+  // 4. If role rule exists, check if user role is allowed
+  // 5. If not allowed, redirect to /unauthorized
   const isProtected = PROTECTED_PAGES.some((p) => pathname.startsWith(p));
-  if (!isProtected) return NextResponse.next();
-
+  if (!isProtected) return NextResponse.next(); // Protected but no role rule.any auth user can get access
   const maybeAuthed = await ensureFreshAuth(req);
   if (maybeAuthed) return maybeAuthed;
+
+   const guard = findGuard(pathname);
+     if (guard) {
+    const role = auth.payload?.role;
+    if (!guard.allowed.includes(role)) {
+      return NextResponse.redirect(new URL("/unauthorized", req.url));//role rule. authrized but wrong role will be rejected.
+    }
+  }
 
   // Not authed -> go to login/root
   return NextResponse.redirect(new URL("/", req.url));
 }
 
 export const config = {
-  matcher: ["/api/:path*", "/adminDashboard", "/tasks", "/assign_task", "/time-sheet", "/payroll", "/projectDetails/:path*", "/profile/:path*"],
+  matcher: ["/api/:path*", "/adminDashboard", "/tasks", "/assign_task", "/time-sheet", "/payroll", "/manual-time", "/projectDetails/:path*", "/profile/:path*"],
 };
