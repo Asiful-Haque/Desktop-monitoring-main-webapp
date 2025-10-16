@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useRouter } from "next/navigation";
 
 // helper to give badge color based on role
 function getRoleColor(role) {
@@ -28,14 +29,15 @@ function getRoleColor(role) {
 }
 
 export default function UserManagementCard({ users, teamCount }) {
+  const router = useRouter();
   const pathname = usePathname();
   // console.log("usesrs data:", users);
-  
+
   const usersArray = Array.isArray(users)
-  ? users
-  : users?.members && Array.isArray(users.members)
-  ? users.members
-  : [];
+    ? users
+    : users?.members && Array.isArray(users.members)
+    ? users.members
+    : [];
 
   console.log("Current path:", pathname);
   return (
@@ -65,9 +67,7 @@ export default function UserManagementCard({ users, teamCount }) {
         </div>
 
         {!pathname.includes("adminDashboard") && (
-          <Button className="bg-red-600 hover:bg-red-700">
-            Remove User
-          </Button>
+          <Button className="bg-red-600 hover:bg-red-700">Remove User</Button>
         )}
       </CardHeader>
 
@@ -76,10 +76,15 @@ export default function UserManagementCard({ users, teamCount }) {
           {usersArray.map((user, i) => (
             <div
               key={i}
+              onClick={() => router.push(`/profile/${i}`)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ")
+                  router.push(`/profile/${i}`);
+              }}
               className={
                 pathname.includes("adminDashboard")
-                  ? "flex items-center justify-between p-4 border border-blue-100 rounded-lg bg-blue-50/50"
-                  : "flex items-center justify-between p-4 border border-blue-100 rounded-lg bg-blue-50/50"
+                  ? "cursor-pointer flex items-center justify-between p-4 border border-blue-100 rounded-lg bg-blue-50/50"
+                  : "cursor-pointer flex items-center justify-between p-4 border border-blue-100 rounded-lg bg-blue-50/50"
               }
             >
               <div className="flex items-center space-x-3">

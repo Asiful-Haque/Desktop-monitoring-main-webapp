@@ -220,7 +220,7 @@ export default function TimeSheet({
             className="mt-1 text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-100"
             suppressHydrationWarning
           >
-            {isPlaceholder ? "—" : `${totalHours}h`}
+            {isPlaceholder ? "—" : `${totalHours.toFixed(2)}h`}
           </div>
           <div className="mt-1 text-[11px] text-neutral-500 dark:text-neutral-400">
             Sum of non-empty days
