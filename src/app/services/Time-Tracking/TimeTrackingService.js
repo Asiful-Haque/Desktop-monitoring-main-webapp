@@ -252,67 +252,75 @@ export class TimeTrackingService {
     return rows;
   }
 
-  async findByDateRangeAll({ startDate, endDate, userId }) {
-    const repo = await this.repo();
-    return repo
-      .createQueryBuilder("t")
-      .where("t.work_date BETWEEN :start AND :end", {
-        start: startDate,
-        end: endDate,
-      })
-      .andWhere("t.developer_id = :uid", { uid: userId })
-      .orderBy("t.work_date", "ASC")
-      .addOrderBy("t.task_start", "ASC")
-      .select([
-        "t.serial_id AS serial_id",
-        "t.task_id AS task_id",
-        "t.project_id AS project_id",
-        "t.developer_id AS developer_id",
-        "t.work_date AS work_date",
-        "t.task_start AS task_start",
-        "t.task_end AS task_end",
-        "t.duration AS duration",
-        "t.session_payment AS session_payment",
-        "t.flagger AS flagger",
-      ])
-      .getRawMany();
-  }
+async findAllToSubmitForPayment({ userId }) {
+  const repo = await this.repo();
 
-  async findAllToSubmitForPayment({ userId }) {
-    const repo = await this.repo();
+  const baseWhere = { uid: userId, flag: 0 };
 
-    const baseWhere = { uid: userId, flag: 0 };
+  const qb = repo
+    .createQueryBuilder("t")
+    // JOIN with correct PKs and names from your schemas
+    .leftJoin("projects", "p", "p.project_id = t.project_id")
+    .leftJoin("tasks", "task", "task.task_id = t.task_id")
+    .where("t.developer_id = :uid", baseWhere)
+    .andWhere("t.flagger = :flag", baseWhere)
+    .orderBy("t.work_date", "ASC")
+    .addOrderBy("t.task_start", "ASC")
+    .select([
+      "t.serial_id AS serial_id",
+      "t.task_id AS task_id",
+      "t.project_id AS project_id",
+      "t.developer_id AS developer_id",
+      "t.work_date AS work_date",
+      "t.task_start AS task_start",
+      "t.task_end AS task_end",
+      "t.duration AS duration",
+      "t.session_payment AS session_payment",
+      "t.flagger AS flagger",
+      "p.project_name AS project_name",
+      "task.task_name AS task_name",
+    ]);
 
-    const qb = repo
+  const [rows, total] = await Promise.all([
+    qb.getRawMany(),
+    repo
       .createQueryBuilder("t")
       .where("t.developer_id = :uid", baseWhere)
       .andWhere("t.flagger = :flag", baseWhere)
-      .orderBy("t.work_date", "ASC")
-      .addOrderBy("t.task_start", "ASC")
-      .select([
-        "t.serial_id AS serial_id",
-        "t.task_id AS task_id",
-        "t.project_id AS project_id",
-        "t.developer_id AS developer_id",
-        "t.work_date AS work_date",
-        "t.task_start AS task_start",
-        "t.task_end AS task_end",
-        "t.duration AS duration",
-        "t.session_payment AS session_payment",
-        "t.flagger AS flagger",
-      ])
+      .getCount(),
+  ]);
 
-    const [rows, total] = await Promise.all([
-      qb.getRawMany(),
-      repo
-        .createQueryBuilder("t")
-        .where("t.developer_id = :uid", baseWhere)
-        .andWhere("t.flagger = :flag", baseWhere)
-        .getCount(),
-    ]);
+  return { rows, total };
+}
 
-    return { rows, total };
-  }
+async findByDateRangeAll({ startDate, endDate, userId }) {
+  const repo = await this.repo();
+
+  return repo
+    .createQueryBuilder("t")
+    // JOIN with correct PKs and names from your schemas
+    .leftJoin("projects", "p", "p.project_id = t.project_id")
+    .leftJoin("tasks", "task", "task.task_id = t.task_id")
+    .where("t.work_date BETWEEN :start AND :end", { start: startDate, end: endDate })
+    .andWhere("t.developer_id = :uid", { uid: userId })
+    .orderBy("t.work_date", "ASC")
+    .addOrderBy("t.task_start", "ASC")
+    .select([
+      "t.serial_id AS serial_id",
+      "t.task_id AS task_id",
+      "t.project_id AS project_id",
+      "t.developer_id AS developer_id",
+      "t.work_date AS work_date",
+      "t.task_start AS task_start",
+      "t.task_end AS task_end",
+      "t.duration AS duration",
+      "t.session_payment AS session_payment",
+      "t.flagger AS flagger",
+      "p.project_name AS project_name",
+      "task.task_name AS task_name",
+    ])
+    .getRawMany();
+}
 
 async updateFlaggerForSerialIds(data, flagger, userId) {
   console.log("In /api/update-flagger, received data:", data);

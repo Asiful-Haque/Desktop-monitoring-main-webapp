@@ -161,4 +161,112 @@ export class TaskService {
     // console.log(qb.getSql(), qb.getParameters());
     return qb.getRawMany();
   }
+
+  /**
+   * Make this task the only flagged task (busy=1) for the user.
+   * Clears any other flagged task(s) for that user first.
+   * Optional tenant scope supported.
+   */
+  async flag({ userId, taskId, tenantId }) {
+    const ds = await getDataSource();
+    const repo = ds.getRepository(Task);
+
+    const uid = Number(userId);
+    const tid = Number(taskId);
+
+    // ensure target task belongs to user (and tenant if provided)
+    const targetQb = repo
+      .createQueryBuilder("t")
+      .where("t.task_id = :tid", { tid })
+      .andWhere("t.assigned_to = :uid", { uid });
+
+    if (tenantId != null) {
+      targetQb.andWhere("t.tenant_id = :tenantId", {
+        tenantId: Number(tenantId),
+      });
+    }
+
+    const target = await targetQb.getOne();
+    if (!target) {
+      const msg =
+        tenantId != null
+          ? "Task not found for this user and tenant."
+          : "Task not found for this user.";
+      const err = new Error(msg);
+      err.statusCode = 404;
+      throw err;
+    }
+
+    // 1) clear any flagged task(s) for this user
+    const clearQb = repo
+      .createQueryBuilder()
+      .update(Task)
+      .set({ busy: 0 })
+      .where("assigned_to = :uid AND busy = 1", { uid });
+
+    if (tenantId != null) {
+      clearQb.andWhere("tenant_id = :tenantId", { tenantId: Number(tenantId) });
+    }
+    const clearRes = await clearQb.execute();
+
+    // 2) set this one as flagged
+    const setRes = await repo
+      .createQueryBuilder()
+      .update(Task)
+      .set({ busy: 1 })
+      .where("task_id = :tid AND assigned_to = :uid", { tid, uid })
+      .execute();
+
+    return {
+      cleared: clearRes.affected ?? 0,
+      updated: setRes.affected ?? 0,
+    };
+  }
+
+  /**
+   * Unflag just this task (busy=0) for the user.
+   * Optional tenant scope supported (ownership is still checked).
+   */
+  async unflag({ userId, taskId, tenantId }) {
+    const ds = await getDataSource();
+    const repo = ds.getRepository(Task);
+
+    const uid = Number(userId);
+    const tid = Number(taskId);
+
+    // ensure target task belongs to user (and tenant if provided)
+    const targetQb = repo
+      .createQueryBuilder("t")
+      .where("t.task_id = :tid", { tid })
+      .andWhere("t.assigned_to = :uid", { uid });
+
+    if (tenantId != null) {
+      targetQb.andWhere("t.tenant_id = :tenantId", {
+        tenantId: Number(tenantId),
+      });
+    }
+
+    const target = await targetQb.getOne();
+    if (!target) {
+      const msg =
+        tenantId != null
+          ? "Task not found for this user and tenant."
+          : "Task not found for this user.";
+      const err = new Error(msg);
+      err.statusCode = 404;
+      throw err;
+    }
+
+    const res = await repo
+      .createQueryBuilder()
+      .update(Task)
+      .set({ busy: 0 })
+      .where("task_id = :tid AND assigned_to = :uid", { tid, uid })
+      .execute();
+
+    return {
+      cleared: 0,
+      updated: res.affected ?? 0,
+    };
+  }
 }

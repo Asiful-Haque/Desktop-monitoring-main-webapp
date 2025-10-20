@@ -1,8 +1,8 @@
 import TimeSheet from "@/components/TimeSheet/TimeSheet";
 import { cookies } from "next/headers";
 import jwt from "jsonwebtoken";
-import { use } from "react";
-export const dynamic = "force-dynamic"; 
+
+export const dynamic = "force-dynamic";
 
 /** ----------------------- helpers ----------------------- **/
 function ymd(d) {
@@ -11,16 +11,12 @@ function ymd(d) {
   const dd = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${dd}`;
 }
-
 function parseISO(v) {
   if (!v) return null;
   const d = new Date(v);
   return Number.isNaN(d.getTime()) ? null : d;
 }
-
 const TZ = "Asia/Dhaka";
-
-// YYYY-MM-DD for a date in the given IANA timezone
 function keyInTZ(d, timeZone = TZ) {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone,
@@ -29,8 +25,6 @@ function keyInTZ(d, timeZone = TZ) {
     day: "2-digit",
   }).format(d);
 }
-
-// format date-time into local time for readable logs
 function fmtLocal(dt, timeZone = TZ) {
   if (!(dt instanceof Date)) return "-";
   const f = new Intl.DateTimeFormat("en-GB", {
@@ -41,11 +35,10 @@ function fmtLocal(dt, timeZone = TZ) {
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
+    hour12: false,
   });
   return f.format(dt); // dd/mm/yyyy, hh:mm:ss
 }
-
-// format N seconds -> "Hh MMm SSs"
 function formatHMS(totalSeconds) {
   const s = Math.max(0, Math.floor(totalSeconds));
   const h = Math.floor(s / 3600);
@@ -53,75 +46,29 @@ function formatHMS(totalSeconds) {
   const sec = s % 60;
   return `${h}h ${String(m).padStart(2, "0")}m ${String(sec).padStart(2, "0")}s`;
 }
-
-// compute exact seconds for a row (count every second)
-// Prefer task_start/task_end when present; else infer from duration.
 function computeSeconds(row) {
   const start = parseISO(row?.task_start);
   const end = parseISO(row?.task_end);
-
   if (start && end && end > start) {
     return Math.floor((end.getTime() - start.getTime()) / 1000);
   }
-
   if (typeof row?.duration === "number" && !Number.isNaN(row.duration)) {
     const d = row.duration;
-    if (d >= 3600000) {
-      // looks like ms
-      return Math.max(0, Math.floor(d / 1000));
-    }
-    if (d >= 3600) {
-      // plausibly seconds (>= 1h)
-      return Math.max(0, Math.floor(d));
-    }
-    if (d >= 60) {
-      // plausibly minutes
-      return Math.max(0, Math.floor(d * 60));
-    }
-    // tiny value: treat as minutes to avoid undercount
-    return Math.max(0, Math.floor(d * 60));
+    if (d >= 3600000) return Math.floor(d / 1000); // ms
+    if (d >= 3600) return Math.floor(d);           // seconds
+    if (d >= 60) return Math.floor(d * 60);        // minutes
+    return Math.floor(d * 60);
   }
-
   return 0;
-}
-
-/** ---------- pretty logging: per session then day total ---------- **/
-function logPerDaySessions(daySessionsMap) {
-  // sort days
-  const days = Array.from(daySessionsMap.keys()).sort();
-
-  for (const dayKey of days) {
-    const sessions = daySessionsMap.get(dayKey) || [];
-    if (!sessions.length) continue;
-
-    // Print each session
-    for (const s of sessions) {
-      const left = `[time-sheet] ${dayKey}  ${s.leftText}`;
-      const right = ` ${formatHMS(s.secs)}`;
-      const TARGET = 90; // tweak width
-      const dots = ".".repeat(Math.max(1, TARGET - left.length - right.length));
-      console.log(left + dots + right);
-    }
-
-    // Day total
-    const totalSecs = sessions.reduce((acc, s) => acc + s.secs, 0);
-    const totalLeft = `[time-sheet] ${dayKey}  TOTAL`;
-    const totalRight = ` ${formatHMS(totalSecs)}`;
-    const TARGET = 90;
-    const dots = ".".repeat(Math.max(1, TARGET - totalLeft.length - totalRight.length));
-    console.log(totalLeft + dots + totalRight);
-  }
 }
 
 /** ----------------------- page ----------------------- **/
 export default async function Page() {
-    const cookieStore = await cookies();
-    const token = cookieStore.get("token")?.value;
-    const currentUser = token ? jwt.decode(token) : null;
-    const userId = currentUser ? currentUser.id : null;
-  
-    console.log("Current User:", currentUser);
-  // last 31 days (inclusive)
+  const cookieStore = await cookies();
+  const token = cookieStore.get("token")?.value;
+  const currentUser = token ? jwt.decode(token) : null;
+  const userId = currentUser ? currentUser.id : null;
+
   const end = new Date();
   const start = new Date(end);
   start.setDate(end.getDate() - 30);
@@ -154,6 +101,7 @@ export default async function Page() {
   } catch (e) {
     console.error("Fetch failed:", e);
   }
+
   const daySessions = new Map();
 
   for (const row of rows) {
@@ -165,33 +113,52 @@ export default async function Page() {
     const dayKey = keyInTZ(anchor, TZ);
     const secs = computeSeconds(row);
 
-    const leftText = startDt && endDt
-      ? `${fmtLocal(startDt, TZ)} → ${fmtLocal(endDt, TZ)}`
-      : startDt
+    const leftText =
+      startDt && endDt
+        ? `${fmtLocal(startDt, TZ)} → ${fmtLocal(endDt, TZ)}`
+        : startDt
         ? `${fmtLocal(startDt, TZ)} → —`
         : endDt
-          ? `— → ${fmtLocal(endDt, TZ)}`
-          : `duration only (#${row?.serial_id ?? row?.task_id ?? "?"})`;
+        ? `— → ${fmtLocal(endDt, TZ)}`
+        : `duration only (#${row?.serial_id ?? row?.task_id ?? "?"})`;
 
-    const arr = daySessions.get(dayKey) || [];
-    arr.push({ secs, leftText, row });
-    daySessions.set(dayKey, arr);
+    const serial_id = row?.serial_id ?? null;
+    const project_name = row?.project_name ?? null; // <--- from JOIN
+    const task_name = row?.task_name ?? null;       // <--- from JOIN
+
+    // Prefix line with Project/Task for recognizability:
+    const contextPrefix = `[${project_name ?? row?.project_id ?? "Project?"}] ${task_name ?? row?.task_id ?? "Task?"} — `;
+
+    const item = {
+      serial_id,
+      seconds: secs,
+      startISO: startDt ? startDt.toISOString() : null,
+      endISO: endDt ? endDt.toISOString() : null,
+      line: `${contextPrefix}${leftText}........... ${formatHMS(secs)}`,
+      task_id: row?.task_id ?? null,
+      project_id: row?.project_id ?? null,
+      project_name,
+      task_name,
+    };
+
+    const list = daySessions.get(dayKey) || [];
+    list.push(item);
+    daySessions.set(dayKey, list);
   }
 
-  logPerDaySessions(daySessions);
-
+  const detailsByDate = {};
   const data = Array.from(daySessions.entries())
     .map(([date, sessions]) => {
-      const totalSecs = sessions.reduce((acc, s) => acc + s.secs, 0);
-      const hours = Math.round((totalSecs / 3600) * 100) / 100; // 2 decimals for thresholds
+      detailsByDate[date] = sessions;
+      const totalSecs = sessions.reduce((acc, s) => acc + s.seconds, 0);
+      const hours = Math.round((totalSecs / 3600) * 100) / 100;
       return { date, hours, label: formatHMS(totalSecs) };
     })
     .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
-    console.log("Prepared data for TimeSheet-------------final:", data);
 
   return (
     <div className="min-h-screen">
-      <TimeSheet initialWindow={31} data={data} />
+      <TimeSheet initialWindow={31} data={data} detailsByDate={detailsByDate} />
     </div>
   );
 }

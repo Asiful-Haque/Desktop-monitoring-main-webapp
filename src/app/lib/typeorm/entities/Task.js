@@ -51,6 +51,10 @@ export const Task = new EntitySchema({
       type: "bigint",
       default: 0,
     },
+    busy: {
+      type: "int",
+      default: 0,
+    },  
   },
   relations: {
     assigned_to_rel: {
