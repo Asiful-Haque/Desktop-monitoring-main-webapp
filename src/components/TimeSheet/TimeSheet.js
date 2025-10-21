@@ -8,7 +8,9 @@ import { useRouter } from "next/navigation";
 import TimeSheetEditModal from "../TimeSheetEditModal";
 
 /* utils */
-function cn(...classes) { return classes.filter(Boolean).join(" "); }
+function cn(...classes) {
+  return classes.filter(Boolean).join(" ");
+}
 
 function normalizeAndSort(src) {
   const normalized = (src ?? []).map((d) => ({
@@ -16,7 +18,7 @@ function normalizeAndSort(src) {
     hours: typeof d.hours === "number" ? d.hours : undefined,
     label: d.label,
   }));
-  normalized.sort((a, b) => a.date - b.date);
+  normalized.sort((a, b) => +a.date - +b.date);
   return normalized;
 }
 function keyOf(d) {
@@ -26,12 +28,13 @@ function keyOf(d) {
   return `${y}-${m}-${dd}`;
 }
 function buildWindowSeries(allData, windowDays) {
+  if (!allData?.length) return [];
   const map = new Map();
   for (const r of allData) map.set(keyOf(r.date), { hours: r.hours, label: r.label });
   const anchor = new Date(allData[allData.length - 1].date);
-  const series = [];
   const start = new Date(anchor);
   start.setDate(anchor.getDate() - (windowDays - 1));
+  const series = [];
   for (let i = 0; i < windowDays; i++) {
     const d = new Date(start);
     d.setDate(start.getDate() + i);
@@ -46,11 +49,13 @@ function buildSparkPath(points, width = 240, height = 48, maxY = 8) {
   const stepX = width / Math.max(points.length - 1, 1);
   const safeMax = Math.max(1, maxY);
   const yOf = (v) => height - (Math.min(v ?? 0, safeMax) / safeMax) * height;
-  return points.map((p, i) => {
-    const x = i * stepX;
-    const y = yOf(typeof p === "number" ? p : 0);
-    return `${i === 0 ? "M" : "L"} ${x.toFixed(2)} ${y.toFixed(2)}`;
-  }).join(" ");
+  return points
+    .map((p, i) => {
+      const x = i * stepX;
+      const y = yOf(typeof p === "number" ? p : 0);
+      return `${i === 0 ? "M" : "L"} ${x.toFixed(2)} ${y.toFixed(2)}`;
+    })
+    .join(" ");
 }
 function getBoxChrome(hours) {
   return typeof hours === "number"
@@ -70,7 +75,11 @@ function isoToLocalHMS(iso) {
   if (!iso) return "";
   const d = new Date(iso);
   const f = new Intl.DateTimeFormat("en-GB", {
-    timeZone: TZ, hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
+    timeZone: TZ,
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
   }).formatToParts(d);
   const obj = Object.fromEntries(f.map((p) => [p.type, p.value]));
   return `${obj.hour ?? "00"}:${obj.minute ?? "00"}:${obj.second ?? "00"}`;
@@ -79,12 +88,17 @@ function combineDateWithHMS(isoBase, hms) {
   if (!isoBase || !hms) return null;
   const base = new Date(isoBase);
   const dateParts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit",
+    timeZone: TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
   }).formatToParts(base);
   const objD = Object.fromEntries(dateParts.map((p) => [p.type, p.value]));
   const ymd = `${objD.year}-${objD.month}-${objD.day}`;
   const [HH, MM, SS] = hms.split(":").map((x) => parseInt(x || "0", 10));
-  const local = new Date(`${ymd}T${String(HH).padStart(2,"0")}:${String(MM).padStart(2,"0")}:${String(SS).padStart(2,"0")}`);
+  const local = new Date(
+    `${ymd}T${String(HH).padStart(2, "0")}:${String(MM).padStart(2, "0")}:${String(SS).padStart(2, "0")}`
+  );
   return local.toISOString();
 }
 function diffSecondsISO(startISO, endISO) {
@@ -94,7 +108,22 @@ function diffSecondsISO(startISO, endISO) {
   return Math.max(0, Math.floor((b - a) / 1000));
 }
 
-export default function TimeSheet({ initialWindow, data, detailsByDate }) {
+/** API helper to check busy-by-serial */
+async function checkAnyBusy(taskIdOfSerialIds) {
+  if (!taskIdOfSerialIds?.length) return { any_busy: false, busy_serials: [] };
+  const res = await fetch("/api/tasks/busy-or-not", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      taskIdOfSerialIds: taskIdOfSerialIds,
+    }),
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json?.error || "Busy check failed");
+  return json; 
+}
+
+export default function TimeSheet({ initialWindow, data, detailsByDate, tenantId }) {
   const router = useRouter();
 
   const [windowDays, setWindowDays] = useState(
@@ -120,7 +149,6 @@ export default function TimeSheet({ initialWindow, data, detailsByDate }) {
   const totalHours = daysWithHours.reduce((sum, d) => sum + (d.hours ?? 0), 0);
   const avg = daysWithHours.length ? (totalHours / daysWithHours.length).toFixed(1) : "0";
   const sparkPoints = windowSeries.map((d) => (typeof d.hours === "number" ? d.hours : 0));
-  const sparkPath = buildSparkPath(sparkPoints);
   const rangeButtons = [
     { label: "Weekly", value: 7 },
     { label: "15 Days", value: 15 },
@@ -141,6 +169,7 @@ export default function TimeSheet({ initialWindow, data, detailsByDate }) {
       const endHMS = isoToLocalHMS(it.endISO);
       return {
         ...it, // serial_id, project_name, task_name, ids
+        flagger: Number(it?.flagger ?? 0),
         startHMS,
         endHMS,
         newStartHMS: startHMS,
@@ -200,6 +229,38 @@ export default function TimeSheet({ initialWindow, data, detailsByDate }) {
     console.log("Submit TimeSheet Changes payload:", payload);
     alert("Payload logged in console. Wire this to your update API.");
     closeDetails();
+  }
+
+  /** Busy check UX lock */
+  const [checkingBusy, setCheckingBusy] = useState(false);
+
+  /** Gate the modal with busy check */
+  async function handleEditIconClick(day) {
+    if (checkingBusy) return;
+    try {
+      setCheckingBusy(true);
+      const dateKey = keyOf(day.date);
+      const srcItems = detailsByDate?.[dateKey] || [];
+      const taskIdOfSerialIds = srcItems.map((it) => it.task_id).filter((x) => Number.isFinite(x));
+
+      const { any_busy, busy_serials } = await checkAnyBusy(taskIdOfSerialIds);
+
+      if (any_busy) {
+        alert(
+          busy_serials?.length
+            ? `Some task(s) are currently running (serial: ${busy_serials.join(", ")}). Please stop them first.`
+            : "Some task(s) are currently running. Please stop them first."
+        );
+        return; // do not open modal
+      }
+
+      openDetails(day);
+    } catch (e) {
+      console.error("Busy check error:", e);
+      alert(`Could not verify running tasks. ${e?.message || ""}`);
+    } finally {
+      setCheckingBusy(false);
+    }
   }
 
   return (
@@ -265,21 +326,15 @@ export default function TimeSheet({ initialWindow, data, detailsByDate }) {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="relative overflow-hidden rounded-xl border bg-white dark:bg-neutral-900 p-4">
           <div className="absolute left-0 top-0 h-full w-1.5 bg-indigo-600/90 dark:bg-indigo-400/90" />
-          <div className="text-xs font-medium text-neutral-600 dark:text-neutral-300">
-            Total Hours (filled days)
-          </div>
+          <div className="text-xs font-medium text-neutral-600 dark:text-neutral-300">Total Hours (filled days)</div>
           <div className="mt-1 text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">
             {totalHours.toFixed(2)}h
           </div>
-          <div className="mt-1 text-[11px] text-neutral-500 dark:text-neutral-400">
-            Sum of non-empty days
-          </div>
+          <div className="mt-1 text-[11px] text-neutral-500 dark:text-neutral-400">Sum of non-empty days</div>
         </div>
         <div className="relative overflow-hidden rounded-xl border bg-white dark:bg-neutral-900 p-4">
           <div className="absolute left-0 top-0 h-full w-1.5 bg-indigo-600/80 dark:bg-indigo-400/80" />
-          <div className="text-xs font-medium text-neutral-600 dark:text-neutral-300">
-            Days Shown
-          </div>
+          <div className="text-xs font-medium text-neutral-600 dark:text-neutral-300">Days Shown</div>
           <div className="mt-1 text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">
             {windowSeries.length}
           </div>
@@ -287,15 +342,9 @@ export default function TimeSheet({ initialWindow, data, detailsByDate }) {
         </div>
         <div className="relative overflow-hidden rounded-xl border bg-white dark:bg-neutral-900 p-4">
           <div className="absolute left-0 top-0 h-full w-1.5 bg-indigo-600/70 dark:bg-indigo-400/70" />
-          <div className="text-xs font-medium text-neutral-600 dark:text-neutral-300">
-            Avg Hours/Day (filled)
-          </div>
-          <div className="mt-1 text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">
-            {avg}h
-          </div>
-          <div className="mt-1 text-[11px] text-neutral-500 dark:text-neutral-400">
-            Mean of filled days
-          </div>
+          <div className="text-xs font-medium text-neutral-600 dark:text-neutral-300">Avg Hours/Day (filled)</div>
+          <div className="mt-1 text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">{avg}h</div>
+          <div className="mt-1 text-[11px] text-neutral-500 dark:text-neutral-400">Mean of filled days</div>
         </div>
       </div>
 
@@ -330,24 +379,28 @@ export default function TimeSheet({ initialWindow, data, detailsByDate }) {
             {windowSeries.map((item, idx) => {
               const hasHours = typeof item.hours === "number";
               const dateKey = keyOf(item.date);
-              const hasSessions = (detailsByDate?.[dateKey] || []).length > 0;
+              const daySessions = detailsByDate?.[dateKey] || [];
+              // console.log("Day sessions for************", dateKey, daySessions);
+              const hasSessions = daySessions.length > 0;
 
               return (
                 <div
                   key={`${format(item.date, "yyyy-MM-dd", { locale: enUS })}-${idx}`}
-                  className={cn(
-                    "relative rounded-lg p-3 text-center transition-colors min-h-24 group",
-                    getBoxChrome(item.hours)
-                  )}
+                  className={cn("relative rounded-lg p-3 text-center transition-colors min-h-24 group", getBoxChrome(item.hours))}
                 >
                   {/* Only show edit icon when there are sessions for that day */}
                   {hasSessions && (
                     <button
                       type="button"
-                      onClick={() => openDetails(item)}
-                      className="absolute right-1.5 top-1.5 inline-flex items-center justify-center h-7 w-7 rounded-md border border-neutral-200 bg-white/80 text-neutral-600 hover:bg-neutral-100 hover:text-neutral-800 dark:border-neutral-700 dark:bg-neutral-800/70 dark:text-neutral-300 dark:hover:bg-neutral-700"
+                      onClick={() => handleEditIconClick(item)}
+                      disabled={checkingBusy}
+                      aria-busy={checkingBusy}
+                      className={cn(
+                        "absolute right-1.5 top-1.5 inline-flex items-center justify-center h-7 w-7 rounded-md border border-neutral-200 bg-white/80 text-neutral-600 hover:bg-neutral-100 hover:text-neutral-800 dark:border-neutral-700 dark:bg-neutral-800/70 dark:text-neutral-300 dark:hover:bg-neutral-700",
+                        checkingBusy && "opacity-60 pointer-events-none"
+                      )}
                       aria-label={`View details for ${dateKey}`}
-                      title="View / edit day"
+                      title={checkingBusy ? "Checking..." : "View / edit day"}
                     >
                       <Pencil className="h-4 w-4" />
                     </button>
@@ -369,12 +422,7 @@ export default function TimeSheet({ initialWindow, data, detailsByDate }) {
                       <span>{item.label}</span>
                     </div>
                   ) : hasHours ? (
-                    <div
-                      className={cn(
-                        "inline-flex items-center gap-1 text-xl font-semibold",
-                        getHourTextTone(item.hours)
-                      )}
-                    >
+                    <div className={cn("inline-flex items-center gap-1 text-xl font-semibold", getHourTextTone(item.hours))}>
                       <Clock className="h-4.5 w-4.5" />
                       <span>{item.hours}h</span>
                     </div>

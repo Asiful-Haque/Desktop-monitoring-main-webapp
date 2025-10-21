@@ -19,13 +19,10 @@ function roundMoney(n) {
 function computeSessionPayment(durationSec, projectRow, userRateForProject) {
   if (durationSec == null || durationSec <= 0) return 0;
   const hours = durationSec / 3600;
-
   if ((projectRow?.project_type || "").toLowerCase() === "hourly") {
     const rate = Number(projectRow?.project_hour_rate || 0);
     return roundMoney(hours * rate);
   }
-
-  // otherwise use the user's assigned rate for this project (if any)
   const rate = Number(userRateForProject || 0);
   return roundMoney(hours * rate);
 }
@@ -37,6 +34,7 @@ export class TimeTrackingService {
   }
 
   async createOne(payload) {
+    console.log("Creating time-tracking record with payload:_______||||||_____", payload);
     const repo = await this.repo();
     const ds = await getDataSource();
 

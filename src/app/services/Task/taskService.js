@@ -269,4 +269,29 @@ export class TaskService {
       updated: res.affected ?? 0,
     };
   }
+
+  async anyBusyBySerial({ taskIdOfSerialIds }) {
+    if (!Array.isArray(taskIdOfSerialIds) || taskIdOfSerialIds.length === 0) {
+      const err = new Error("taskIdOfSerialIds must be a non-empty array of numbers.");
+      err.statusCode = 400;
+      throw err;
+    }
+
+    const ds = await getDataSource();
+    const repo = ds.getRepository(Task);
+
+    const qb = repo
+      .createQueryBuilder("t")
+      .select("DISTINCT t.task_id", "serial_id")
+      .where("t.task_id IN (:...ids)", { ids: taskIdOfSerialIds })
+      .andWhere("t.busy = 1");
+
+    const rows = await qb.getRawMany();
+    const busySerials = rows.map(r => Number(r.serial_id)).filter(Number.isFinite);
+
+    return {
+      anyBusy: busySerials.length > 0,
+      busySerials,
+    };
+  }
 }

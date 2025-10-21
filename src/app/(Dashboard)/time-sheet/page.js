@@ -102,6 +102,8 @@ export default async function Page() {
     console.error("Fetch failed:", e);
   }
 
+  // console.log("Got rows from all=======true API:", rows);
+
   const daySessions = new Map();
 
   for (const row of rows) {
@@ -125,6 +127,7 @@ export default async function Page() {
     const serial_id = row?.serial_id ?? null;
     const project_name = row?.project_name ?? null; // <--- from JOIN
     const task_name = row?.task_name ?? null;       // <--- from JOIN
+        const flagger = typeof row?.flagger === "number" ? row.flagger : Number(row?.flagger ?? 0);
 
     // Prefix line with Project/Task for recognizability:
     const contextPrefix = `[${project_name ?? row?.project_id ?? "Project?"}] ${task_name ?? row?.task_id ?? "Task?"} — `;
@@ -139,6 +142,7 @@ export default async function Page() {
       project_id: row?.project_id ?? null,
       project_name,
       task_name,
+      flagger,
     };
 
     const list = daySessions.get(dayKey) || [];
@@ -155,6 +159,9 @@ export default async function Page() {
       return { date, hours, label: formatHMS(totalSecs) };
     })
     .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+
+
+    // console.log("Data----1------ for TimeSheet:", { data, detailsByDate });
 
   return (
     <div className="min-h-screen">

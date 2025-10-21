@@ -9,6 +9,7 @@ export async function POST(req) {
     const { startDate, endDate, userId, all = false } = await req.json();
     if (!all) {
       const { rows, total } = await service.findAllToSubmitForPayment({ userId });
+      console.log("Called with all=============false, returning");
       return NextResponse.json({
         ok: true,
         mode: "all-user",
@@ -20,7 +21,9 @@ export async function POST(req) {
       return NextResponse.json({ error: "startDate and endDate required (or set all=false)" }, { status: 400 });
     }
 
+    console.log("Called with all=============true, returning");
     const items = await service.findByDateRangeAll({ startDate, endDate, userId });
+    // console.log("all======true results count:", items);
     return NextResponse.json({
       ok: true,
       mode: "range-all",
