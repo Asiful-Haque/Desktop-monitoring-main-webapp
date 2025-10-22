@@ -69,6 +69,29 @@ function getHourTextTone(hours) {
   return "text-emerald-600 dark:text-emerald-400";
 }
 
+/* helpers for per-project recompute */
+function secondsToLabel(totalSec) {
+  const s = Math.max(0, Math.floor(totalSec || 0));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  return `${h}h ${String(m).padStart(2, "0")}m ${String(sec).padStart(2, "0")}s`;
+}
+function roundHours2(sec) {
+  return Math.round((sec / 3600) * 100) / 100;
+}
+function buildProjectSeries(baseSeries, detailsByDate, projectId) {
+  if (!baseSeries?.length || !detailsByDate || projectId === "all") return baseSeries;
+  return baseSeries.map((d) => {
+    const k = keyOf(d.date);
+    const rows = detailsByDate[k] || [];
+    const sec = rows.filter((r) => r.project_id === projectId).reduce((sum, r) => sum + (r.seconds || 0), 0);
+    const hours = sec > 0 ? roundHours2(sec) : undefined;
+    const label = sec > 0 ? secondsToLabel(sec) : undefined;
+    return { date: d.date, hours, label };
+  });
+}
+
 /* Time helpers (must match server aggregation TZ) */
 const TZ = "Asia/Dhaka";
 function isoToLocalHMS(iso) {
@@ -114,21 +137,17 @@ async function checkAnyBusy(taskIdOfSerialIds) {
   const res = await fetch("/api/tasks/busy-or-not", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      taskIdOfSerialIds: taskIdOfSerialIds,
-    }),
+    body: JSON.stringify({ taskIdOfSerialIds }),
   });
   const json = await res.json();
   if (!res.ok) throw new Error(json?.error || "Busy check failed");
-  return json; 
+  return json;
 }
 
 export default function TimeSheet({ initialWindow, data, detailsByDate, tenantId }) {
   const router = useRouter();
 
-  const [windowDays, setWindowDays] = useState(
-    [7, 15, 31].includes(initialWindow) ? initialWindow : 7
-  );
+  const [windowDays, setWindowDays] = useState([7, 15, 31].includes(initialWindow) ? initialWindow : 7);
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
@@ -137,15 +156,40 @@ export default function TimeSheet({ initialWindow, data, detailsByDate, tenantId
     if (data && data.length) setClientData(normalizeAndSort(data));
   }, [data]);
 
-  const hasData = clientData.length > 0;
+  const hasBaseData = clientData.length > 0;
+  const baseWindowSeries = useMemo(
+    () => (!hasBaseData ? [] : buildWindowSeries(clientData, windowDays)),
+    [clientData, hasBaseData, windowDays]
+  );
+
+  /* ---- Project filter: options from detailsByDate ---- */
+  const projectOptions = useMemo(() => {
+    const map = new Map(); // id -> name
+    if (detailsByDate) {
+      for (const arr of Object.values(detailsByDate)) {
+        for (const r of arr) {
+          if (Number.isFinite(r.project_id)) map.set(r.project_id, r.project_name || `Project ${r.project_id}`);
+        }
+      }
+    }
+    return [{ id: "all", name: "All projects" }, ...Array.from(map, ([id, name]) => ({ id, name }))];
+  }, [detailsByDate]);
+
+  const [selectedProject, setSelectedProject] = useState(projectOptions[0]?.id ?? "all");
+  useEffect(() => {
+    // keep selection valid when options change
+    const ids = new Set(projectOptions.map((p) => p.id));
+    if (!ids.has(selectedProject)) setSelectedProject("all");
+  }, [projectOptions, selectedProject]);
+
+  // Apply project filter to series
   const windowSeries = useMemo(
-    () => (!hasData ? [] : buildWindowSeries(clientData, windowDays)),
-    [clientData, hasData, windowDays]
+    () => buildProjectSeries(baseWindowSeries, detailsByDate, selectedProject),
+    [baseWindowSeries, detailsByDate, selectedProject]
   );
-  const daysWithHours = useMemo(
-    () => windowSeries.filter((d) => typeof d.hours === "number"),
-    [windowSeries]
-  );
+
+  const hasData = windowSeries.length > 0;
+  const daysWithHours = useMemo(() => windowSeries.filter((d) => typeof d.hours === "number"), [windowSeries]);
   const totalHours = daysWithHours.reduce((sum, d) => sum + (d.hours ?? 0), 0);
   const avg = daysWithHours.length ? (totalHours / daysWithHours.length).toFixed(1) : "0";
   const sparkPoints = windowSeries.map((d) => (typeof d.hours === "number" ? d.hours : 0));
@@ -156,19 +200,24 @@ export default function TimeSheet({ initialWindow, data, detailsByDate, tenantId
   ];
   const isPlaceholder = !mounted && (!data || data.length === 0);
 
-  /* Day Details state (modal is separate component) */
+  /* Day Details (modal) */
   const [details, setDetails] = useState(null);
 
   function openDetails(day) {
     const dateKey = keyOf(day.date);
-    const srcItems = detailsByDate?.[dateKey] || [];
-    const totalLabel = clientData.find((x) => keyOf(x.date) === dateKey)?.label || "";
+    const srcItemsAll = detailsByDate?.[dateKey] || [];
+    const srcItems = selectedProject === "all" ? srcItemsAll : srcItemsAll.filter((it) => it.project_id === selectedProject);
+
+    const totalLabel =
+      (selectedProject === "all"
+        ? clientData.find((x) => keyOf(x.date) === dateKey)?.label
+        : secondsToLabel(srcItems.reduce((s, r) => s + (r.seconds || 0), 0))) || "";
 
     const items = srcItems.map((it) => {
       const startHMS = isoToLocalHMS(it.startISO);
       const endHMS = isoToLocalHMS(it.endISO);
       return {
-        ...it, // serial_id, project_name, task_name, ids
+        ...it,
         flagger: Number(it?.flagger ?? 0),
         startHMS,
         endHMS,
@@ -189,6 +238,7 @@ export default function TimeSheet({ initialWindow, data, detailsByDate, tenantId
 
   function updateItemTime(idx, field, hms) {
     setDetails((s) => {
+      if (!s) return s;
       const items = [...s.items];
       const row = { ...items[idx] };
       if (field === "start") {
@@ -205,7 +255,7 @@ export default function TimeSheet({ initialWindow, data, detailsByDate, tenantId
   }
 
   function onReasonChange(e) {
-    setDetails((s) => ({ ...s, reason: e.target.value }));
+    setDetails((s) => (s ? { ...s, reason: e.target.value } : s));
   }
 
   function onSubmitChanges() {
@@ -240,9 +290,10 @@ export default function TimeSheet({ initialWindow, data, detailsByDate, tenantId
     try {
       setCheckingBusy(true);
       const dateKey = keyOf(day.date);
-      const srcItems = detailsByDate?.[dateKey] || [];
-      const taskIdOfSerialIds = srcItems.map((it) => it.task_id).filter((x) => Number.isFinite(x));
+      const srcItemsAll = detailsByDate?.[dateKey] || [];
+      const srcItems = selectedProject === "all" ? srcItemsAll : srcItemsAll.filter((it) => it.project_id === selectedProject);
 
+      const taskIdOfSerialIds = srcItems.map((it) => it.task_id).filter((x) => Number.isFinite(x));
       const { any_busy, busy_serials } = await checkAnyBusy(taskIdOfSerialIds);
 
       if (any_busy) {
@@ -278,6 +329,7 @@ export default function TimeSheet({ initialWindow, data, detailsByDate, tenantId
               </h1>
             </div>
           </div>
+
           <div className="shrink-0">
             <div className="inline-flex rounded-lg border bg-white dark:bg-neutral-900 p-1">
               {rangeButtons.map((btn) => {
@@ -322,6 +374,33 @@ export default function TimeSheet({ initialWindow, data, detailsByDate, tenantId
         </div>
       </div>
 
+      {/* Entries header with Project filter on top-right */}
+      <div className="mb-2 flex items-center justify-between">
+        <div className="text-sm font-medium flex items-center gap-2 text-neutral-700 dark:text-neutral-200">
+          <TrendingUp className="h-4 w-4 text-neutral-500 dark:text-neutral-400" />
+          Last {windowDays} Days
+        </div>
+
+        <div className="flex items-center gap-2">
+          <label className="text-xxs font-bold text-neutral-600 dark:text-neutral-300">Project Filter</label>
+          <select
+            className="text-sm border rounded-md px-2 py-1 bg-white dark:bg-neutral-900 dark:border-neutral-700"
+            value={String(selectedProject)}
+            onChange={(e) => {
+              const val = e.target.value === "all" ? "all" : Number(e.target.value);
+              setSelectedProject(val);
+            }}
+            aria-label="Filter by project"
+          >
+            {projectOptions.map((p) => (
+              <option key={String(p.id)} value={String(p.id)}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="relative overflow-hidden rounded-xl border bg-white dark:bg-neutral-900 p-4">
@@ -330,7 +409,7 @@ export default function TimeSheet({ initialWindow, data, detailsByDate, tenantId
           <div className="mt-1 text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">
             {totalHours.toFixed(2)}h
           </div>
-          <div className="mt-1 text-[11px] text-neutral-500 dark:text-neutral-400">Sum of non-empty days</div>
+          <div className="mt-1 text-[11px] text-neutral-500 dark:text-neutral-400">Sum for selected project</div>
         </div>
         <div className="relative overflow-hidden rounded-xl border bg-white dark:bg-neutral-900 p-4">
           <div className="absolute left-0 top-0 h-full w-1.5 bg-indigo-600/80 dark:bg-indigo-400/80" />
@@ -344,7 +423,7 @@ export default function TimeSheet({ initialWindow, data, detailsByDate, tenantId
           <div className="absolute left-0 top-0 h-full w-1.5 bg-indigo-600/70 dark:bg-indigo-400/70" />
           <div className="text-xs font-medium text-neutral-600 dark:text-neutral-300">Avg Hours/Day (filled)</div>
           <div className="mt-1 text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">{avg}h</div>
-          <div className="mt-1 text-[11px] text-neutral-500 dark:text-neutral-400">Mean of filled days</div>
+          <div className="mt-1 text-[11px] text-neutral-500 dark:text-neutral-400">Mean for selected project</div>
         </div>
       </div>
 
@@ -364,12 +443,8 @@ export default function TimeSheet({ initialWindow, data, detailsByDate, tenantId
         </div>
       </div>
 
-      {/* Entries */}
+      {/* Entries (calendar tiles) */}
       <div>
-        <div className="text-sm font-medium mb-2 flex items-center gap-2 text-neutral-700 dark:text-neutral-200">
-          <TrendingUp className="h-4 w-4 text-neutral-500 dark:text-neutral-400" /> Last {windowDays} Days
-        </div>
-
         {!hasData ? (
           <div className="text-center py-10 text-neutral-500 dark:text-neutral-400">
             <Clock className="h-10 w-10 mx-auto mb-3 opacity-30" /> No days to display.
@@ -379,8 +454,8 @@ export default function TimeSheet({ initialWindow, data, detailsByDate, tenantId
             {windowSeries.map((item, idx) => {
               const hasHours = typeof item.hours === "number";
               const dateKey = keyOf(item.date);
-              const daySessions = detailsByDate?.[dateKey] || [];
-              // console.log("Day sessions for************", dateKey, daySessions);
+              const dayAll = detailsByDate?.[dateKey] || [];
+              const daySessions = selectedProject === "all" ? dayAll : dayAll.filter((r) => r.project_id === selectedProject);
               const hasSessions = daySessions.length > 0;
 
               return (
@@ -388,7 +463,7 @@ export default function TimeSheet({ initialWindow, data, detailsByDate, tenantId
                   key={`${format(item.date, "yyyy-MM-dd", { locale: enUS })}-${idx}`}
                   className={cn("relative rounded-lg p-3 text-center transition-colors min-h-24 group", getBoxChrome(item.hours))}
                 >
-                  {/* Only show edit icon when there are sessions for that day */}
+                  {/* Edit opens only when sessions exist for selected project */}
                   {hasSessions && (
                     <button
                       type="button"
@@ -446,14 +521,14 @@ export default function TimeSheet({ initialWindow, data, detailsByDate, tenantId
         </button>
       </div>
 
-      {/* Modal (separate component) */}
+      {/* Modal */}
       {details && (
         <TimeSheetEditModal
           details={details}
           tzLabel={TZ}
           onClose={closeDetails}
           onUpdateItemTime={updateItemTime}
-          onReasonChange={(e) => onReasonChange(e)}
+          onReasonChange={onReasonChange}
           onSubmitChanges={onSubmitChanges}
         />
       )}

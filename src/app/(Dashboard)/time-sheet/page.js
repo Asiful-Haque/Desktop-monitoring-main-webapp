@@ -102,7 +102,7 @@ export default async function Page() {
     console.error("Fetch failed:", e);
   }
 
-  // console.log("Got rows from all=======true API:", rows);
+  console.log("Got rows from all=======true API:", rows);
 
   const daySessions = new Map();
 
@@ -161,7 +161,7 @@ export default async function Page() {
     .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 
 
-    // console.log("Data----1------ for TimeSheet:", { data, detailsByDate });
+    console.log("Data----1------ for TimeSheet:", { data, detailsByDate });
 
   return (
     <div className="min-h-screen">
