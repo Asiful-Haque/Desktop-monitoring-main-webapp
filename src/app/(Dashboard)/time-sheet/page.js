@@ -68,6 +68,7 @@ export default async function Page() {
   const token = cookieStore.get("token")?.value;
   const currentUser = token ? jwt.decode(token) : null;
   const userId = currentUser ? currentUser.id : null;
+  const userRole = currentUser ? currentUser.role : null;
 
   const end = new Date();
   const start = new Date(end);
@@ -78,7 +79,9 @@ export default async function Page() {
     endDate: ymd(end),
     all: true,
     userId,
+    userRole,
   };
+  console.log("Request body for time-sheet-------========:", body);
 
   const apiUrl = process.env.NEXT_PUBLIC_MAIN_HOST
     ? `${process.env.NEXT_PUBLIC_MAIN_HOST}/api/time-sheet/by-date-range`
@@ -95,6 +98,9 @@ export default async function Page() {
     if (res.ok) {
       const payload = await res.json();
       rows = Array.isArray(payload?.items) ? payload.items : [];
+      // If you truly want to limit to 4 rows, uncomment the next line:
+      // rows = rows.slice(0, 4);
+      console.log("Limited time-sheet rows (maybe 4) +++++++++++++++:", rows);
     } else {
       console.error("Failed to load time-sheet data:", res.status, res.statusText);
     }
@@ -102,9 +108,10 @@ export default async function Page() {
     console.error("Fetch failed:", e);
   }
 
-  console.log("Got rows from all=======true API:", rows);
-
   const daySessions = new Map();
+
+  // NEW: build a roles map by developer_id so the component can query role by selection
+  const rolesByDevId = new Map(); // dev_id -> role(lowercased)
 
   for (const row of rows) {
     const startDt = parseISO(row?.task_start);
@@ -125,11 +132,22 @@ export default async function Page() {
         : `duration only (#${row?.serial_id ?? row?.task_id ?? "?"})`;
 
     const serial_id = row?.serial_id ?? null;
-    const project_name = row?.project_name ?? null; // <--- from JOIN
-    const task_name = row?.task_name ?? null;       // <--- from JOIN
-        const flagger = typeof row?.flagger === "number" ? row.flagger : Number(row?.flagger ?? 0);
+    const project_name = row?.project_name ?? null;
+    const task_name = row?.task_name ?? null;
 
-    // Prefix line with Project/Task for recognizability:
+    const developer_id = row?.developer_id ?? null;
+    const developer_name = row?.developer_name ?? null;
+
+    // NEW: normalize role -> developer_role (lowercased)
+    const developer_role =
+      String(row?.role ?? row?.developer_role ?? "").trim().toLowerCase() || null;
+
+    if (Number.isFinite(developer_id) && developer_role) {
+      rolesByDevId.set(developer_id, developer_role);
+    }
+
+    const flagger = typeof row?.flagger === "number" ? row.flagger : Number(row?.flagger ?? 0);
+
     const contextPrefix = `[${project_name ?? row?.project_id ?? "Project?"}] ${task_name ?? row?.task_id ?? "Task?"} — `;
 
     const item = {
@@ -142,6 +160,9 @@ export default async function Page() {
       project_id: row?.project_id ?? null,
       project_name,
       task_name,
+      developer_id,
+      developer_name,
+      developer_role, // <-- NEW: role included per row item
       flagger,
     };
 
@@ -160,12 +181,23 @@ export default async function Page() {
     })
     .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 
-
-    console.log("Data----1------ for TimeSheet:", { data, detailsByDate });
+  // Convert Map -> plain object for serialization
+  const userRolesById = Object.fromEntries(rolesByDevId);
+  console.log("Data to send ", data);
+  console.log("DetailsByDate to send ", detailsByDate);
+  console.log("userRolesById to send ", userRolesById);
 
   return (
     <div className="min-h-screen">
-      <TimeSheet initialWindow={31} data={data} detailsByDate={detailsByDate} />
+      <TimeSheet
+        initialWindow={31}
+        data={data}
+        detailsByDate={detailsByDate}
+        userRole={userRole || "Developer"}
+        apiUrl={apiUrl}
+        userId={userId}
+        userRolesById={userRolesById} 
+      />
     </div>
   );
 }

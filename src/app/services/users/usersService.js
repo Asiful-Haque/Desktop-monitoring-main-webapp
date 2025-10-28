@@ -18,7 +18,7 @@ export class UsersService {
         "user.user_id AS user_id",
         "user.username AS username",
         "user.email AS email",
-        "user.default_hour_rate AS default_hour_rate", 
+        "user.default_hour_rate AS default_hour_rate",
         "user.created_at AS created_at",
         "r.role_name AS role_name",
       ])
@@ -37,13 +37,21 @@ export class UsersService {
         "user_id",
         "username",
         "email",
-        "default_hour_rate", 
+        "default_hour_rate",
         "created_at",
       ],
     });
   }
 
-  async createUser(username, email, roleName, password, tenant_id, default_hour_rate) {
+  async createUser(
+    username,
+    email,
+    roleName,
+    password,
+    tenant_id,
+    default_hour_rate,
+    time_sheet_approval
+  ) {
     const ds = await getDataSource();
     const userRepo = ds.getRepository(User);
     const roleRepo = ds.getRepository(Role);
@@ -59,6 +67,7 @@ export class UsersService {
         default_hour_rate !== undefined && default_hour_rate !== null
           ? Number(parseFloat(default_hour_rate).toFixed(2))
           : 0.0,
+      time_sheet_approval: time_sheet_approval,
     });
 
     const savedUser = await userRepo.save(user);
@@ -76,5 +85,50 @@ export class UsersService {
     await userRoleRepo.save(userRole);
 
     return savedUser;
+  }
+
+  async getTimesheetApproval(user_id) {
+    console.log("Fetching timesheet approval for user_id55555555555555555:", user_id);
+    const ds = await getDataSource();
+    const userRepo = ds.getRepository(User);
+
+    const rec = await userRepo
+      .createQueryBuilder("user")
+      .where("user.user_id = :user_id", { user_id })
+      .select([
+        "user.user_id AS user_id",
+        "user.username AS username",
+        "user.time_sheet_approval AS time_sheet_approval",
+        "user.updated_at AS updated_at",
+      ])
+      .getRawOne();
+
+    if (!rec) {
+      const err = new Error("User not found");
+      err.code = "NOT_FOUND";
+      throw err;
+    }
+    return rec;
+  }
+
+  async setTimesheetApproval(user_id, time_sheet_approval) {
+    const ds = await getDataSource();
+    const userRepo = ds.getRepository(User);
+
+    const exists = await userRepo.findOne({
+      where: { user_id: Number(user_id) },
+    });
+    if (!exists) {
+      const err = new Error("User not found");
+      err.code = "NOT_FOUND";
+      throw err;
+    }
+
+    await userRepo.update(
+      { user_id: Number(user_id) },
+      { time_sheet_approval: Number(time_sheet_approval) }
+    );
+
+    return this.getTimesheetApproval(user_id);
   }
 }

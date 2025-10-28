@@ -18,8 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { toast } from "sonner"; 
-
+import { toast } from "sonner";
 
 const AddUserModal = ({ addUserModalOpen, setAddUserModalOpen }) => {
   // 📝 Form State
@@ -28,7 +27,7 @@ const AddUserModal = ({ addUserModalOpen, setAddUserModalOpen }) => {
     email: "",
     role: "",
     password: "",
-    defaultRate: "", 
+    defaultRate: "",
   });
 
   const handleSubmit = async (e) => {
@@ -47,19 +46,27 @@ const AddUserModal = ({ addUserModalOpen, setAddUserModalOpen }) => {
     }
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_MAIN_HOST}/api/users`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          username: formData.name,
-          email: formData.email,
-          role: formData.role,
-          password: formData.password,
-          default_hour_rate: parseFloat(formData.defaultRate), 
-        }),
-      });
+      const roleStr = String(formData.role || "")
+        .trim()
+        .toLowerCase();
+        console.log("Role string:", roleStr);
+      const timeSheetApproval = roleStr === "freelancer" ? 0 : 1;
+
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_MAIN_HOST}/api/users`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            username: formData.name,
+            email: formData.email,
+            role: formData.role,
+            password: formData.password,
+            default_hour_rate: Number.parseFloat(formData.defaultRate) || 0,
+            time_sheet_approval: timeSheetApproval, // 0 if Freelancer, else 1
+          }),
+        }
+      );
 
       if (!res.ok) {
         const errorData = await res.json();
@@ -69,11 +76,8 @@ const AddUserModal = ({ addUserModalOpen, setAddUserModalOpen }) => {
 
       const data = await res.json();
       console.log("User created:", data);
-
-      // 🎉 Show success message
       toast.success(`User ${data.user.username} has been added successfully`);
 
-      // 🔄 Reset form and close modal
       setFormData({
         name: "",
         email: "",
@@ -186,6 +190,7 @@ const AddUserModal = ({ addUserModalOpen, setAddUserModalOpen }) => {
                   <SelectItem value="Developer">Developer</SelectItem>
                   <SelectItem value="Team Lead">Team Lead</SelectItem>
                   <SelectItem value="Admin">Admin</SelectItem>
+                  <SelectItem value="Freelancer">Freelancer</SelectItem>
                   <SelectItem value="Product Manager">
                     Product Manager
                   </SelectItem>

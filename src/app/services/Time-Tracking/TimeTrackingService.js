@@ -291,16 +291,21 @@ async findAllToSubmitForPayment({ userId }) {
   return { rows, total };
 }
 
-async findByDateRangeAll({ startDate, endDate, userId }) {
+async findByDateRangeAll({ startDate, endDate, userId, userRole }) {
   const repo = await this.repo();
+  const role = String(userRole || "").trim().toLowerCase();
+  const isDeveloper = role === "developer" || role === "freelancer";
 
-  return repo
+  const qb = repo
     .createQueryBuilder("t")
-    // JOIN with correct PKs and names from your schemas
     .leftJoin("projects", "p", "p.project_id = t.project_id")
     .leftJoin("tasks", "task", "task.task_id = t.task_id")
+
+    .leftJoin("users", "u", "u.user_id = t.developer_id")
+    .leftJoin("user_roles", "ur", "ur.user_id = u.user_id")       
+    .leftJoin("roles", "r", "r.role_id = ur.role_id")
+
     .where("t.work_date BETWEEN :start AND :end", { start: startDate, end: endDate })
-    .andWhere("t.developer_id = :uid", { uid: userId })
     .orderBy("t.work_date", "ASC")
     .addOrderBy("t.task_start", "ASC")
     .select([
@@ -316,9 +321,20 @@ async findByDateRangeAll({ startDate, endDate, userId }) {
       "t.flagger AS flagger",
       "p.project_name AS project_name",
       "task.task_name AS task_name",
-    ])
-    .getRawMany();
+      "u.user_id AS dev_user_id",
+      "u.username AS developer_name",
+      "u.email AS developer_email",
+      "r.role_name AS role",
+    ]);
+
+  if (isDeveloper) {
+    qb.andWhere("t.developer_id = :uid", { uid: userId });
+  }
+
+  return qb.getRawMany();
 }
+
+
 
 async updateFlaggerForSerialIds(data, flagger, userId) {
   console.log("In /api/update-flagger, received data:", data);

@@ -31,7 +31,7 @@ export async function POST(request) {
     }
     // console.log('Auth from Cookie:---------route.js---------------------', auth);
 
-    const { username, email, role, password, default_hour_rate } = await request.json();
+    const { username, email, role, password, default_hour_rate, time_sheet_approval } = await request.json();
 
     if (!username || !email || !role || !password) {
       return NextResponse.json({ message: 'All fields are required' }, { status: 400 });
@@ -52,7 +52,8 @@ export async function POST(request) {
       role,
       password,
       auth.tenant_id,
-      rate 
+      rate,
+      time_sheet_approval
     );
 
     return NextResponse.json({ user: newUser }, { status: 201 });

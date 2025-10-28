@@ -53,6 +53,7 @@ function PaymentHistory({
   currentUser,
   endpoint = "/api/get-transaction-for-history",
 }) {
+  console.log("Current User in Payment History:", currentUser.role);
   const pathname = usePathname() || "";
 
   const [rows, setRows] = React.useState([]);

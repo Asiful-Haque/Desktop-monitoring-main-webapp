@@ -76,27 +76,27 @@ console.log("Middleware initialized. Protected pages:", PROTECTED_PAGES);
 const ROLE_GUARDS = [
   {
     prefix: "/adminDashboard",
-    allowed: ["Developer", "Admin", "Project Manager", "CEO", "Team Lead"],
+    allowed: ["Developer", "Admin", "Project Manager", "CEO", "Team Lead", "Freelancer"],
   },
   {
     prefix: "/tasks",
-    allowed: ["Developer", "Admin", "Project Manager", "Team Lead"],
+    allowed: ["Developer", "Admin", "Project Manager", "Team Lead", "Freelancer"],
   },
   {
     prefix: "/meetings",
-    allowed: ["Developer", "Admin", "Project Manager", "Team Lead"],
+    allowed: ["Developer", "Admin", "Project Manager", "Team Lead", "Freelancer"],
   },
   { prefix: "/gallery", allowed: ["Admin", "Project Manager", "CEO"] },
   {
     prefix: "/team",
-    allowed: ["Developer", "Admin", "Project Manager", "CEO", "Team Lead"],
+    allowed: ["Developer", "Admin", "Project Manager", "CEO", "Team Lead", "Freelancer"],
   },
   { prefix: "/analytics", allowed: ["Admin", "Project Manager"] },
   { prefix: "/settings", allowed: ["Admin"] },
-  { prefix: "/time-sheet", allowed: ["Developer"] },
+  { prefix: "/time-sheet", allowed: ["Developer", "Admin", "CEO", "Freelancer"] },
   {
     prefix: "/payroll",
-    allowed: ["Developer", "Admin", "Project Manager", "CEO", "Team Lead"],
+    allowed: ["Developer", "Admin", "Project Manager", "CEO", "Team Lead", "Freelancer"],
   },
   { prefix: "/manual-time", allowed: ["Developer"] },
 ];

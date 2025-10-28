@@ -157,14 +157,10 @@ export default function TimeSheetEditModal({
       setSaving(true);
 
       // 1) Recompute duration + session_payment for the exact serial_ids
-      //    using the NEW start/end times.
       const recomputeItems = payload.time_tracking_updates.map((row) => ({
         serial_id: row.serial_id,
-        task_start: row.new.startISO, // ISO is fine; API normalizes
+        task_start: row.new.startISO,
         task_end: row.new.endISO,
-        // Optional overrides if you need them:
-        // project_id: row.project_id,
-        // developer_id: details?.developer_id
       }));
 
       const recomputeRes = await fetch("/api/time-tracking/compute-session-for-edit", {
@@ -172,17 +168,12 @@ export default function TimeSheetEditModal({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ items: recomputeItems }),
       });
-
       const recomputeJson = await recomputeRes.json();
       if (!recomputeRes.ok) {
         throw new Error(recomputeJson?.error || "Failed to recompute session payment");
       }
 
-      console.groupCollapsed("✅ Recompute result (duration + session_payment)");
-      console.log(recomputeJson);
-      console.groupEnd();
-
-      // 2) Apply edits (updates time_tracking start/end/duration + tasks.last_timing)
+      // 2) Apply edits (updates time_tracking + tasks.last_timing)
       const apiBody = {
         context: payload.context,
         ...(tenantId ? { tenant_id: tenantId } : {}),
@@ -204,9 +195,36 @@ export default function TimeSheetEditModal({
         throw new Error(applyJson?.error || "Failed to apply edits");
       }
 
-      console.groupCollapsed("✅ Apply edits result");
-      console.log(applyJson);
-      console.groupEnd();
+      // 3) If these rows belong to a FREELANCER, set time_sheet_approval = 0
+      try {
+        const first = items[0] || {};
+        const developerId = Number(first?.developer_id);
+        const role =
+          (first?.role || first?.developer_role || "").toString().trim().toLowerCase();
+
+        if (Number.isFinite(developerId) && role === "freelancer") {
+          const approvalApiBase = process.env.NEXT_PUBLIC_MAIN_HOST
+            ? `${process.env.NEXT_PUBLIC_MAIN_HOST}/api/users`
+            : "/api/users";
+
+          const res = await fetch(`${approvalApiBase}/set-timesheet-approval`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            cache: "no-store",
+            body: JSON.stringify({
+              user_id: developerId,
+              time_sheet_approval: 0, 
+            }),
+          });
+          const j = await res.json();
+          if (!res.ok) {
+            console.warn("Failed to reset timesheet approval:", j?.message || j);
+          }
+        }
+      } catch (e) {
+        console.warn("Timesheet approval reset skipped:", e?.message || e);
+      }
 
       if (typeof onSaved === "function") onSaved(applyJson);
       router.refresh();

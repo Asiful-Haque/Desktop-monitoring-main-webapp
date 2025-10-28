@@ -16,7 +16,7 @@ export async function POST(req) {
       return corsJson({ error: "currentUser with role is required in body" }, 400);
     }
 
-    const isScoped = ["Developer", "Team Lead"].includes(currentUser.role);
+    const isScoped = ["Developer", "Freelancer", "Team Lead"].includes(currentUser.role);
     const developerId = isScoped ? currentUser.id : undefined;
     const data = await transactionService.findHistoryData({ developerId });
 

@@ -25,7 +25,7 @@ import PaymentHistory from "./PaymentHistory";
 import AdminPayrollComponent from "./AdminPayrollComponent";
 import PaginationComponent from "../commonComponent/PaginationComponent";
 
-// API helpers (local, reusable)
+// ---------------------- API helpers ----------------------
 async function apiGetLastTransaction() {
   const res = await fetch("/api/get-last-transaction");
   if (!res.ok) throw new Error("Failed to fetch last transaction number");
@@ -47,7 +47,6 @@ async function apiCreateTransaction(payload) {
 }
 
 async function apiPostPaymentLogs({ currentUser, transaction_number, logs }) {
-  console.log("logs to send to apiPostPaymentLogs:(((((((((((((((((", logs);
   const res = await fetch("/api/fit-payment-logs", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -61,7 +60,6 @@ async function apiPostPaymentLogs({ currentUser, transaction_number, logs }) {
 }
 
 async function apiMarkIdsProcessed({ dates, userId, data }) {
-  console.log("Before api logs are ..........................", data);
   const res = await fetch("/api/update-flagger", {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
@@ -74,7 +72,23 @@ async function apiMarkIdsProcessed({ dates, userId, data }) {
   return res.json();
 }
 
-// format helpers (local, reusable)
+// NEW: set-timesheet-approval helper (value is 0 or 1)
+async function apiSetTimesheetApproval(user_id, value) {
+  const res = await fetch("/api/users/set-timesheet-approval", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    // credentials included in same-origin by default; add if cross-origin:
+    // credentials: "include",
+    body: JSON.stringify({ user_id: Number(user_id), time_sheet_approval: Number(value) }),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(json?.message || "Failed to update timesheet approval");
+  }
+  return json;
+}
+
+// ---------------------- format helpers ----------------------
 const fmtMoney = (n) => `$${Number(n || 0).toLocaleString()}`;
 const getStatusColor = (isDone) =>
   isDone
@@ -174,7 +188,7 @@ function HeaderWithSubmitAll({ hasRows, allVisibleProcessed, onSubmitAll }) {
   );
 }
 
-function PayableRowCard({ row, isDone, onSubmit }) {
+function PayableRowCard({ row, isDone, currentUser, onSubmit }) {
   return (
     <Card
       className={`hover:shadow-md transition-shadow border-l-4 ${
@@ -211,21 +225,23 @@ function PayableRowCard({ row, isDone, onSubmit }) {
             </div>
           </div>
 
-          <Button
-            onClick={onSubmit}
-            disabled={isDone}
-            className={`w-full lg:w-auto px-3 py-2 rounded-md text-sm font-medium transition
-              shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70
-              ${
-                isDone
-                  ? "bg-emerald-600 hover:bg-emerald-700 text-white"
-                  : "bg-indigo-600 text-white hover:bg-indigo-700"
-              }
-              disabled:opacity-100 disabled:bg-emerald-600 disabled:text-white disabled:cursor-not-allowed`}
-          >
-            <CheckCircle className="mr-2 h-4 w-4" />
-            {isDone ? "Submitted" : "Submit"}
-          </Button>
+          {currentUser?.role !== "Freelancer" ? (
+            <Button
+              onClick={onSubmit}
+              disabled={isDone}
+              className={`w-full lg:w-auto px-3 py-2 rounded-md text-sm font-medium transition
+                shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70
+                ${
+                  isDone
+                    ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                    : "bg-indigo-600 text-white hover:bg-indigo-700"
+                }
+                disabled:opacity-100 disabled:bg-emerald-600 disabled:text-white disabled:cursor-not-allowed`}
+            >
+              <CheckCircle className="mr-2 h-4 w-4" />
+              {isDone ? "Submitted" : "Submit"}
+            </Button>
+          ) : null}
         </div>
       </CardContent>
     </Card>
@@ -281,7 +297,6 @@ export default function PayrollComponent({
   };
 
   const createTxnAndLogs = async ({ hours, payment, txnNumber, data }) => {
-    console.log("data to send to apiCreateTransaction:---------------------", data);
     await apiCreateTransaction({
       transaction_number: txnNumber,
       hours,
@@ -293,7 +308,7 @@ export default function PayrollComponent({
     await apiPostPaymentLogs({
       currentUser,
       transaction_number: txnNumber,
-      logs: data,//-------------------------------------
+      logs: data,
     });
 
     toast.success(`Transaction created: ${txnNumber}`);
@@ -315,9 +330,7 @@ export default function PayrollComponent({
     const newTransactionNumber = makeTxn(1);
 
     try {
-      // Only send the logs related to the clicked row
       const clickedRowLogs = rows.find((r) => r.id === id);
-      console.log("clickedRowLogsxxxxxxxxxxxxxxxxxxxxxxxxxxxx:", clickedRowLogs);
       if (!clickedRowLogs) {
         toast.error("Clicked row not found.");
         setProcessed((prev) => ({ ...prev, [id]: false }));
@@ -328,7 +341,7 @@ export default function PayrollComponent({
         hours: clickedRowLogs.hours,
         payment: clickedRowLogs.payment,
         txnNumber: newTransactionNumber,
-        data: clickedRowLogs, //-------------------------------------
+        data: clickedRowLogs,
       });
     } catch (error) {
       console.error("create transaction/logs error:", error);
@@ -339,11 +352,10 @@ export default function PayrollComponent({
 
     try {
       const clickedRowLogs = rows.find((r) => r.id === id);
-      console.log("clickedRowLogsxxxxxxxxxxxxxxxxxxxxxxxxxxxx:", clickedRowLogs);
       await apiMarkIdsProcessed({
         dates: [date],
         userId: currentUser?.id,
-        data: clickedRowLogs, //-------------------------------------
+        data: clickedRowLogs,
       });
 
       toast.success("Marked as processed", {
@@ -361,7 +373,6 @@ export default function PayrollComponent({
   // Submit all visible
   const handleProcessAllVisible = async () => {
     const toProcess = currentRows.filter((r) => !processed[r.id]);
-    console.log("toProcesssssssssssssssssssssssssss:", toProcess);
     if (toProcess.length === 0) {
       toast.error("No rows to process.");
       return;
@@ -383,17 +394,17 @@ export default function PayrollComponent({
       return;
     }
 
+    // Create transactions for each visible row
     for (let i = 0; i < toProcess.length; i++) {
       const row = toProcess[i];
       const txn = makeTxn(1 + i);
 
       try {
-        console.log("row to send to createTxnAndLogs:>>>>>>>>>>>>>>>-", row);
         await createTxnAndLogs({
           hours: row.hours,
           payment: row.payment,
           txnNumber: txn,
-          data: row, 
+          data: row,
         });
       } catch (err) {
         console.error("create transaction/logs error:", err);
@@ -406,16 +417,24 @@ export default function PayrollComponent({
       }
     }
 
+    // Mark processed and then flip approval to 0
     try {
-      console.log("toProcesssssssssssssssssssssssssss :", toProcess);
       const dates = toProcess.map((r) => r.date);
       const data = toProcess.map((r) => r.serial_ids);
-      console.log("data to send to apiMarkIdsProcessed:..........................", data.flat());
       await apiMarkIdsProcessed({
         dates,
         userId: currentUser?.id,
-        data: data.flat(), 
+        data: data.flat(),
       });
+
+      // >>> NEW: set approval to 0 after a successful "Submit All"
+      try {
+        await apiSetTimesheetApproval(currentUser?.id, 0);
+        toast.success("Timesheet approval set to 0 for the current user.");
+      } catch (apprErr) {
+        console.error("set-timesheet-approval(0) error:", apprErr);
+        toast.error(apprErr.message || "Failed to reset timesheet approval");
+      }
 
       toast.success(`Marked ${toProcess.length} day(s) as processed`);
       setRows((prev) => prev.filter((r) => !dates.includes(r.date)));
@@ -433,7 +452,7 @@ export default function PayrollComponent({
       <TabsNav
         activeTab={activeTab}
         setActiveTab={setActiveTab}
-        canShowFixed={currentUser?.role !== "Developer"}
+        canShowFixed={currentUser?.role === "Admin"}
       />
 
       {/* Tab Content */}
@@ -482,6 +501,7 @@ export default function PayrollComponent({
                     key={r.id}
                     row={r}
                     isDone={!!processed[r.id]}
+                    currentUser={currentUser}
                     onSubmit={() =>
                       handleProcess(r.id, r.date, r.payment, r.hours, r.label || 0)
                     }
@@ -491,11 +511,13 @@ export default function PayrollComponent({
             </div>
           ))}
 
-        {activeTab === "fixed" && currentUser?.role !== "Developer" && (
-          <div>
-            <FixedPayment />
-          </div>
-        )}
+        {activeTab === "fixed" &&
+          currentUser?.role !== "Developer" &&
+          currentUser?.role !== "Freelancer" && (
+            <div>
+              <FixedPayment />
+            </div>
+          )}
 
         {activeTab === "history" && (
           <div>

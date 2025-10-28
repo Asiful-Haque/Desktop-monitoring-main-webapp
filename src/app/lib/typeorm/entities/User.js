@@ -30,6 +30,10 @@ export const User = new EntitySchema({
       scale: 2,
       nullable: true,
     },
+    time_sheet_approval: {
+      type: "int",
+      default: 1,
+    },
     created_at: {
       type: "timestamp",
       default: () => "CURRENT_TIMESTAMP",
