@@ -189,12 +189,9 @@ export class TimeTrackingService {
   async findByProjectAndDay(projectId, date) {
     const repo = await this.repo();
     console.log("Finding records for projectId:", projectId, "on date:", date);
-    // Construct the date range for the given day (from 00:00 to 23:59)
     const startOfDay = `${date} 00:00:00`;
     const endOfDay = `${date} 23:59:59`;
-    console.log("Date range:", startOfDay, "to", endOfDay);
 
-    // Query for time-tracking records within the specified date range and project ID
     const rows = await repo
       .createQueryBuilder("t")
       .where("t.work_date BETWEEN :start AND :end", {
@@ -250,125 +247,132 @@ export class TimeTrackingService {
     return rows;
   }
 
-async findAllToSubmitForPayment({ userId }) {
-  const repo = await this.repo();
-
-  const baseWhere = { uid: userId, flag: 0 };
-
-  const qb = repo
-    .createQueryBuilder("t")
-    // JOIN with correct PKs and names from your schemas
-    .leftJoin("projects", "p", "p.project_id = t.project_id")
-    .leftJoin("tasks", "task", "task.task_id = t.task_id")
-    .where("t.developer_id = :uid", baseWhere)
-    .andWhere("t.flagger = :flag", baseWhere)
-    .orderBy("t.work_date", "ASC")
-    .addOrderBy("t.task_start", "ASC")
-    .select([
-      "t.serial_id AS serial_id",
-      "t.task_id AS task_id",
-      "t.project_id AS project_id",
-      "t.developer_id AS developer_id",
-      "t.work_date AS work_date",
-      "t.task_start AS task_start",
-      "t.task_end AS task_end",
-      "t.duration AS duration",
-      "t.session_payment AS session_payment",
-      "t.flagger AS flagger",
-      "p.project_name AS project_name",
-      "task.task_name AS task_name",
-    ]);
-
-  const [rows, total] = await Promise.all([
-    qb.getRawMany(),
-    repo
-      .createQueryBuilder("t")
-      .where("t.developer_id = :uid", baseWhere)
-      .andWhere("t.flagger = :flag", baseWhere)
-      .getCount(),
-  ]);
-
-  return { rows, total };
-}
-
-async findByDateRangeAll({ startDate, endDate, userId }) {
-  const repo = await this.repo();
-
-  return repo
-    .createQueryBuilder("t")
-    // JOIN with correct PKs and names from your schemas
-    .leftJoin("projects", "p", "p.project_id = t.project_id")
-    .leftJoin("tasks", "task", "task.task_id = t.task_id")
-    .where("t.work_date BETWEEN :start AND :end", { start: startDate, end: endDate })
-    .andWhere("t.developer_id = :uid", { uid: userId })
-    .orderBy("t.work_date", "ASC")
-    .addOrderBy("t.task_start", "ASC")
-    .select([
-      "t.serial_id AS serial_id",
-      "t.task_id AS task_id",
-      "t.project_id AS project_id",
-      "t.developer_id AS developer_id",
-      "t.work_date AS work_date",
-      "t.task_start AS task_start",
-      "t.task_end AS task_end",
-      "t.duration AS duration",
-      "t.session_payment AS session_payment",
-      "t.flagger AS flagger",
-      "p.project_name AS project_name",
-      "task.task_name AS task_name",
-    ])
-    .getRawMany();
-}
-
-async updateFlaggerForSerialIds(data, flagger, userId) {
-  console.log("In /api/update-flagger, received data:", data);
-
-  try {
+  async findAllToSubmitForPayment({ userId }) {
     const repo = await this.repo();
 
-    let serialIdsRaw = [];
+    const baseWhere = { uid: userId, flag: 0 };
 
-    // Case 1: If data is an array of serial IDs (flat array)
-    if (Array.isArray(data) && data.every(d => typeof d === 'number')) {
-      serialIdsRaw = data; // Directly use data if it's already an array of numbers
-      console.log("Serial IDs received directly:", serialIdsRaw);
-    }
-    // Case 2: If data is an array of objects with serial_ids
-    else if (Array.isArray(data)) {
-      serialIdsRaw = data.flatMap((d) => d?.serial_ids ?? []); // Flatten serial_ids from array of objects
-      console.log("Flattened serialIds from array of objects:", serialIdsRaw);
-    } 
-    // Case 3: If data is a single object containing serial_ids
-    else if (data?.serial_ids) {
-      serialIdsRaw = data.serial_ids || [];
-      console.log("Serial IDs extracted from single object:", serialIdsRaw);
-    } else {
-      console.error("Invalid data format. Expected an array of serial IDs or array of objects with `serial_ids`.");
-      return { affected: 0, raw: [], info: "Invalid data format" };
-    }
+    const qb = repo
+      .createQueryBuilder("t")
+      .leftJoin("projects", "p", "p.project_id = t.project_id")
+      .leftJoin("tasks", "task", "task.task_id = t.task_id")
+      .where("t.developer_id = :uid", baseWhere)
+      .andWhere("t.flagger = :flag", baseWhere)
+      .orderBy("t.work_date", "ASC")
+      .addOrderBy("t.task_start", "ASC")
+      .select([
+        "t.serial_id AS serial_id",
+        "t.task_id AS task_id",
+        "t.project_id AS project_id",
+        "t.developer_id AS developer_id",
+        "t.work_date AS work_date",
+        "t.task_start AS task_start",
+        "t.task_end AS task_end",
+        "t.duration AS duration",
+        "t.session_payment AS session_payment",
+        "t.flagger AS flagger",
+        "p.project_name AS project_name",
+        "task.task_name AS task_name",
+      ]);
 
-    // Process the serialIds to remove duplicates and ensure they are numbers
-    const serialIds = [...new Set(serialIdsRaw.map(n => Number(n)).filter(n => !Number.isNaN(n)))];
+    const [rows, total] = await Promise.all([
+      qb.getRawMany(),
+      repo
+        .createQueryBuilder("t")
+        .where("t.developer_id = :uid", baseWhere)
+        .andWhere("t.flagger = :flag", baseWhere)
+        .getCount(),
+    ]);
 
-    console.log("Parsed serialIds:", serialIds);
-    if (serialIds.length === 0) {
-      console.warn("No valid serial_ids provided.");
-      return { affected: 0, raw: [], info: "No serial_ids provided" };
-    }
-    const result = await repo
-      .createQueryBuilder()
-      .update(TimeTracking)
-      .set({ flagger })
-      .where("serial_id IN (:...serialIds)", { serialIds })
-      .andWhere("developer_id = :userId", { userId })
-      .execute();
-
-    console.log("Update result:", result);
-
-    return result;
-  } catch (err) {
-    console.error("Error updating flagger by serial_ids:", err);
-    throw new Error("Failed to update flagger for the provided serial_ids.");
+    return { rows, total };
   }
-}
+
+  // ------------------ ROLE-AWARE RANGE QUERY ------------------
+  async findByDateRangeAll({ startDate, endDate, userId, userRole }) {
+    const repo = await this.repo();
+    const role = String(userRole || "").trim().toLowerCase();
+    const isDeveloper = role === "developer" || role === "freelancer";
+
+    const qb = repo
+      .createQueryBuilder("t")
+      .leftJoin("projects", "p", "p.project_id = t.project_id")
+      .leftJoin("tasks", "task", "task.task_id = t.task_id")
+      .leftJoin("users", "u", "u.user_id = t.developer_id")
+      .leftJoin("user_roles", "ur", "ur.user_id = u.user_id")
+      .leftJoin("roles", "r", "r.role_id = ur.role_id")
+      .where("t.work_date BETWEEN :start AND :end", { start: startDate, end: endDate })
+      .orderBy("t.work_date", "ASC")
+      .addOrderBy("t.task_start", "ASC")
+      .select([
+        "t.serial_id AS serial_id",
+        "t.task_id AS task_id",
+        "t.project_id AS project_id",
+        "t.developer_id AS developer_id",
+        "t.work_date AS work_date",
+        "t.task_start AS task_start",
+        "t.task_end AS task_end",
+        "t.duration AS duration",
+        "t.session_payment AS session_payment",
+        "t.flagger AS flagger",
+        "p.project_name AS project_name",
+        "task.task_name AS task_name",
+        // enrichment for UI filters
+        "u.user_id AS dev_user_id",
+        "u.username AS developer_name",
+        "u.email AS developer_email",
+        "r.role_name AS role",
+      ]);
+
+    if (isDeveloper) {
+      qb.andWhere("t.developer_id = :uid", { uid: userId });
+    }
+
+    return qb.getRawMany();
+  }
+
+  async updateFlaggerForSerialIds(data, flagger, userId) {
+    console.log("In /api/update-flagger, received data:", data);
+
+    try {
+      const repo = await this.repo();
+
+      let serialIdsRaw = [];
+
+      if (Array.isArray(data) && data.every(d => typeof d === 'number')) {
+        serialIdsRaw = data;
+        console.log("Serial IDs received directly:", serialIdsRaw);
+      } else if (Array.isArray(data)) {
+        serialIdsRaw = data.flatMap((d) => d?.serial_ids ?? []);
+        console.log("Flattened serialIds from array of objects:", serialIdsRaw);
+      } else if (data?.serial_ids) {
+        serialIdsRaw = data.serial_ids || [];
+        console.log("Serial IDs extracted from single object:", serialIdsRaw);
+      } else {
+        console.error("Invalid data format. Expected an array of serial IDs or array of objects with `serial_ids`.");
+        return { affected: 0, raw: [], info: "Invalid data format" };
+      }
+
+      const serialIds = [...new Set(serialIdsRaw.map(n => Number(n)).filter(n => !Number.isNaN(n)))];
+
+      console.log("Parsed serialIds:", serialIds);
+      if (serialIds.length === 0) {
+        console.warn("No valid serial_ids provided.");
+        return { affected: 0, raw: [], info: "No serial_ids provided" };
+      }
+      const result = await repo
+        .createQueryBuilder()
+        .update(TimeTracking)
+        .set({ flagger })
+        .where("serial_id IN (:...serialIds)", { serialIds })
+        .andWhere("developer_id = :userId", { userId })
+        .execute();
+
+      console.log("Update result:", result);
+
+      return result;
+    } catch (err) {
+      console.error("Error updating flagger by serial_ids:", err);
+      throw new Error("Failed to update flagger for the provided serial_ids.");
+    }
+  }
 }

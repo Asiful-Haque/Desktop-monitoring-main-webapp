@@ -67,7 +67,10 @@ export default async function Page() {
   const cookieStore = await cookies();
   const token = cookieStore.get("token")?.value;
   const currentUser = token ? jwt.decode(token) : null;
+
   const userId = currentUser ? currentUser.id : null;
+  const userName = currentUser?.name || null;
+  const userRole = currentUser?.role || currentUser?.user_role || "Developer";
 
   const end = new Date();
   const start = new Date(end);
@@ -78,6 +81,7 @@ export default async function Page() {
     endDate: ymd(end),
     all: true,
     userId,
+    userRole,
   };
 
   const apiUrl = process.env.NEXT_PUBLIC_MAIN_HOST
@@ -102,9 +106,8 @@ export default async function Page() {
     console.error("Fetch failed:", e);
   }
 
-  console.log("Got rows from all=======true API:", rows);
-
   const daySessions = new Map();
+  const rolesByUserId = new Map();
 
   for (const row of rows) {
     const startDt = parseISO(row?.task_start);
@@ -125,12 +128,21 @@ export default async function Page() {
         : `duration only (#${row?.serial_id ?? row?.task_id ?? "?"})`;
 
     const serial_id = row?.serial_id ?? null;
-    const project_name = row?.project_name ?? null; // <--- from JOIN
-    const task_name = row?.task_name ?? null;       // <--- from JOIN
-        const flagger = typeof row?.flagger === "number" ? row.flagger : Number(row?.flagger ?? 0);
+    const project_id = row?.project_id ?? null;
+    const project_name = row?.project_name ?? null;
+    const task_id = row?.task_id ?? null;
+    const task_name = row?.task_name ?? null;
 
-    // Prefix line with Project/Task for recognizability:
-    const contextPrefix = `[${project_name ?? row?.project_id ?? "Project?"}] ${task_name ?? row?.task_id ?? "Task?"} — `;
+    const item_user_id = row?.user_id ?? row?.dev_user_id ?? row?.developer_id ?? userId ?? null;
+    const item_user_name = row?.user_name ?? row?.developer_name ?? userName ?? null;
+    const item_role = String(row?.role ?? row?.developer_role ?? "")
+      .trim()
+      .toLowerCase() || null;
+    if (Number.isFinite(item_user_id) && item_role) rolesByUserId.set(item_user_id, item_role);
+
+    const flagger = typeof row?.flagger === "number" ? row.flagger : Number(row?.flagger ?? 0);
+
+    const contextPrefix = `[${project_name ?? project_id ?? "Project?"}] ${task_name ?? task_id ?? "Task?"} — `;
 
     const item = {
       serial_id,
@@ -138,10 +150,13 @@ export default async function Page() {
       startISO: startDt ? startDt.toISOString() : null,
       endISO: endDt ? endDt.toISOString() : null,
       line: `${contextPrefix}${leftText}........... ${formatHMS(secs)}`,
-      task_id: row?.task_id ?? null,
-      project_id: row?.project_id ?? null,
+      task_id,
+      project_id,
       project_name,
       task_name,
+      user_id: item_user_id,
+      user_name: item_user_name,
+      user_role: item_role,
       flagger,
     };
 
@@ -160,12 +175,19 @@ export default async function Page() {
     })
     .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 
-
-    console.log("Data----1------ for TimeSheet:", { data, detailsByDate });
+  const userRolesById = Object.fromEntries(rolesByUserId);
 
   return (
     <div className="min-h-screen">
-      <TimeSheet initialWindow={31} data={data} detailsByDate={detailsByDate} />
+      <TimeSheet
+        initialWindow={31}
+        data={data}
+        detailsByDate={detailsByDate}
+        userRole={userRole || "Developer"}
+        userId={userId}
+        userRolesById={userRolesById}
+        apiUrl={apiUrl}
+      />
     </div>
   );
 }

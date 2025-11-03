@@ -93,7 +93,7 @@ const ROLE_GUARDS = [
   },
   { prefix: "/analytics", allowed: ["Admin", "Project Manager"] },
   { prefix: "/settings", allowed: ["Admin"] },
-  { prefix: "/time-sheet", allowed: ["Developer"] },
+  { prefix: "/time-sheet", allowed: ["Developer", "Admin"] },
   {
     prefix: "/payroll",
     allowed: ["Developer", "Admin", "Project Manager", "CEO", "Team Lead"],

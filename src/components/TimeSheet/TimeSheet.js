@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useMemo, useState, useEffect } from "react";
-import { Clock, TrendingUp, Pencil } from "lucide-react";
+import { Clock, TrendingUp, Pencil, ChevronLeft, ChevronRight } from "lucide-react";
 import { format } from "date-fns";
 import { enUS } from "date-fns/locale";
 import { useRouter } from "next/navigation";
@@ -11,7 +11,6 @@ import TimeSheetEditModal from "../TimeSheetEditModal";
 function cn(...classes) {
   return classes.filter(Boolean).join(" ");
 }
-
 function normalizeAndSort(src) {
   const normalized = (src ?? []).map((d) => ({
     date: d.date instanceof Date ? d.date : new Date(d.date),
@@ -26,6 +25,12 @@ function keyOf(d) {
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const dd = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${dd}`;
+}
+function daysBetween(start, end) {
+  const a = new Date(start);
+  const b = new Date(end);
+  const diff = Math.ceil((+b - +a) / (24 * 3600 * 1000)) + 1;
+  return Math.max(0, diff);
 }
 function buildWindowSeries(allData, windowDays) {
   if (!allData?.length) return [];
@@ -69,7 +74,7 @@ function getHourTextTone(hours) {
   return "text-emerald-600 dark:text-emerald-400";
 }
 
-/* helpers for per-project recompute */
+/* filtered recompute */
 function secondsToLabel(totalSec) {
   const s = Math.max(0, Math.floor(totalSec || 0));
   const h = Math.floor(s / 3600);
@@ -80,12 +85,19 @@ function secondsToLabel(totalSec) {
 function roundHours2(sec) {
   return Math.round((sec / 3600) * 100) / 100;
 }
-function buildProjectSeries(baseSeries, detailsByDate, projectId) {
-  if (!baseSeries?.length || !detailsByDate || projectId === "all") return baseSeries;
+function sumSecondsFor(filters, rows) {
+  const { projectId, userId } = filters;
+  let target = rows;
+  if (projectId !== "all") target = target.filter((r) => r.project_id === projectId);
+  if (userId !== "all") target = target.filter((r) => r.user_id === userId);
+  return target.reduce((sum, r) => sum + (r.seconds || 0), 0);
+}
+function buildFilteredSeries(baseSeries, detailsByDate, projectId, userId) {
+  if (!baseSeries?.length || !detailsByDate) return baseSeries ?? [];
   return baseSeries.map((d) => {
     const k = keyOf(d.date);
     const rows = detailsByDate[k] || [];
-    const sec = rows.filter((r) => r.project_id === projectId).reduce((sum, r) => sum + (r.seconds || 0), 0);
+    const sec = sumSecondsFor({ projectId, userId }, rows);
     const hours = sec > 0 ? roundHours2(sec) : undefined;
     const label = sec > 0 ? secondsToLabel(sec) : undefined;
     return { date: d.date, hours, label };
@@ -131,89 +143,283 @@ function diffSecondsISO(startISO, endISO) {
   return Math.max(0, Math.floor((b - a) / 1000));
 }
 
-/** API helper to check busy-by-serial */
-async function checkAnyBusy(taskIdOfSerialIds) {
-  if (!taskIdOfSerialIds?.length) return { any_busy: false, busy_serials: [] };
-  const res = await fetch("/api/tasks/busy-or-not", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ taskIdOfSerialIds }),
-  });
-  const json = await res.json();
-  if (!res.ok) throw new Error(json?.error || "Busy check failed");
-  return json;
+/* Admin custom helpers */
+function parseISO2(v) {
+  if (!v) return null;
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+function keyInTZ(d, timeZone = TZ) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(d);
+}
+function computeSecondsFromRow(row) {
+  const start = parseISO2(row?.task_start);
+  const end = parseISO2(row?.task_end);
+  if (start && end && end > start) {
+    return Math.floor((end.getTime() - start.getTime()) / 1000);
+  }
+  const d = row?.duration;
+  if (typeof d === "number" && !Number.isNaN(d)) {
+    if (d >= 3600000) return Math.floor(d / 1000); // ms
+    if (d >= 3600) return Math.floor(d);           // seconds
+    if (d >= 60) return Math.floor(d * 60);        // minutes
+    return Math.floor(d * 60);
+  }
+  return 0;
 }
 
-export default function TimeSheet({ initialWindow, data, detailsByDate, tenantId }) {
+export default function TimeSheet({
+  initialWindow,
+  data,
+  detailsByDate,
+  userRole = "Developer",
+  userId,
+  userRolesById,
+  apiUrl,
+}) {
   const router = useRouter();
+  const isAdmin = String(userRole).toLowerCase() === "admin";
 
+  // Range selection (buttons row). "custom" is admin-only.
+  const [rangeMode, setRangeMode] = useState("preset"); // 'preset' | 'custom'
   const [windowDays, setWindowDays] = useState([7, 15, 31].includes(initialWindow) ? initialWindow : 7);
+
+  // Custom date inputs (admin)
+  const [customStart, setCustomStart] = useState("");
+  const [customEnd, setCustomEnd] = useState("");
+
+  // Pagination for custom > 31
+  const PAGE_SIZE = 31;
+  const [pageIndex, setPageIndex] = useState(0);
+
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
+  useEffect(() => setPageIndex(0), [rangeMode, customStart, customEnd]);
 
-  const [clientData, setClientData] = useState([]);
+  // Local copies so custom fetch can replace data
+  const [localDetailsByDate, setLocalDetailsByDate] = useState(detailsByDate || {});
+  const [localData, setLocalData] = useState(data || []);
   useEffect(() => {
-    if (data && data.length) setClientData(normalizeAndSort(data));
-  }, [data]);
+    if (data?.length) setLocalData(normalizeAndSort(data));
+    if (detailsByDate) setLocalDetailsByDate(detailsByDate);
+  }, [data, detailsByDate]);
 
-  const hasBaseData = clientData.length > 0;
-  const baseWindowSeries = useMemo(
-    () => (!hasBaseData ? [] : buildWindowSeries(clientData, windowDays)),
-    [clientData, hasBaseData, windowDays]
-  );
-
-  /* ---- Project filter: options from detailsByDate ---- */
+  // Filters
   const projectOptions = useMemo(() => {
-    const map = new Map(); // id -> name
-    if (detailsByDate) {
-      for (const arr of Object.values(detailsByDate)) {
+    const map = new Map();
+    if (localDetailsByDate) {
+      for (const arr of Object.values(localDetailsByDate)) {
         for (const r of arr) {
           if (Number.isFinite(r.project_id)) map.set(r.project_id, r.project_name || `Project ${r.project_id}`);
         }
       }
     }
     return [{ id: "all", name: "All projects" }, ...Array.from(map, ([id, name]) => ({ id, name }))];
-  }, [detailsByDate]);
+  }, [localDetailsByDate]);
 
-  const [selectedProject, setSelectedProject] = useState(projectOptions[0]?.id ?? "all");
+  const userOptions = useMemo(() => {
+    const map = new Map();
+    if (localDetailsByDate) {
+      for (const arr of Object.values(localDetailsByDate)) {
+        for (const r of arr) {
+          if (r.user_id != null) map.set(r.user_id, r.user_name || `User ${r.user_id}`);
+        }
+      }
+    }
+    return [{ id: "all", name: "All users" }, ...Array.from(map, ([id, name]) => ({ id, name }))];
+  }, [localDetailsByDate]);
+
+  const [selectedProject, setSelectedProject] = useState("all");
+  const [selectedUser, setSelectedUser] = useState("all");
   useEffect(() => {
-    // keep selection valid when options change
     const ids = new Set(projectOptions.map((p) => p.id));
     if (!ids.has(selectedProject)) setSelectedProject("all");
   }, [projectOptions, selectedProject]);
+  useEffect(() => {
+    const ids = new Set(userOptions.map((u) => u.id));
+    if (!ids.has(selectedUser)) setSelectedUser("all");
+  }, [userOptions, selectedUser]);
 
-  // Apply project filter to series
-  const windowSeries = useMemo(
-    () => buildProjectSeries(baseWindowSeries, detailsByDate, selectedProject),
-    [baseWindowSeries, detailsByDate, selectedProject]
+  // Base series
+  const clientData = useMemo(() => normalizeAndSort(localData), [localData]);
+  const baseSeriesPreset = useMemo(
+    () => (clientData.length ? buildWindowSeries(clientData, windowDays) : []),
+    [clientData, windowDays]
   );
+
+  const baseSeriesCustom = useMemo(() => {
+    if (rangeMode !== "custom" || !clientData.length) return [];
+    const first = clientData[0]?.date;
+    const last = clientData[clientData.length - 1]?.date;
+    if (!first || !last) return [];
+    const map = new Map(clientData.map((r) => [keyOf(r.date), { hours: r.hours, label: r.label }]));
+    const totalDays = daysBetween(keyOf(first), keyOf(last));
+    const start = new Date(first);
+    const series = [];
+    for (let i = 0; i < totalDays; i++) {
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
+      const k = keyOf(d);
+      const v = map.get(k) || {};
+      series.push({ date: d, hours: v.hours, label: v.label });
+    }
+    return series;
+  }, [rangeMode, clientData]);
+
+  const baseSeries = rangeMode === "custom" ? baseSeriesCustom : baseSeriesPreset;
+
+  // Apply filters
+  const filteredSeries = useMemo(
+    () => buildFilteredSeries(baseSeries, localDetailsByDate, selectedProject, selectedUser),
+    [baseSeries, localDetailsByDate, selectedProject, selectedUser]
+  );
+
+  // Pagination when custom > 31
+  const needsPaging = rangeMode === "custom" && filteredSeries.length > PAGE_SIZE;
+  const totalPages = needsPaging ? Math.ceil(filteredSeries.length / PAGE_SIZE) : 1;
+  const pageStart = needsPaging ? pageIndex * PAGE_SIZE : 0;
+  const pageEnd = needsPaging ? pageStart + PAGE_SIZE : filteredSeries.length;
+  const windowSeries = filteredSeries.slice(pageStart, pageEnd);
 
   const hasData = windowSeries.length > 0;
   const daysWithHours = useMemo(() => windowSeries.filter((d) => typeof d.hours === "number"), [windowSeries]);
   const totalHours = daysWithHours.reduce((sum, d) => sum + (d.hours ?? 0), 0);
   const avg = daysWithHours.length ? (totalHours / daysWithHours.length).toFixed(1) : "0";
   const sparkPoints = windowSeries.map((d) => (typeof d.hours === "number" ? d.hours : 0));
-  const rangeButtons = [
-    { label: "Weekly", value: 7 },
-    { label: "15 Days", value: 15 },
-    { label: "Monthly", value: 31 },
-  ];
-  const isPlaceholder = !mounted && (!data || data.length === 0);
+
+  // Admin custom loader
+  async function loadCustomRange() {
+    if (!apiUrl) return alert("Missing apiUrl");
+    if (!customStart || !customEnd) return alert("Please select both start and end dates.");
+    const body = {
+      startDate: customStart,
+      endDate: customEnd,
+      all: true,
+      userId,
+      userRole,
+    };
+    try {
+      const res = await fetch(apiUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        cache: "no-store",
+      });
+      if (!res.ok) {
+        const x = await res.json().catch(() => ({}));
+        throw new Error(x?.error || `Fetch failed ${res.status}`);
+      }
+      const payload = await res.json();
+      const rows = Array.isArray(payload?.items) ? payload.items : [];
+
+      const daySessions = new Map();
+      for (const row of rows) {
+        const startDt = parseISO2(row?.task_start);
+        const endDt = parseISO2(row?.task_end);
+        const anchor = startDt || endDt || parseISO2(row?.work_date);
+        if (!anchor) continue;
+
+        const dayKey = keyInTZ(anchor, TZ);
+        const secs = computeSecondsFromRow(row);
+
+        const item = {
+          serial_id: row?.serial_id ?? null,
+          seconds: secs,
+          startISO: startDt ? startDt.toISOString() : null,
+          endISO: endDt ? endDt.toISOString() : null,
+          line: "",
+          task_id: row?.task_id ?? null,
+          project_id: row?.project_id ?? null,
+          project_name: row?.project_name ?? null,
+          task_name: row?.task_name ?? null,
+          user_id: row?.user_id ?? row?.dev_user_id ?? row?.developer_id ?? null,
+          user_name: row?.user_name ?? row?.developer_name ?? null,
+          user_role: String(row?.role ?? row?.developer_role ?? "").trim().toLowerCase() || null,
+          flagger: typeof row?.flagger === "number" ? row.flagger : Number(row?.flagger ?? 0),
+        };
+
+        const list = daySessions.get(dayKey) || [];
+        list.push(item);
+        daySessions.set(dayKey, list);
+      }
+
+      const newDetails = {};
+      const newData = Array.from(daySessions.entries())
+        .map(([date, sessions]) => {
+          newDetails[date] = sessions;
+          const totalSecs = sessions.reduce((acc, s) => acc + (s.seconds || 0), 0);
+          const hours = Math.round((totalSecs / 3600) * 100) / 100;
+          return { date, hours, label: secondsToLabel(totalSecs) };
+        })
+        .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+
+      setLocalDetailsByDate(newDetails);
+      setLocalData(newData);
+      setRangeMode("custom");
+      setPageIndex(0);
+    } catch (e) {
+      console.error("Custom range fetch failed:", e);
+      alert(e?.message || "Failed to load custom range.");
+    }
+  }
+
+  /** Busy check UX lock */
+  const [checkingBusy, setCheckingBusy] = useState(false);
+  async function handleEditIconClick(day) {
+    if (checkingBusy) return;
+    try {
+      setCheckingBusy(true);
+      const dateKey = keyOf(day.date);
+      const srcItemsAll = localDetailsByDate?.[dateKey] || [];
+      const srcItems = srcItemsAll.filter((it) => {
+        const pOK = selectedProject === "all" || it.project_id === selectedProject;
+        const uOK = selectedUser === "all" || it.user_id === selectedUser;
+        return pOK && uOK;
+      });
+
+      const taskIdOfSerialIds = srcItems.map((it) => it.task_id).filter((x) => Number.isFinite(x));
+      const res = await fetch("/api/tasks/busy-or-not", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ taskIdOfSerialIds }),
+      });
+      const { any_busy, busy_serials } = await res.json();
+      if (!res.ok) throw new Error("Busy check failed");
+
+      if (any_busy) {
+        alert(
+          busy_serials?.length
+            ? `Some task(s) are currently running (serial: ${busy_serials.join(", ")}). Please stop them first.`
+            : "Some task(s) are currently running. Please stop them first."
+        );
+        return;
+      }
+      openDetails(day);
+    } catch (e) {
+      console.error("Busy check error:", e);
+      alert(`Could not verify running tasks. ${e?.message || ""}`);
+    } finally {
+      setCheckingBusy(false);
+    }
+  }
 
   /* Day Details (modal) */
   const [details, setDetails] = useState(null);
-
   function openDetails(day) {
     const dateKey = keyOf(day.date);
-    const srcItemsAll = detailsByDate?.[dateKey] || [];
-    const srcItems = selectedProject === "all" ? srcItemsAll : srcItemsAll.filter((it) => it.project_id === selectedProject);
-
-    const totalLabel =
-      (selectedProject === "all"
-        ? clientData.find((x) => keyOf(x.date) === dateKey)?.label
-        : secondsToLabel(srcItems.reduce((s, r) => s + (r.seconds || 0), 0))) || "";
-
-    const items = srcItems.map((it) => {
+    const srcItemsAll = localDetailsByDate?.[dateKey] || [];
+    const filtered = srcItemsAll.filter((it) => {
+      const pOK = selectedProject === "all" || it.project_id === selectedProject;
+      const uOK = selectedUser === "all" || it.user_id === selectedUser;
+      return pOK && uOK;
+    });
+    const totalLabel = secondsToLabel(filtered.reduce((s, r) => s + (r.seconds || 0), 0)) || "";
+    const items = filtered.map((it) => {
       const startHMS = isoToLocalHMS(it.startISO);
       const endHMS = isoToLocalHMS(it.endISO);
       return {
@@ -228,14 +434,11 @@ export default function TimeSheet({ initialWindow, data, detailsByDate, tenantId
         newSeconds: it.seconds ?? diffSecondsISO(it.startISO, it.endISO),
       };
     });
-
     setDetails({ dateKey, dateObj: day.date, items, totalLabel, reason: "" });
   }
-
   function closeDetails() {
     setDetails(null);
   }
-
   function updateItemTime(idx, field, hms) {
     setDetails((s) => {
       if (!s) return s;
@@ -253,11 +456,9 @@ export default function TimeSheet({ initialWindow, data, detailsByDate, tenantId
       return { ...s, items };
     });
   }
-
   function onReasonChange(e) {
     setDetails((s) => (s ? { ...s, reason: e.target.value } : s));
   }
-
   function onSubmitChanges() {
     if (!details) return;
     const changes = details.items
@@ -266,14 +467,15 @@ export default function TimeSheet({ initialWindow, data, detailsByDate, tenantId
         serial_id: it.serial_id,
         project_id: it.project_id,
         task_id: it.task_id,
+        user_id: it.user_id,
         old: { startISO: it.startISO, endISO: it.endISO, seconds: it.seconds },
         new: { startISO: it.newStartISO, endISO: it.newEndISO, seconds: it.newSeconds },
       }));
-
     const payload = {
       dateKey: details.dateKey,
       reason: details.reason.trim(),
       timezone: TZ,
+      filters: { projectId: selectedProject, userId: selectedUser },
       changes,
     };
     console.log("Submit TimeSheet Changes payload:", payload);
@@ -281,38 +483,7 @@ export default function TimeSheet({ initialWindow, data, detailsByDate, tenantId
     closeDetails();
   }
 
-  /** Busy check UX lock */
-  const [checkingBusy, setCheckingBusy] = useState(false);
-
-  /** Gate the modal with busy check */
-  async function handleEditIconClick(day) {
-    if (checkingBusy) return;
-    try {
-      setCheckingBusy(true);
-      const dateKey = keyOf(day.date);
-      const srcItemsAll = detailsByDate?.[dateKey] || [];
-      const srcItems = selectedProject === "all" ? srcItemsAll : srcItemsAll.filter((it) => it.project_id === selectedProject);
-
-      const taskIdOfSerialIds = srcItems.map((it) => it.task_id).filter((x) => Number.isFinite(x));
-      const { any_busy, busy_serials } = await checkAnyBusy(taskIdOfSerialIds);
-
-      if (any_busy) {
-        alert(
-          busy_serials?.length
-            ? `Some task(s) are currently running (serial: ${busy_serials.join(", ")}). Please stop them first.`
-            : "Some task(s) are currently running. Please stop them first."
-        );
-        return; // do not open modal
-      }
-
-      openDetails(day);
-    } catch (e) {
-      console.error("Busy check error:", e);
-      alert(`Could not verify running tasks. ${e?.message || ""}`);
-    } finally {
-      setCheckingBusy(false);
-    }
-  }
+  const showUserFilter = isAdmin && userOptions.length > 1;
 
   return (
     <div className="p-4 md:p-6 space-y-6 bg-gradient-to-br from-blue-50 to-indigo-50 min-h-screen">
@@ -330,14 +501,30 @@ export default function TimeSheet({ initialWindow, data, detailsByDate, tenantId
             </div>
           </div>
 
-          <div className="shrink-0">
+          {/* Range buttons + Custom inline (admin) */}
+          <div className="shrink-0 flex items-center gap-3 flex-wrap">
             <div className="inline-flex rounded-lg border bg-white dark:bg-neutral-900 p-1">
-              {rangeButtons.map((btn) => {
-                const active = windowDays === btn.value;
+              {[
+                { label: "Weekly", value: 7 },
+                { label: "15 Days", value: 15 },
+                { label: "Monthly", value: 31 },
+                ...(isAdmin ? [{ label: "Custom", value: "custom" }] : []),
+              ].map((btn) => {
+                const isCustomBtn = btn.value === "custom";
+                const active =
+                  (rangeMode === "preset" && windowDays === btn.value) ||
+                  (rangeMode === "custom" && isCustomBtn);
                 return (
                   <button
-                    key={btn.value}
-                    onClick={() => setWindowDays(btn.value)}
+                    key={String(btn.value)}
+                    onClick={() => {
+                      if (isCustomBtn) {
+                        setRangeMode("custom");
+                      } else {
+                        setRangeMode("preset");
+                        setWindowDays(btn.value);
+                      }
+                    }}
                     className={cn(
                       "px-3 py-2 rounded-md text-sm font-medium transition",
                       active
@@ -351,6 +538,36 @@ export default function TimeSheet({ initialWindow, data, detailsByDate, tenantId
                 );
               })}
             </div>
+
+            {/* Inline custom inputs (visible only when Custom active) */}
+            {isAdmin && rangeMode === "custom" && (
+              <div className="flex items-end gap-2">
+                <div className="flex flex-col">
+                  <label className="text-xxs font-bold text-neutral-600 dark:text-neutral-300">Start</label>
+                  <input
+                    type="date"
+                    className="text-sm border rounded-md px-2 py-1 bg-white dark:bg-neutral-900 dark:border-neutral-700"
+                    value={customStart}
+                    onChange={(e) => setCustomStart(e.target.value)}
+                  />
+                </div>
+                <div className="flex flex-col">
+                  <label className="text-xxs font-bold text-neutral-600 dark:text-neutral-300">End</label>
+                  <input
+                    type="date"
+                    className="text-sm border rounded-md px-2 py-1 bg-white dark:bg-neutral-900 dark:border-neutral-700"
+                    value={customEnd}
+                    onChange={(e) => setCustomEnd(e.target.value)}
+                  />
+                </div>
+                <button
+                  onClick={loadCustomRange}
+                  className="h-[38px] px-3 py-2 rounded-md text-sm font-medium transition bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm"
+                >
+                  Load
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -368,82 +585,111 @@ export default function TimeSheet({ initialWindow, data, detailsByDate, tenantId
               className="w-full h-12 mt-2 text-indigo-500 dark:text-indigo-400"
               suppressHydrationWarning
             >
-              {hasData && <path d={buildSparkPath(sparkPoints)} fill="none" stroke="currentColor" strokeWidth="2" />}
+              {windowSeries.length > 0 && (
+                <path
+                  d={buildSparkPath(windowSeries.map((d) => (typeof d.hours === "number" ? d.hours : 0)))}
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                />
+              )}
             </svg>
           </div>
         </div>
       </div>
 
-      {/* Entries header with Project filter on top-right */}
-      <div className="mb-2 flex items-center justify-between">
+      {/* Filters row */}
+      <div className="mb-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="text-sm font-medium flex items-center gap-2 text-neutral-700 dark:text-neutral-200">
           <TrendingUp className="h-4 w-4 text-neutral-500 dark:text-neutral-400" />
-          Last {windowDays} Days
+          {rangeMode === "custom" ? "Custom Range" : `Last ${windowDays} Days`}
         </div>
 
-        <div className="flex items-center gap-2">
-          <label className="text-xxs font-bold text-neutral-600 dark:text-neutral-300">Project Filter</label>
-          <select
-            className="text-sm border rounded-md px-2 py-1 bg-white dark:bg-neutral-900 dark:border-neutral-700"
-            value={String(selectedProject)}
-            onChange={(e) => {
-              const val = e.target.value === "all" ? "all" : Number(e.target.value);
-              setSelectedProject(val);
-            }}
-            aria-label="Filter by project"
-          >
-            {projectOptions.map((p) => (
-              <option key={String(p.id)} value={String(p.id)}>
-                {p.name}
-              </option>
-            ))}
-          </select>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <label className="text-xxs font-bold text-neutral-600 dark:text-neutral-300">Project</label>
+            <select
+              className="text-sm border rounded-md px-2 py-1 bg-white dark:bg-neutral-900 dark:border-neutral-700"
+              value={String(selectedProject)}
+              onChange={(e) => setSelectedProject(e.target.value === "all" ? "all" : Number(e.target.value))}
+              aria-label="Filter by project"
+            >
+              {projectOptions.map((p) => (
+                <option key={String(p.id)} value={String(p.id)}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {isAdmin && (
+            <div className="flex items-center gap-2">
+              <label className="text-xxs font-bold text-neutral-600 dark:text-neutral-300">User</label>
+              <select
+                className="text-sm border rounded-md px-2 py-1 bg-white dark:bg-neutral-900 dark:border-neutral-700"
+                value={String(selectedUser)}
+                onChange={(e) => setSelectedUser(e.target.value === "all" ? "all" : Number(e.target.value))}
+                aria-label="Filter by user"
+              >
+                {userOptions.map((u) => (
+                  <option key={String(u.id)} value={String(u.id)}>
+                    {u.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Stats */}
+      {/* Stats (fixed height cards) */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="relative overflow-hidden rounded-xl border bg-white dark:bg-neutral-900 p-4">
-          <div className="absolute left-0 top-0 h-full w-1.5 bg-indigo-600/90 dark:bg-indigo-400/90" />
-          <div className="text-xs font-medium text-neutral-600 dark:text-neutral-300">Total Hours (filled days)</div>
-          <div className="mt-1 text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">
-            {totalHours.toFixed(2)}h
+        {[
+          { title: "Total Hours (filled days)", value: `${totalHours.toFixed(2)}h`, sub: "Sum for selected filters" },
+          {
+            title: "Days Shown",
+            value: `${windowSeries.length}`,
+            sub: rangeMode === "custom" && needsPaging ? `Page ${pageIndex + 1}/${totalPages}` : "Window length",
+          },
+          { title: "Avg Hours/Day (filled)", value: `${avg}h`, sub: "Mean for selected filters" },
+        ].map((card, i) => (
+          <div key={i} className="relative overflow-hidden rounded-xl border bg-white dark:bg-neutral-900 p-4 h-28">
+            <div className="absolute left-0 top-0 h-full w-1.5 bg-indigo-600/80 dark:bg-indigo-400/80" />
+            <div className="text-xs font-medium text-neutral-600 dark:text-neutral-300">{card.title}</div>
+            <div className="mt-1 text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">
+              {card.value}
+            </div>
+            <div className="mt-1 text-[11px] text-neutral-500 dark:text-neutral-400">{card.sub}</div>
           </div>
-          <div className="mt-1 text-[11px] text-neutral-500 dark:text-neutral-400">Sum for selected project</div>
-        </div>
-        <div className="relative overflow-hidden rounded-xl border bg-white dark:bg-neutral-900 p-4">
-          <div className="absolute left-0 top-0 h-full w-1.5 bg-indigo-600/80 dark:bg-indigo-400/80" />
-          <div className="text-xs font-medium text-neutral-600 dark:text-neutral-300">Days Shown</div>
-          <div className="mt-1 text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">
-            {windowSeries.length}
-          </div>
-          <div className="mt-1 text-[11px] text-neutral-500 dark:text-neutral-400">Window length</div>
-        </div>
-        <div className="relative overflow-hidden rounded-xl border bg-white dark:bg-neutral-900 p-4">
-          <div className="absolute left-0 top-0 h-full w-1.5 bg-indigo-600/70 dark:bg-indigo-400/70" />
-          <div className="text-xs font-medium text-neutral-600 dark:text-neutral-300">Avg Hours/Day (filled)</div>
-          <div className="mt-1 text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">{avg}h</div>
-          <div className="mt-1 text-[11px] text-neutral-500 dark:text-neutral-400">Mean for selected project</div>
-        </div>
+        ))}
       </div>
 
-      {/* Legend */}
-      <div className="flex flex-wrap items-center gap-4 text-xxs text-neutral-600 dark:text-neutral-300">
-        <div className="flex items-center gap-2">
-          <span className="h-3.5 w-3.5 rounded bg-rose-100 border border-rose-300 dark:bg-rose-950/30 dark:border-rose-800" />
-          0–3h
+      {/* Pagination (only when custom and > 31 days) */}
+      {rangeMode === "custom" && needsPaging && (
+        <div className="flex items-center justify-end gap-2">
+          <button
+            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md border bg-white dark:bg-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-800 disabled:opacity-50"
+            onClick={() => setPageIndex((p) => Math.max(0, p - 1))}
+            disabled={pageIndex <= 0}
+          >
+            <ChevronLeft className="h-4 w-4" />
+            Prev
+          </button>
+          <span className="text-sm text-neutral-600 dark:text-neutral-300">
+            Page {pageIndex + 1} of {totalPages}
+          </span>
+          <button
+            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md border bg-white dark:bg-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-800 disabled:opacity-50"
+            onClick={() => setPageIndex((p) => Math.min(totalPages - 1, p + 1))}
+            disabled={pageIndex >= totalPages - 1}
+          >
+            Next
+            <ChevronRight className="h-4 w-4" />
+          </button>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="h-3.5 w-3.5 rounded bg-amber-100 border border-amber-300 dark:bg-amber-950/30 dark:border-amber-800" />
-          4–5h
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="h-3.5 w-3.5 rounded bg-emerald-100 border border-emerald-300 dark:bg-emerald-950/30 dark:border-emerald-800" />
-          6–8+h
-        </div>
-      </div>
+      )}
 
-      {/* Entries (calendar tiles) */}
+      {/* Day tiles — FIXED HEIGHT (no shrinking) */}
       <div>
         {!hasData ? (
           <div className="text-center py-10 text-neutral-500 dark:text-neutral-400">
@@ -454,16 +700,22 @@ export default function TimeSheet({ initialWindow, data, detailsByDate, tenantId
             {windowSeries.map((item, idx) => {
               const hasHours = typeof item.hours === "number";
               const dateKey = keyOf(item.date);
-              const dayAll = detailsByDate?.[dateKey] || [];
-              const daySessions = selectedProject === "all" ? dayAll : dayAll.filter((r) => r.project_id === selectedProject);
+              const dayAll = localDetailsByDate?.[dateKey] || [];
+              const daySessions = dayAll.filter((r) => {
+                const pOK = selectedProject === "all" || r.project_id === selectedProject;
+                const uOK = selectedUser === "all" || r.user_id === selectedUser;
+                return pOK && uOK;
+              });
               const hasSessions = daySessions.length > 0;
 
               return (
                 <div
                   key={`${format(item.date, "yyyy-MM-dd", { locale: enUS })}-${idx}`}
-                  className={cn("relative rounded-lg p-3 text-center transition-colors min-h-24 group", getBoxChrome(item.hours))}
+                  className={cn(
+                    "relative rounded-lg p-3 text-center transition-colors h-36 flex flex-col justify-between",
+                    getBoxChrome(item.hours)
+                  )}
                 >
-                  {/* Edit opens only when sessions exist for selected project */}
                   {hasSessions && (
                     <button
                       type="button"
@@ -481,27 +733,33 @@ export default function TimeSheet({ initialWindow, data, detailsByDate, tenantId
                     </button>
                   )}
 
-                  <div className="text-[10px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
-                    {format(item.date, "EEE", { locale: enUS })}
-                  </div>
-                  <div className="text-xl font-semibold leading-none text-neutral-900 dark:text-neutral-100">
-                    {format(item.date, "d", { locale: enUS })}
-                  </div>
-                  <div className="text-[11px] mb-2 text-neutral-500 dark:text-neutral-400">
-                    {format(item.date, "MMM yyyy", { locale: enUS })}
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+                      {format(item.date, "EEE", { locale: enUS })}
+                    </div>
+                    <div className="text-xl font-semibold leading-none text-neutral-900 dark:text-neutral-100">
+                      {format(item.date, "d", { locale: enUS })}
+                    </div>
+                    <div className="text-[11px] mb-2 text-neutral-500 dark:text-neutral-400">
+                      {format(item.date, "MMM yyyy", { locale: enUS })}
+                    </div>
                   </div>
 
-                  {item.label ? (
-                    <div className="inline-flex items-center gap-1 text-sm font-medium text-neutral-700 dark:text-neutral-200">
-                      <Clock className="h-4 w-4" />
-                      <span>{item.label}</span>
-                    </div>
-                  ) : hasHours ? (
-                    <div className={cn("inline-flex items-center gap-1 text-xl font-semibold", getHourTextTone(item.hours))}>
-                      <Clock className="h-4.5 w-4.5" />
-                      <span>{item.hours}h</span>
-                    </div>
-                  ) : null}
+                  <div className="min-h-[1.25rem]">
+                    {item.label ? (
+                      <div className="inline-flex items-center gap-1 text-sm font-medium text-neutral-700 dark:text-neutral-200">
+                        <Clock className="h-4 w-4" />
+                        <span>{item.label}</span>
+                      </div>
+                    ) : hasHours ? (
+                      <div className={cn("inline-flex items-center gap-1 text-xl font-semibold", getHourTextTone(item.hours))}>
+                        <Clock className="h-4 w-4" />
+                        <span>{item.hours}h</span>
+                      </div>
+                    ) : (
+                      <div className="text-xs text-neutral-400 dark:text-neutral-500">—</div>
+                    )}
+                  </div>
                 </div>
               );
             })}
