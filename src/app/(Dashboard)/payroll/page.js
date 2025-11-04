@@ -135,7 +135,7 @@ export default async function Page() {
     console.error("[Payroll] API call ERROR:", err);
   }
 
-  console.log("[Payroll]---------------|| data:", data);
+  console.log("[Payroll-page.js]-----Date wise sobgula session er payment value.....|||||||----------|| data: for ",currentUser.role, data);
 
   return (
     <div className="p-6 bg-gradient-to-br from-blue-50 to-indigo-50 min-h-screen">

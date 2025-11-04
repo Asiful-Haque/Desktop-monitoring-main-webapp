@@ -189,6 +189,7 @@ const AddUserModal = ({ addUserModalOpen, setAddUserModalOpen }) => {
                   <SelectItem value="Product Manager">
                     Product Manager
                   </SelectItem>
+                  <SelectItem value="Freelancer">Freelancer</SelectItem>
                 </SelectContent>
               </Select>
             </div>

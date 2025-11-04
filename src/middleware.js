@@ -76,11 +76,11 @@ console.log("Middleware initialized. Protected pages:", PROTECTED_PAGES);
 const ROLE_GUARDS = [
   {
     prefix: "/adminDashboard",
-    allowed: ["Developer", "Admin", "Project Manager", "CEO", "Team Lead"],
+    allowed: ["Developer", "Admin", "Project Manager", "CEO", "Team Lead", "Freelancer"],
   },
   {
     prefix: "/tasks",
-    allowed: ["Developer", "Admin", "Project Manager", "Team Lead"],
+    allowed: ["Developer", "Admin", "Project Manager", "Team Lead", "Freelancer"],
   },
   {
     prefix: "/meetings",
@@ -93,12 +93,12 @@ const ROLE_GUARDS = [
   },
   { prefix: "/analytics", allowed: ["Admin", "Project Manager"] },
   { prefix: "/settings", allowed: ["Admin"] },
-  { prefix: "/time-sheet", allowed: ["Developer", "Admin"] },
+  { prefix: "/time-sheet", allowed: ["Developer", "Admin", "Freelancer"] },
   {
     prefix: "/payroll",
-    allowed: ["Developer", "Admin", "Project Manager", "CEO", "Team Lead"],
+    allowed: ["Developer", "Admin", "Project Manager", "CEO", "Team Lead", "Freelancer"],
   },
-  { prefix: "/manual-time", allowed: ["Developer"] },
+  { prefix: "/manual-time", allowed: ["Developer", "Freelancer"] },
 ];
 function findGuard(pathname) {
   return ROLE_GUARDS.find((g) => pathname.startsWith(g.prefix)) || null;

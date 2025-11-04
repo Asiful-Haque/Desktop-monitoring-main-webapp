@@ -18,7 +18,7 @@ export class UsersService {
         "user.user_id AS user_id",
         "user.username AS username",
         "user.email AS email",
-        "user.default_hour_rate AS default_hour_rate", 
+        "user.default_hour_rate AS default_hour_rate",
         "user.created_at AS created_at",
         "r.role_name AS role_name",
       ])
@@ -37,19 +37,29 @@ export class UsersService {
         "user_id",
         "username",
         "email",
-        "default_hour_rate", 
+        "default_hour_rate",
         "created_at",
       ],
     });
   }
 
-  async createUser(username, email, roleName, password, tenant_id, default_hour_rate) {
+  async createUser(
+    username,
+    email,
+    roleName,
+    password,
+    tenant_id,
+    default_hour_rate
+  ) {
     const ds = await getDataSource();
     const userRepo = ds.getRepository(User);
     const roleRepo = ds.getRepository(Role);
     const userRoleRepo = ds.getRepository(UserRoles);
 
     const hashedPassword = await bcrypt.hash(password, 10);
+
+    // determine approval value based on role
+    const timeSheetApproval = roleName === "Freelancer" ? 0 : 1;
 
     const user = userRepo.create({
       username,
@@ -59,6 +69,7 @@ export class UsersService {
         default_hour_rate !== undefined && default_hour_rate !== null
           ? Number(parseFloat(default_hour_rate).toFixed(2))
           : 0.0,
+      time_sheet_approval: timeSheetApproval,
     });
 
     const savedUser = await userRepo.save(user);
@@ -76,5 +87,30 @@ export class UsersService {
     await userRoleRepo.save(userRole);
 
     return savedUser;
+  }
+
+  //Time sheet approval status: 0 = Approved, 1 = Sent/Pending
+  async setTimeSheetApproval(userId, value /* 0 | 1 | 2 */) {
+    const ds = await getDataSource();
+    const userRepo = ds.getRepository(User);
+
+    await userRepo.update({ user_id: userId }, { time_sheet_approval: value });
+
+    const updated = await userRepo.findOne({
+      where: { user_id: userId },
+      select: ["user_id", "time_sheet_approval"],
+    });
+    return updated?.time_sheet_approval ?? null;
+  }
+
+  async getTimeSheetApproval(userId) {
+    const ds = await getDataSource();
+    const userRepo = ds.getRepository(User);
+
+    const user = await userRepo.findOne({
+      where: { user_id: userId },
+      select: ["user_id", "time_sheet_approval"],
+    });
+    return user?.time_sheet_approval ?? null;
   }
 }

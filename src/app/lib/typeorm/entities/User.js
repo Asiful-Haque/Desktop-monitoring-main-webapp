@@ -24,11 +24,16 @@ export const User = new EntitySchema({
       type: "varchar",
       length: 255,
     },
-    default_hour_rate: {   
+    default_hour_rate: {
       type: "decimal",
       precision: 10,
       scale: 2,
       nullable: true,
+    },
+    time_sheet_approval: {
+      type: "int",
+      nullable: true,
+      default: null,
     },
     created_at: {
       type: "timestamp",
@@ -68,8 +73,8 @@ export const User = new EntitySchema({
     },
     transactions_rel: {
       type: "one-to-many",
-      target: "Transaction",  
-      inverseSide: "developer_rel", 
+      target: "Transaction",
+      inverseSide: "developer_rel",
     },
   },
 });

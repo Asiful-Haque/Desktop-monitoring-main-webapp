@@ -239,6 +239,7 @@ export default function PayrollComponent({
   pageSize = 10,
   currentUser,
 }) {
+  console.log(" [PayrollComponent] initialDailyData for : ",currentUser.role, initialDailyData);
   const [rows, setRows] = useState(
     Array.isArray(initialDailyData) ? initialDailyData : []
   );
@@ -433,76 +434,101 @@ export default function PayrollComponent({
       <TabsNav
         activeTab={activeTab}
         setActiveTab={setActiveTab}
-        canShowFixed={currentUser?.role !== "Developer"}
+        canShowFixed={currentUser?.role === "Admin" }
       />
 
       {/* Tab Content */}
-      <div className="mt-6">
-        {activeTab === "hourly" &&
-          (isAdmin ? (
+{/* Tab Content */}
+<div className="mt-6">
+  {activeTab === "hourly" && (
+    currentUser?.role === "Freelancer" ? (
+      // Freelancer view: show message, no payroll
+      <div className="space-y-3">
+        <Card className="border-amber-300">
+          <CardHeader>
+            <CardTitle className="text-xl">Access Restricted</CardTitle>
+            <CardDescription>
+              You are not allowed to see the payroll. Please check the
+              <span className="font-medium text-amber-700"> History </span>
+              tab for your payment tracking.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex gap-3">
+            <Button variant="outline" onClick={() => setActiveTab("history")}>
+              Go to History
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    ) : (
+      // Non-freelancer hourly view (existing behavior)
+      currentUser?.role === "Admin" ? (
+        <div>
+          <AdminPayrollComponent currentUser={currentUser} />
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
-              <AdminPayrollComponent currentUser={currentUser} />
+              <h1 className="text-3xl font-bold flex items-center gap-2">
+                <DollarSign className="h-8 w-8 text-primary" />
+                Payroll (Daily Summary)
+              </h1>
+              <p className="text-muted-foreground mt-1">
+                Payable days only (payment &gt; 0)
+              </p>
+            </div>
+
+            <HeaderWithSubmitAll
+              hasRows={currentRows.length !== 0}
+              allVisibleProcessed={allVisibleProcessed}
+              onSubmitAll={handleProcessAllVisible}
+            />
+          </div>
+
+          <SummaryCards
+            payableCount={payableRows.length}
+            totalHours={totalHours}
+            totalPayment={totalPayment}
+          />
+
+          {isEmpty ? (
+            <div className="text-center text-muted-foreground">
+              <h2 className="text-lg font-semibold">
+                Nothing to submit for payment.
+              </h2>
+              <p className="mt-2">No payable days available.</p>
             </div>
           ) : (
-            <div className="space-y-3">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <div>
-                  <h1 className="text-3xl font-bold flex items-center gap-2">
-                    <DollarSign className="h-8 w-8 text-primary" />
-                    Payroll (Daily Summary)
-                  </h1>
-                  <p className="text-muted-foreground mt-1">
-                    Payable days only (payment &gt; 0)
-                  </p>
-                </div>
-
-                <HeaderWithSubmitAll
-                  hasRows={currentRows.length !== 0}
-                  allVisibleProcessed={allVisibleProcessed}
-                  onSubmitAll={handleProcessAllVisible}
-                />
-              </div>
-
-              <SummaryCards
-                payableCount={payableRows.length}
-                totalHours={totalHours}
-                totalPayment={totalPayment}
+            currentRows.map((r) => (
+              <PayableRowCard
+                key={r.id}
+                row={r}
+                isDone={!!processed[r.id]}
+                onSubmit={() =>
+                  handleProcess(r.id, r.date, r.payment, r.hours, r.label || 0)
+                }
               />
+            ))
+          )}
+        </div>
+      )
+    )
+  )}
 
-              {isEmpty ? (
-                <div className="text-center text-muted-foreground">
-                  <h2 className="text-lg font-semibold">
-                    Nothing to submit for payment.
-                  </h2>
-                  <p className="mt-2">No payable days available.</p>
-                </div>
-              ) : (
-                currentRows.map((r) => (
-                  <PayableRowCard
-                    key={r.id}
-                    row={r}
-                    isDone={!!processed[r.id]}
-                    onSubmit={() =>
-                      handleProcess(r.id, r.date, r.payment, r.hours, r.label || 0)
-                    }
-                  />
-                ))
-              )}
-            </div>
-          ))}
+  {activeTab === "fixed" && currentUser?.role !== "Developer" && (
+    <div>
+      <FixedPayment />
+    </div>
+  )}
 
-        {activeTab === "fixed" && currentUser?.role !== "Developer" && (
-          <div>
-            <FixedPayment />
-          </div>
-        )}
+  {activeTab === "history" && (
+    <div>
+      <PaymentHistory currentUser={currentUser} />
+    </div>
+  )}
+</div>
 
-        {activeTab === "history" && (
-          <div>
-            <PaymentHistory currentUser={currentUser} />
-          </div>
-        )}
-      </div>
 
       {/* Pagination */}
       <PaginationComponent

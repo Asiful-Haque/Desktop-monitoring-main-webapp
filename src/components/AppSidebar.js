@@ -27,16 +27,16 @@ import {
 } from "@/components/ui/sidebar";
 
 const navigationItems = [
-  { title: "Dashboard", url: "/adminDashboard", icon: Home, roles: ["Developer", "Admin", "Project Manager", "CEO", "Team Lead"] },
-  { title: "Tasks", url: "/tasks", icon: CheckSquare, roles: ["Developer", "Admin", "Project Manager", "Team Lead"] },
+  { title: "Dashboard", url: "/adminDashboard", icon: Home, roles: ["Developer", "Admin", "Project Manager", "CEO", "Team Lead", "Freelancer"] },
+  { title: "Tasks", url: "/tasks", icon: CheckSquare, roles: ["Developer", "Admin", "Project Manager", "Team Lead", "Freelancer"] },
   { title: "Meetings", url: "/meetings", icon: Calendar, roles: ["Developer", "Admin", "Project Manager", "Team Lead"] },
   { title: "Screenshots", url: "/gallery", icon: Image, roles: ["Admin", "Project Manager", "CEO"] },
   { title: "Team", url: "/team", icon: Users, roles: ["Developer", "Admin", "Project Manager", "CEO", "Team Lead"] },
   { title: "Analytics", url: "/analytics", icon: BarChart3, roles: ["Admin", "Project Manager"] },
   { title: "Settings", url: "/settings", icon: Settings, roles: ["Admin"] },
-  { title: "Time Sheet", url: "/time-sheet", icon: CalendarDays, roles: ["Developer","Admin"] },
-  { title: "Payroll", url: "/payroll", icon: DollarSign, roles: ["Developer", "Admin", "Project Manager", "CEO", "Team Lead"] },
-  { title: "Manual Time", url: "/manual-time", icon: Clock, roles: ["Developer"] },
+  { title: "Time Sheet", url: "/time-sheet", icon: CalendarDays, roles: ["Developer","Admin", "Freelancer"] },
+  { title: "Payroll", url: "/payroll", icon: DollarSign, roles: ["Developer", "Admin", "Project Manager", "CEO", "Team Lead", "Freelancer"] },
+  { title: "Manual Time", url: "/manual-time", icon: Clock, roles: ["Developer", "Freelancer"] },
 ];
 
 export function AppSidebar({ user }) {
