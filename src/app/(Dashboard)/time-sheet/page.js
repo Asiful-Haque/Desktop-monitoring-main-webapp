@@ -5,6 +5,7 @@ import jwt from "jsonwebtoken";
 export const dynamic = "force-dynamic";
 
 /** ----------------------- helpers ----------------------- **/
+// Helper functions remain unchanged
 function ymd(d) {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -135,12 +136,12 @@ export default async function Page() {
 
     const item_user_id = row?.user_id ?? row?.dev_user_id ?? row?.developer_id ?? userId ?? null;
     const item_user_name = row?.user_name ?? row?.developer_name ?? userName ?? null;
-    const item_role = String(row?.role ?? row?.developer_role ?? "")
-      .trim()
-      .toLowerCase() || null;
+    const item_role =
+      String(row?.role ?? row?.developer_role ?? "").trim().toLowerCase() || null;
     if (Number.isFinite(item_user_id) && item_role) rolesByUserId.set(item_user_id, item_role);
 
-    const flagger = typeof row?.flagger === "number" ? row.flagger : Number(row?.flagger ?? 0);
+    const flagger =
+      typeof row?.flagger === "number" ? row.flagger : Number(row?.flagger ?? 0);
 
     const contextPrefix = `[${project_name ?? project_id ?? "Project?"}] ${task_name ?? task_id ?? "Task?"} — `;
 
@@ -158,6 +159,7 @@ export default async function Page() {
       user_name: item_user_name,
       user_role: item_role,
       flagger,
+      session_payment: typeof row?.session_payment === "number" ? row.session_payment : 0,
     };
 
     const list = daySessions.get(dayKey) || [];
@@ -171,17 +173,39 @@ export default async function Page() {
       detailsByDate[date] = sessions;
       const totalSecs = sessions.reduce((acc, s) => acc + s.seconds, 0);
       const hours = Math.round((totalSecs / 3600) * 100) / 100;
-      return { date, hours, label: formatHMS(totalSecs) };
+
+      // ✅ Include the serial IDs and payment for this day
+      const serial_ids = Array.from(
+        new Set(
+          sessions
+            .map((s) => s.serial_id)
+            .filter((x) => x !== null && x !== undefined && x !== "")
+        )
+      );
+      const session_payments = sessions.map((s) => s.session_payment);
+      const flaggers = sessions.map((s) => s.flagger);  
+      const user_id = sessions.map((s) => s.user_id);
+
+      return {
+        date,
+        hours,
+        label: formatHMS(totalSecs),
+        serial_ids, // serial IDs for the day
+        session_payments, // corresponding payments for each session
+        flaggers,  // Include flaggers in the data as well
+        user_id,
+      };
     })
     .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 
   const userRolesById = Object.fromEntries(rolesByUserId);
+  console.log("sending data from page.js to TimeSheet component: ", data);
 
   return (
     <div className="min-h-screen">
       <TimeSheet
         initialWindow={31}
-        data={data}
+        data={data}                 // now contains { date, hours, label, serial_ids, session_payments, flaggers }
         detailsByDate={detailsByDate}
         userRole={userRole || "Developer"}
         userId={userId}

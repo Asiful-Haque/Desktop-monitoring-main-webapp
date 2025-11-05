@@ -1,6 +1,6 @@
 // /app/lib/payrollActions.js
-// One file that contains: API calls + shared helpers + both submit actions.
-// Behavior mirrors your existing code (toasts, logs, optimistic UI, abort policy).
+// One file that contains: API calls + shared helpers + both submit actions
+// + admin-friendly helpers. Existing behavior preserved.
 
 import { toast } from "sonner";
 
@@ -65,14 +65,26 @@ export async function getNextTxnFactory(currentUser) {
   return (offset = 1) => `Trx_tnt${tenantId}_${lastVal + offset}`;
 }
 
-export async function createTxnAndLogs({ currentUser, hours, payment, txnNumber, data }) {
+/**
+ * createTxnAndLogs
+ * - NEW: optional developerId override for admin submit-for-user.
+ *   Defaults to currentUser.id -> no behavior change for existing flows.
+ */
+export async function createTxnAndLogs({
+  currentUser,
+  hours,
+  payment,
+  txnNumber,
+  data,
+  developerId, // optional (admin submit-for-user)
+}) {
   console.log("data to send to apiCreateTransaction:---------------------", data);
 
   await apiCreateTransaction({
     transaction_number: txnNumber,
     hours,
     payment_of_transaction: payment,
-    developer_id: currentUser?.id,
+    developer_id: developerId ?? currentUser?.id, // <—
     status: "pending",
   });
 
@@ -85,17 +97,81 @@ export async function createTxnAndLogs({ currentUser, hours, payment, txnNumber,
   toast.success(`Transaction created: ${txnNumber}`);
 }
 
-/* ------------------------- ACTION: SUBMIT SINGLE ROW -------------------------- */
+/* ---------------------- DAILY PAYABLES BUILDER (NEW) ---------------------- */
 /**
- * Mirrors your handleProcess() exactly (optimistic flag, txn factory, create txn,
- * mark processed (single date + full clicked row), toasts, and row removal by id).
+ * Build "PayrollComponent-style" daily rows from a detailsByDate map.
+ * Includes only items with session_payment > 0.
+ * Optionally filters to a specific user and excludes already processed (flagger === 1).
  *
- * Params:
- * - id, date: identify the row to process
- * - rows, setRows: full list + setter (to remove the row after success)
- * - processed, setProcessed: processed map + setter
- * - currentUser: { id, tenant_id }
+ * Input requirements for each item in detailsByDate[date]:
+ *   - seconds            (number)
+ *   - session_payment    (number)
+ *   - serial_id          (string|number)
+ *   - user_id            (number)
+ *   - flagger            (0|1) — if you want to exclude processed ones
+ *
+ * Output rows shape (same as PayrollComponent):
+ *   { id, date, hours, label, payment, serial_ids }
  */
+export function buildDailyPayablesFromDetails(
+  detailsByDate,
+  { userId, excludeProcessed = true } = {}
+) {
+  if (!detailsByDate) return [];
+
+  console.log("detailsByDate in buildDailyPayablesFromDetails:............common..............", detailsByDate);
+
+  const dayMap = new Map(); // dateKey -> { secs, payment, serial_ids[] }
+  for (const [dateKey, items] of Object.entries(detailsByDate)) {
+    const list = Array.isArray(items) ? items : [];
+    const filtered = list.filter((it) => {
+      if (userId != null && it.user_id !== userId) return false;
+      if (excludeProcessed && Number(it?.flagger) === 1) return false;
+      const pay = Number(it?.session_payment) || 0;
+      return pay > 0;
+    });
+    if (!filtered.length) continue;
+
+    let secs = 0;
+    let payment = 0;
+    const serial_ids = [];
+    for (const it of filtered) {
+      secs += Number(it?.seconds || 0);
+      payment += Number(it?.session_payment || 0);
+      if (it?.serial_id != null) serial_ids.push(it.serial_id);
+    }
+
+    const curr = dayMap.get(dateKey) || { secs: 0, payment: 0, serial_ids: [] };
+    curr.secs += secs;
+    curr.payment += payment;
+    curr.serial_ids.push(...serial_ids);
+    dayMap.set(dateKey, curr);
+  }
+
+  let idCounter = 1;
+  return Array.from(dayMap.entries())
+    .map(([date, { secs, payment, serial_ids }]) => ({
+      id: idCounter++,
+      date,
+      hours: Math.round((secs / 3600) * 100) / 100,
+      label: secondsToLabel(secs),
+      payment,
+      serial_ids,
+    }))
+    .filter((r) => r.payment > 0)
+    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+}
+
+function secondsToLabel(totalSec) {
+  const s = Math.max(0, Math.floor(totalSec || 0));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  return `${h}h ${String(m).padStart(2, "0")}m ${String(sec).padStart(2, "0")}s`;
+}
+
+/* ------------------------- ACTION: SUBMIT SINGLE ROW -------------------------- */
+
 export async function submitSinglePayment({
   id,
   date,
@@ -104,6 +180,7 @@ export async function submitSinglePayment({
   processed,
   setProcessed,
   currentUser,
+  developerId, // optional (admin submit-for-user)
 }) {
   // optimistic ON
   setProcessed((prev) => ({ ...prev, [id]: true }));
@@ -137,6 +214,7 @@ export async function submitSinglePayment({
       payment: clickedRowLogs.payment,
       txnNumber: newTransactionNumber,
       data: clickedRowLogs,
+      developerId, // <—
     });
   } catch (error) {
     console.error("create transaction/logs error:", error);
@@ -149,7 +227,7 @@ export async function submitSinglePayment({
   try {
     await apiMarkIdsProcessed({
       dates: [date],
-      userId: currentUser?.id,
+      userId: developerId ?? currentUser?.id, // <—
       data: clickedRowLogs,
     });
 
@@ -167,23 +245,14 @@ export async function submitSinglePayment({
 }
 
 /* ----------------------- ACTION: SUBMIT ALL VISIBLE ROWS ---------------------- */
-/**
- * Mirrors your handleProcessAllVisible() (optimistic batch, txn factory, per-row
- * create txn+logs with abort on first failure, then server mark with dates +
- * serial_ids.flat(), then remove rows by date).
- *
- * Params:
- * - currentRows: visible/page rows
- * - processed, setProcessed
- * - setRows
- * - currentUser
- */
+
 export async function submitAllVisiblePayments({
   currentRows,
   processed,
   setProcessed,
   setRows,
   currentUser,
+  developerId, // optional (admin submit-for-user)
 }) {
   const toProcess = currentRows.filter((r) => !processed[r.id]);
   console.log("toProcesssssssssssssssssssssssssss:", toProcess);
@@ -224,6 +293,7 @@ export async function submitAllVisiblePayments({
         payment: row.payment,
         txnNumber: txn,
         data: row,
+        developerId, // <—
       });
     } catch (err) {
       console.error("create transaction/logs error:", err);
@@ -248,7 +318,7 @@ export async function submitAllVisiblePayments({
 
     await apiMarkIdsProcessed({
       dates,
-      userId: currentUser?.id,
+      userId: developerId ?? currentUser?.id, // <—
       data: (data || []).flat(),
     });
 
