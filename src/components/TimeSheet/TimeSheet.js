@@ -682,16 +682,16 @@ export default function TimeSheet({
   async function handleAdminApproveSelected() { //----------------Thats the crucial part----------------
     if (!isSelectedFreelancer) return;
     try {
-      // setAdminSelLoading(true);
-      // const res = await fetch("/api/users/Time-sheet-approval/approve", {
-      //   method: "POST",
-      //   headers: { "Content-Type": "application/json" },
-      //   body: JSON.stringify({ user_id: selectedUser }),
-      // });
-      // const j = await res.json();
-      // if (!res.ok) throw new Error(j?.message || "Failed to approve");
-      // const v = Number(j?.time_sheet_approval);
-      // setAdminSelApproval(Number.isFinite(v) ? v : 0); // approved -> 0
+      setAdminSelLoading(true);
+      const res = await fetch("/api/users/Time-sheet-approval/approve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: selectedUser }),
+      });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j?.message || "Failed to approve");
+      const v = Number(j?.time_sheet_approval);
+      setAdminSelApproval(Number.isFinite(v) ? v : 0); // approved -> 0
       console.log("Admin approve action for user id:", selectedUser);
     } catch (e) {
       alert(e?.message || "Could not approve timesheet");
