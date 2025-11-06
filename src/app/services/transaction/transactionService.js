@@ -4,7 +4,7 @@ import { getDataSource } from "@/app/lib/typeorm/db/getDataSource";
 import { PaymentLog } from "@/app/lib/typeorm/entities/PaymentLog";
 import { TimeTracking } from "@/app/lib/typeorm/entities/TimeTracking";
 import { Transaction } from "@/app/lib/typeorm/entities/Transaction";
-import { In } from "typeorm"; 
+import { In } from "typeorm";
 
 export class TransactionService {
   async repo() {
@@ -23,7 +23,9 @@ export class TransactionService {
         .take(1)
         .getRawOne();
 
-      return lastTransaction ? lastTransaction.t_transaction_number : "Trx_tnt1_0";
+      return lastTransaction
+        ? lastTransaction.t_transaction_number
+        : "Trx_tnt1_0";
     } catch (error) {
       console.error("❌ Error fetching last transaction:", error);
       throw new Error("Failed to retrieve last transaction");
@@ -92,14 +94,15 @@ export class TransactionService {
   }
 
   //admin parts
-
   async getPendingDatoForAdminToPayorReject() {
     const ds = await getDataSource();
     const repo = ds.getRepository(Transaction);
 
-    const pending = await repo
+    const qb = repo
       .createQueryBuilder("transaction")
-      .leftJoinAndSelect("transaction.developer_rel", "developer") // Join with User table (developer_rel)
+      .leftJoinAndSelect("transaction.developer_rel", "developer") // keep your dev join
+      .leftJoin("developer.user_roles_rel", "ur") // join user_roles
+      .leftJoin("ur.role_rel", "role") // join roles
       .select([
         "transaction.id",
         "transaction.transaction_number",
@@ -108,19 +111,37 @@ export class TransactionService {
         "transaction.hour",
         "transaction.created_at",
         "transaction.updated_at",
-        "developer.username", // Include developer username (name)
+        "developer.username",
       ])
-      .where("transaction.status = :status", { status: "pending" })
-      .getMany();
+      .addSelect("role.role_name", "dev_role") // grab role name
+      .where("transaction.status = :status", { status: "pending" });
+
+    const { entities, raw } = await qb.getRawAndEntities();
+
+    // Map transaction.id -> role_name (first hit wins)
+    const roleByTxnId = new Map();
+    for (const r of raw) {
+      const txnId = r["transaction_id"];
+      if (!roleByTxnId.has(txnId)) {
+        roleByTxnId.set(txnId, r["dev_role"] || null);
+      }
+    }
+
+    // stitch role onto developer_rel.role (naming unchanged)
+    const pending = entities.map((t) => ({
+      ...t,
+      developer_rel: t.developer_rel
+        ? { ...t.developer_rel, role: roleByTxnId.get(t.id) || null }
+        : t.developer_rel,
+    }));
 
     return pending;
   }
-
   async findByTransactionNumber(transaction_number) {
     const repo = await this.repo();
     return repo.findOne({ where: { transaction_number } });
   }
- async rejectTransaction(transaction_number) {
+  async rejectTransaction(transaction_number) {
     const repo = await this.repo();
 
     // Step 1: Find the transaction by its transaction_number
@@ -131,8 +152,8 @@ export class TransactionService {
     await repo.update({ transaction_number }, { status: "rejected" });
 
     // Step 3: Find the related payment logs to get serial_ids
-    const ds = await getDataSource();  
-    const paymentLogRepo = ds.getRepository(PaymentLog);  
+    const ds = await getDataSource();
+    const paymentLogRepo = ds.getRepository(PaymentLog);
     const paymentLogs = await paymentLogRepo.find({
       where: { transaction_number },
     });
@@ -142,10 +163,10 @@ export class TransactionService {
 
     // Step 5: Update flagger to 0 for the related time tracking records
     if (serialIds.length > 0) {
-      const timeTrackingRepo = ds.getRepository(TimeTracking); 
+      const timeTrackingRepo = ds.getRepository(TimeTracking);
       await timeTrackingRepo.update(
-        { serial_id: In(serialIds) }, 
-        { flagger: 0 }  
+        { serial_id: In(serialIds) },
+        { flagger: 0 }
       );
     }
 
@@ -163,7 +184,7 @@ export class TransactionService {
     await repo.update({ transaction_number }, { status: "paid" });
 
     // Step 3: Find the related payment logs to get serial_ids
-    const ds = await getDataSource();  // Initialize the DataSource
+    const ds = await getDataSource(); // Initialize the DataSource
     const paymentLogRepo = ds.getRepository(PaymentLog); // Get the PaymentLog repository
     const paymentLogs = await paymentLogRepo.find({
       where: { transaction_number },
@@ -177,7 +198,7 @@ export class TransactionService {
       const timeTrackingRepo = ds.getRepository(TimeTracking); // Get the TimeTracking repository
       await timeTrackingRepo.update(
         { serial_id: In(serialIds) }, // Use "In" to match multiple serial_ids
-        { flagger: 2 }  // Set flagger to 2
+        { flagger: 2 } // Set flagger to 2
       );
     }
 

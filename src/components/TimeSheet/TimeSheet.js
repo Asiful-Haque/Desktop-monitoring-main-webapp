@@ -196,15 +196,8 @@ function computeSecondsFromRow(row) {
   return 0;
 }
 
-/* ---------------- local builder: make Payroll-shaped payables for one user ----------------
-   This version:
-   - keeps days with tiny seconds (even if hours rounds to 0)
-   - uses "0h 00m 56s" style label from total seconds
-   - sums payment
-   - assigns incremental id: 1..N by ascending date
-*/
+/* ---------------- local builder: make Payroll-shaped payables for one user ---------------- */
 function buildDailyPayablesForUser(detailsByDate, userId) {
-  // detailsByDate: { "YYYY-MM-DD": [ { user_id, serial_id, seconds, session_payment, flagger, ... } ] }
   if (!detailsByDate || userId == null) return [];
 
   const datesAsc = Object.keys(detailsByDate).sort((a, b) =>
@@ -226,8 +219,8 @@ function buildDailyPayablesForUser(detailsByDate, userId) {
     const totalSecs = mine.reduce((acc, s) => acc + (Number(s?.seconds) || 0), 0);
     if (totalSecs <= 0) continue; // truly zero
 
-    const hours = Math.round((totalSecs / 3600) * 100) / 100; // 2 decimals
-    const label = secondsToLabel(totalSecs); // "0h 00m 56s"
+    const hours = Math.round((totalSecs / 3600) * 100) / 100;
+    const label = secondsToLabel(totalSecs);
     const payment = mine.reduce(
       (acc, s) => acc + (Number(s?.session_payment) || 0),
       0
@@ -237,7 +230,7 @@ function buildDailyPayablesForUser(detailsByDate, userId) {
       .filter((x) => x != null && x !== "");
 
     out.push({
-      id: runningId++, // 1..N
+      id: runningId++,
       date, // "YYYY-MM-DD"
       hours,
       label,
@@ -247,6 +240,19 @@ function buildDailyPayablesForUser(detailsByDate, userId) {
   }
 
   return out;
+}
+
+/* ---------- NEW: helper to detect any unprocessed (flagger === 0) for a user ---------- */
+function hasAnyFlaggerZeroForUser(detailsByDate, userId) {
+  if (!detailsByDate || userId == null) return false;
+  for (const sessions of Object.values(detailsByDate)) {
+    for (const s of sessions) {
+      if (Number(s?.user_id) === Number(userId) && Number(s?.flagger) === 0) {
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 export default function TimeSheet({
@@ -261,10 +267,9 @@ export default function TimeSheet({
 }) {
   const router = useRouter();
   const isAdmin = String(userRole).toLowerCase() === "admin";
-  console.log("Data is here ........................", data);
 
-  // Range selection (buttons row). "custom" is admin-only.
-  const [rangeMode, setRangeMode] = useState("preset"); // 'preset' | 'custom'
+  // Range selection
+  const [rangeMode, setRangeMode] = useState("preset");
   const [windowDays, setWindowDays] = useState(
     [7, 15, 31].includes(initialWindow) ? initialWindow : 7
   );
@@ -412,8 +417,6 @@ export default function TimeSheet({
   }, [rangeMode, clientData]);
 
   const baseSeries = rangeMode === "custom" ? baseSeriesCustom : baseSeriesPreset;
-
-  console.log("selectedUser: ", selectedUser);
 
   // Apply filters
   const filteredSeries = useMemo(() => {
@@ -670,6 +673,12 @@ export default function TimeSheet({
 
   const targetUserId = currentUser?.id ?? userId;
 
+  // 🔒 NEW: computed flag whether there are any unprocessed (flagger===0) entries for this user
+  const hasUnprocessedForSelf = useMemo(
+    () => hasAnyFlaggerZeroForUser(localDetailsByDate, targetUserId),
+    [localDetailsByDate, targetUserId]
+  );
+
   async function fetchApprovalSelf() {
     try {
       setApprovalLoading(true);
@@ -700,6 +709,14 @@ export default function TimeSheet({
   }, [targetUserId, userRole]);
 
   async function handleApproveForPayment() {
+    // 🚫 NEW: block if there are no flagger===0 entries
+    if (!hasUnprocessedForSelf) {
+      alert(
+        "No unprocessed entries found in this range. Only days with entries marked flagger = 0 can be sent for payment."
+      );
+      return;
+    }
+
     try {
       setApprovalLoading(true);
       const res = await fetch("/api/users/Time-sheet-approval/send", {
@@ -718,29 +735,36 @@ export default function TimeSheet({
     }
   }
 
+  // NEW: dynamic tooltip text considering unprocessed availability
   const approvalStatusText = approvalLoading
     ? "Please wait…"
     : approval === 1
     ? "Already sent for payment"
+    : !hasUnprocessedForSelf
+    ? "No unprocessed entries (flagger = 0) to send"
     : approval === 2
     ? "It’s rejected — send again"
     : "Send your timesheet for payment";
+
+  // NEW: disable button if no unprocessed items
+  const disableSelfSend =
+    approvalLoading || approval === 1 || !hasUnprocessedForSelf;
 
   /* ----------------- Admin: Approve/Reject selected freelancer ----------------- */
   const [adminSelApproval, setAdminSelApproval] = useState(null);
   const [adminSelLoading, setAdminSelLoading] = useState(false);
   const [adminSelErr, setAdminSelErr] = useState(null);
 
-  const selectedUserIsSpecific =
+  const isAdminSelectedUserNumeric =
     isAdmin && selectedUser !== "all" && typeof selectedUser === "number";
 
   const selectedUserRole = useMemo(() => {
-    if (!selectedUserIsSpecific) return undefined;
+    if (!isAdminSelectedUserNumeric) return undefined;
     return (getRoleForUser(selectedUser) || "").toLowerCase();
-  }, [selectedUserIsSpecific, selectedUser, userRolesById]);
+  }, [isAdminSelectedUserNumeric, selectedUser, userRolesById]);
 
   const isSelectedFreelancer =
-    selectedUserIsSpecific && selectedUserRole === "freelancer";
+    isAdminSelectedUserNumeric && selectedUserRole === "freelancer";
 
   async function fetchApprovalForSelectedUser(uid) {
     try {
@@ -775,12 +799,12 @@ export default function TimeSheet({
 
   /* 🔍 DEBUG + build: whenever admin selects a freelancer, build the payables */
   const dailyPayablesForSelected = useMemo(() => {
-    if (!isAdmin || !selectedUserIsSpecific) return [];
+    if (!isAdmin || !isAdminSelectedUserNumeric) return [];
     return buildDailyPayablesForUser(localDetailsByDate, selectedUser);
-  }, [isAdmin, selectedUserIsSpecific, localDetailsByDate, selectedUser]);
+  }, [isAdmin, isAdminSelectedUserNumeric, localDetailsByDate, selectedUser]);
 
   useEffect(() => {
-    if (!isAdmin || !selectedUserIsSpecific) return;
+    if (!isAdmin || !isAdminSelectedUserNumeric) return;
 
     const tenant_id = currentUser?.tenant_id ?? "MISSING_TENANT";
     const admin_user_id = currentUser?.id ?? "MISSING_ADMIN_ID";
@@ -820,7 +844,7 @@ export default function TimeSheet({
     } catch (_) {}
   }, [
     isAdmin,
-    selectedUserIsSpecific,
+    isAdminSelectedUserNumeric,
     selectedUser,
     selectedUserName,
     dailyPayablesForSelected,
@@ -1089,11 +1113,11 @@ export default function TimeSheet({
           <div className="flex items-center justify-start">
             <button
               onClick={handleApproveForPayment}
-              disabled={approvalLoading || approval === 1}
+              disabled={disableSelfSend}
               title={approvalStatusText}
               className={cn(
                 "px-3 py-2 rounded-md text-sm font-medium transition shadow-sm",
-                approval === 1 || approvalLoading
+                disableSelfSend
                   ? "bg-neutral-300 text-neutral-600 cursor-not-allowed dark:bg-neutral-700 dark:text-neutral-300"
                   : "bg-indigo-600 text-white hover:bg-indigo-700"
               )}
@@ -1102,6 +1126,8 @@ export default function TimeSheet({
                 ? "Processing…"
                 : approval === 1
                 ? "Already sent for payment"
+                : !hasUnprocessedForSelf
+                ? "No unprocessed entries"
                 : approval === 2
                 ? "It’s rejected — send again"
                 : "Send your timesheet for payment"}
@@ -1116,7 +1142,7 @@ export default function TimeSheet({
       )}
 
       {/* ADMIN banner for selected freelancer */}
-      {isAdmin && isSelectedFreelancer && (
+      {isAdmin && isAdminSelectedUserNumeric && selectedUserRole === "freelancer" && (
         <div className="mt-2 space-y-2">
           <div className="text-sm font-medium text-neutral-700 dark:text-neutral-200">
             You need to approve this timesheet

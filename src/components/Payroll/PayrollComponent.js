@@ -223,24 +223,21 @@ export default function PayrollComponent({
   };
 
   const handleProcessAllVisible = async () => {
-    console.log("Submitting all visible payments...-------dummy log");
-    console.log("currentRows:", currentRows);
-    console.log("processed:", processed);
-    console.log("setProcessed:", setProcessed);
-    console.log("setRows:", setRows);
-    console.log("currentUser:", currentUser);
+    // console.log("Submitting all visible payments...-------dummy log");
+    // console.log("currentRows:", currentRows);
+    // console.log("processed:", processed);
+    // console.log("setProcessed:", setProcessed);
+    // console.log("setRows:", setRows);
+    // console.log("currentUser:", currentUser);
 
-    // await submitAllVisiblePayments({
-    //   currentRows,
-    //   processed,
-    //   setProcessed,
-    //   setRows,
-    //   currentUser,
-    // });
+    await submitAllVisiblePayments({
+      currentRows,
+      processed,
+      setProcessed,
+      setRows,
+      currentUser,
+    });
   };
-
-  console.log("**********************", currentRows);
-  console.log("**********************", processed);
 
   return (
     <div className="space-y-6">
@@ -256,7 +253,7 @@ export default function PayrollComponent({
       {/* Tab Content */}
       <div className="mt-6">
         {activeTab === "hourly" &&
-          (currentUser?.role === "LOLLLLLLLLLLLLLLLLLLLLLLLLLLLL" ? (
+          (currentUser?.role === "Freelancer" ? (
             <div className="space-y-3">
               <Card className="border-amber-300">
                 <CardHeader>

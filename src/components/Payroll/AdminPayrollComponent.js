@@ -18,12 +18,11 @@ const getStatusColor = (status) => {
   }
 };
 
-const initialsFromTrx = (trx = "") => {
-  if (!trx) return "";
-  const clean = String(trx).replace(/[^A-Za-z]/g, "");
-  if (clean.length >= 2) return (clean[0] + clean[1]).toUpperCase();
-  if (clean.length === 1) return clean[0].toUpperCase();
-  return "";
+const initialsFromTrx = (name = "") => {
+  if (!name) return "";
+  const parts = String(name).trim().split(/\s+/);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return parts[0]?.[0]?.toUpperCase() || "";
 };
 
 function AdminPayrollComponent({ currentUser }) {
@@ -94,7 +93,6 @@ function AdminPayrollComponent({ currentUser }) {
     if (page > totalPages) setPage(totalPages);
   }, [page, totalPages]);
 
-  // Handle the Pay button click - update status to "processed"
   const handlePay = async (transaction_number) => {
     if (!transaction_number) return;
     if (busy[transaction_number]) return;
@@ -109,7 +107,10 @@ function AdminPayrollComponent({ currentUser }) {
     setRows(nextRows);
 
     // Keep pagination sane if page empties
-    const newTotalPages = Math.max(1, Math.ceil(nextRows.length / itemsPerPage));
+    const newTotalPages = Math.max(
+      1,
+      Math.ceil(nextRows.length / itemsPerPage)
+    );
     if (page > newTotalPages) setPage(newTotalPages);
 
     try {
@@ -156,7 +157,10 @@ function AdminPayrollComponent({ currentUser }) {
     setRows(nextRows);
 
     // Keep pagination sane if page empties
-    const newTotalPages = Math.max(1, Math.ceil(nextRows.length / itemsPerPage));
+    const newTotalPages = Math.max(
+      1,
+      Math.ceil(nextRows.length / itemsPerPage)
+    );
     if (page > newTotalPages) setPage(newTotalPages);
 
     try {
@@ -221,94 +225,122 @@ function AdminPayrollComponent({ currentUser }) {
   return (
     <div className="space-y-4">
       <div className="space-y-3">
-        {visible.map((item) => (
-          <Card
-            key={`${item.transaction_number}-${item.id ?? ""}`}
-            className="hover:shadow-md transition-shadow border-l-4 border-blue-500"
-          >
-            <CardContent>
-              <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-                <div className="flex-1">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <div className="flex items-center gap-3 flex-wrap">
-                        <div className={avatarClass}>
-                          {initialsFromTrx(item.developer_rel.username)}
-                        </div>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h3 className="font-semibold text-lg">
-                            {item.developer_rel?.username }
-                          </h3>
-                        </div>
-                      </div>
-                      <div className="mt-1 text-xs text-muted-foreground">
-                        {item.created_at
-                          ? new Date(item.created_at).toLocaleString()
-                          : ""}
-                      </div>
-                    </div>
+        {visible.map((item) => {
+          const roleLower = String(item?.developer_rel?.role || "").toLowerCase();
+          const isFreelancer = roleLower === "freelancer";
+          const rejectDisabled =
+            !!busy[item.transaction_number] || item.status === "rejected" || isFreelancer;
 
-                    <div className="text-right">
-                      <p className="text-2xl font-bold text-primary">
-                        $
-                        {Number(
-                          item.payment_of_transaction ?? 0
-                        ).toLocaleString(undefined, {
-                          maximumFractionDigits: 2,
-                        })}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Hours: {Number(item.hour ?? 0)}
-                      </p>
+          return (
+            <Card
+              key={`${item.transaction_number}-${item.id ?? ""}`}
+              className="hover:shadow-md transition-shadow border-l-4 border-blue-500"
+            >
+              <CardContent>
+                <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+                  <div className="flex-1">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <div className="flex items-center gap-3 flex-wrap">
+                          <div className={avatarClass}>
+                            {initialsFromTrx(item?.developer_rel?.username)}
+                          </div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="font-semibold text-lg">
+                              {item.developer_rel?.username}
+                            </h3>
+                            {item?.developer_rel?.role && (
+                              <Badge variant="outline" className="text-xs">
+                                {item.developer_rel.role}
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          {item.created_at
+                            ? new Date(item.created_at).toLocaleString()
+                            : ""}
+                        </div>
+                      </div>
+
+                      <div className="text-right">
+                        <p className="text-2xl font-bold text-primary">
+                          $
+                          {Number(
+                            item.payment_of_transaction ?? 0
+                          ).toLocaleString(undefined, {
+                            maximumFractionDigits: 2,
+                          })}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Hours: {Number(item.hour ?? 0)}
+                        </p>
+                      </div>
                     </div>
                   </div>
+
+                  {isAdmin ? (
+                    <div>
+                      <div className="flex gap-2 w-full lg:w-auto">
+                        <Button
+                          onClick={() => handlePay(item.transaction_number)}
+                          variant="default"
+                          className="flex-1 lg:flex-initial bg-indigo-600 text-white hover:bg-indigo-700"
+                          disabled={!!busy[item.transaction_number]}
+                          title={
+                            busy[item.transaction_number]
+                              ? "Processing…"
+                              : "Mark as paid"
+                          }
+                        >
+                          <CreditCard className="mr-2 h-4 w-4" />
+                          Pay
+                        </Button>
+
+                        <Button
+                          onClick={() => handleReject(item.transaction_number)}
+                          variant="destructive"
+                          className={`flex-1 lg:flex-initial ${
+                            rejectDisabled ? "opacity-60 cursor-not-allowed" : ""
+                          }`}
+                          disabled={rejectDisabled}
+                          title={
+                            item.status === "rejected"
+                              ? "Already rejected"
+                              : isFreelancer
+                              ? "Reject is disabled for Freelancer"
+                              : busy[item.transaction_number]
+                              ? "Processing…"
+                              : "Reject this transaction"
+                          }
+                        >
+                          <XCircle className="mr-2 h-4 w-4" />
+                          {busy[item.transaction_number] ? "Rejecting…" : "Reject"}
+                        </Button>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground mt-2">
+                          Transaction: {item.transaction_number}
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="w-full lg:w-auto">
+                      <Badge
+                        variant="outline"
+                        className={`inline-flex items-center justify-center px-3 py-2 text-sm border ${getStatusColor(
+                          item.status
+                        )}`}
+                      >
+                        {item.status}
+                      </Badge>
+                    </div>
+                  )}
                 </div>
-
-                {isAdmin ? (
-                  <div>
-                    <div className="flex gap-2 w-full lg:w-auto">
-                      <Button
-                        onClick={() => handlePay(item.transaction_number)}
-                        variant="default"
-                        className="flex-1 lg:flex-initial bg-indigo-600 text-white hover:bg-indigo-700"
-                        disabled={!!busy[item.transaction_number]}
-                      >
-                        <CreditCard className="mr-2 h-4 w-4" />
-                        Pay
-                      </Button>
-                      <Button
-                        onClick={() => handleReject(item.transaction_number)}
-                        variant="destructive"
-                        className="flex-1 lg:flex-initial"
-                        disabled={!!busy[item.transaction_number] || item.status === "rejected"}
-                        title={item.status === "rejected" ? "Already rejected" : undefined}
-                      >
-                        <XCircle className="mr-2 h-4 w-4" />
-                        {busy[item.transaction_number] ? "Rejecting…" : "Reject"}
-                      </Button>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground mt-2">
-                        Transaction: {item.transaction_number}
-                      </p>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="w-full lg:w-auto">
-                    <Badge
-                      variant="outline"
-                      className={`inline-flex items-center justify-center px-3 py-2 text-sm border ${getStatusColor(
-                        item.status
-                      )}`}
-                    >
-                      {item.status}
-                    </Badge>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
 
       {/* Pagination Component */}
