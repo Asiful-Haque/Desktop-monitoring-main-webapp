@@ -223,13 +223,20 @@ export default function PayrollComponent({
   };
 
   const handleProcessAllVisible = async () => {
-    await submitAllVisiblePayments({
-      currentRows,
-      processed,
-      setProcessed,
-      setRows,
-      currentUser,
-    });
+    console.log("Submitting all visible payments...-------dummy log");
+    console.log("currentRows:", currentRows);
+    console.log("processed:", processed);
+    console.log("setProcessed:", setProcessed);
+    console.log("setRows:", setRows);
+    console.log("currentUser:", currentUser);
+
+    // await submitAllVisiblePayments({
+    //   currentRows,
+    //   processed,
+    //   setProcessed,
+    //   setRows,
+    //   currentUser,
+    // });
   };
 
   console.log("**********************", currentRows);

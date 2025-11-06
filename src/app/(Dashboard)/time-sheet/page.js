@@ -211,6 +211,7 @@ export default async function Page() {
         userId={userId}
         userRolesById={userRolesById}
         apiUrl={apiUrl}
+        currentUser={currentUser}
       />
     </div>
   );
