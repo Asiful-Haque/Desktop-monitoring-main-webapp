@@ -12,9 +12,7 @@ import { format } from "date-fns";
 import { enUS } from "date-fns/locale";
 import { useRouter } from "next/navigation";
 import TimeSheetEditModal from "../TimeSheetEditModal";
-import {
-  submitAllVisiblePayments, // we'll still use your shared submitter
-} from "@/app/lib/PaymentCommonApi";
+import { submitAllVisiblePayments } from "@/app/lib/PaymentCommonApi";
 
 /* utils */
 function cn(...classes) {
@@ -69,7 +67,7 @@ function buildFixedWindowSeries(windowDays, timeZone = TZ) {
 }
 /** ---------------------------------------------------------------- */
 
-function buildSparkPath(points, width = 240, height = 48, maxY = 8) {
+function buildSparkPath(points, width = 240, height = 48, maxY = 9) {
   if (!points.length) return "";
   const stepX = width / Math.max(points.length - 1, 1);
   const safeMax = Math.max(1, maxY);
@@ -82,16 +80,55 @@ function buildSparkPath(points, width = 240, height = 48, maxY = 8) {
     })
     .join(" ");
 }
-function getBoxChrome(hours) {
-  return typeof hours === "number"
-    ? "border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900"
-    : "border border-dashed border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-500 dark:text-neutral-400";
-}
-function getHourTextTone(hours) {
+
+/** Range tone: 0–3 (rose), 4–7 (amber), 7–9+ (emerald) */
+function getHourRangeTone(hours) {
   if (typeof hours !== "number") return "";
   if (hours <= 3) return "text-rose-600 dark:text-rose-400";
-  if (hours <= 5) return "text-amber-600 dark:text-amber-400";
+  if (hours <= 7) return "text-amber-600 dark:text-amber-400";
   return "text-emerald-600 dark:text-emerald-400";
+}
+
+/** Backgrounds & ribbons by range */
+function getCardBackground(hours) {
+  if (typeof hours !== "number") return "bg-white dark:bg-neutral-900"; // empty day
+  if (hours <= 3)
+    return "bg-gradient-to-br from-rose-50 to-white dark:from-rose-950/30 dark:to-neutral-900";
+  if (hours <= 7)
+    return "bg-gradient-to-br from-amber-50 to-white dark:from-amber-950/30 dark:to-neutral-900";
+  return "bg-gradient-to-br from-emerald-50 to-white dark:from-emerald-950/30 dark:to-neutral-900";
+}
+function getCardRibbon(hours) {
+  if (typeof hours !== "number") return "bg-neutral-200 dark:bg-neutral-700";
+  if (hours <= 3) return "bg-rose-500/80 dark:bg-rose-400/70";
+  if (hours <= 7) return "bg-amber-500/80 dark:bg-amber-400/70";
+  return "bg-emerald-500/80 dark:bg-emerald-400/70";
+}
+function getCardBorder(hours) {
+  if (typeof hours !== "number")
+    return "border-neutral-300 dark:border-neutral-700";
+  if (hours <= 3) return "border-rose-200 dark:border-rose-800/50";
+  if (hours <= 7) return "border-amber-200 dark:border-amber-800/50";
+  return "border-emerald-200 dark:border-emerald-800/50";
+}
+function getBadgeClasses(hours) {
+  if (typeof hours !== "number")
+    return "bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300";
+  if (hours <= 3)
+    return "bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300";
+  if (hours <= 7)
+    return "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300";
+  return "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300";
+}
+function getRangeLabel(hours) {
+  if (typeof hours !== "number") return "—";
+  if (hours <= 3) return "Light (0–3h)";
+  if (hours <= 7) return "Steady (4–7h)";
+  return "Heavy (7–9+h)";
+}
+function progressPercent(hours) {
+  const h = typeof hours === "number" ? Math.max(0, Math.min(9, hours)) : 0;
+  return Math.round((h / 9) * 100);
 }
 
 /* filtered recompute */
@@ -100,7 +137,10 @@ function secondsToLabel(totalSec) {
   const h = Math.floor(s / 3600);
   const m = Math.floor((s % 3600) / 60);
   const sec = s % 60;
-  return `${h}h ${String(m).padStart(2, "0")}m ${String(sec).padStart(2, "0")}s`;
+  return `${h}h ${String(m).padStart(2, "0")}m ${String(sec).padStart(
+    2,
+    "0"
+  )}s`;
 }
 function roundHours2(sec) {
   return Math.round((sec / 3600) * 100) / 100;
@@ -125,7 +165,7 @@ function buildFilteredSeries(baseSeries, detailsByDate, projectId, userId) {
   });
 }
 
-/* Time helpers (must match server aggregation TZ) */
+/* Time helpers */
 function isoToLocalHMS(iso) {
   if (!iso) return "";
   const d = new Date(iso);
@@ -196,29 +236,25 @@ function computeSecondsFromRow(row) {
   return 0;
 }
 
-/* ---------------- local builder: make Payroll-shaped payables for one user ---------------- */
+/* Payroll day builder */
 function buildDailyPayablesForUser(detailsByDate, userId) {
   if (!detailsByDate || userId == null) return [];
-
   const datesAsc = Object.keys(detailsByDate).sort((a, b) =>
     a < b ? -1 : a > b ? 1 : 0
   );
-
   const out = [];
   let runningId = 1;
-
   for (const date of datesAsc) {
     const sessions = detailsByDate[date] || [];
-
-    // only this user's sessions, not processed (flagger !== 1)
     const mine = (sessions || []).filter(
       (s) => Number(s?.user_id) === Number(userId) && Number(s?.flagger) !== 1
     );
     if (!mine.length) continue;
-
-    const totalSecs = mine.reduce((acc, s) => acc + (Number(s?.seconds) || 0), 0);
-    if (totalSecs <= 0) continue; // truly zero
-
+    const totalSecs = mine.reduce(
+      (acc, s) => acc + (Number(s?.seconds) || 0),
+      0
+    );
+    if (totalSecs <= 0) continue;
     const hours = Math.round((totalSecs / 3600) * 100) / 100;
     const label = secondsToLabel(totalSecs);
     const payment = mine.reduce(
@@ -228,21 +264,12 @@ function buildDailyPayablesForUser(detailsByDate, userId) {
     const serial_ids = mine
       .map((s) => s?.serial_id)
       .filter((x) => x != null && x !== "");
-
-    out.push({
-      id: runningId++,
-      date, // "YYYY-MM-DD"
-      hours,
-      label,
-      payment,
-      serial_ids,
-    });
+    out.push({ id: runningId++, date, hours, label, payment, serial_ids });
   }
-
   return out;
 }
 
-/* ---------- NEW: helper to detect any unprocessed (flagger === 0) for a user ---------- */
+/* unprocessed check */
 function hasAnyFlaggerZeroForUser(detailsByDate, userId) {
   if (!detailsByDate || userId == null) return false;
   for (const sessions of Object.values(detailsByDate)) {
@@ -281,25 +308,30 @@ export default function TimeSheet({
   // Pagination for custom > 31
   const PAGE_SIZE = 31;
   const [pageIndex, setPageIndex] = useState(0);
-
   useEffect(() => setPageIndex(0), [rangeMode, customStart, customEnd]);
 
-  // Local copies so custom fetch can replace data
-  const [localDetailsByDate, setLocalDetailsByDate] = useState(detailsByDate || {});
+  // Local copies
+  const [localDetailsByDate, setLocalDetailsByDate] = useState(
+    detailsByDate || {}
+  );
   const [localData, setLocalData] = useState(data || []);
   useEffect(() => {
     if (data?.length) setLocalData(normalizeAndSort(data));
     if (detailsByDate) setLocalDetailsByDate(detailsByDate);
   }, [data, detailsByDate]);
 
-  // ✅ scratch state for admin payment submit (not rendered)
+  // Admin payment scratch
   const [payProcessedMap, setPayProcessedMap] = useState({});
   const [payRows, setPayRows] = useState([]);
 
+  // Gating to avoid UI flicker / mis-clicks
+  const [mounted, setMounted] = useState(false);
+  const [approvalFetched, setApprovalFetched] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   // Role helpers
-  const getRoleForUser = (id) => {
-    return (userRolesById?.[id] ?? userRolesById?.[String(id)]) || undefined;
-  };
+  const getRoleForUser = (id) =>
+    (userRolesById?.[id] ?? userRolesById?.[String(id)]) || undefined;
   const formatRole = (r) =>
     r ? r.charAt(0).toUpperCase() + r.slice(1).toLowerCase() : "User";
 
@@ -349,13 +381,11 @@ export default function TimeSheet({
     if (!ids.has(selectedUser)) setSelectedUser("all");
   }, [userOptions, selectedUser]);
 
-  // Selected user's plain name (for logs)
   const selectedUserName = useMemo(() => {
     const match = userOptions.find((u) => u.id === selectedUser);
     return match?.rawName || match?.name || String(selectedUser);
   }, [userOptions, selectedUser]);
 
-  // Base series
   const clientData = useMemo(() => normalizeAndSort(localData), [localData]);
 
   useEffect(() => {
@@ -365,30 +395,23 @@ export default function TimeSheet({
         .filter(
           (session) => session.user_id === selectedUser && session.flagger === 0
         );
-
       const groupedByDate = {};
       selectedUserSessions.forEach((session) => {
         const date = format(new Date(session.startISO), "yyyy-MM-dd");
         const hours = (session.seconds / 3600).toFixed(2);
         if (!groupedByDate[date]) {
-          groupedByDate[date] = {
-            date,
-            hours: 0,
-            label: "",
-            serial_ids: [],
-          };
+          groupedByDate[date] = { date, hours: 0, label: "", serial_ids: [] };
         }
         groupedByDate[date].hours += parseFloat(hours);
         groupedByDate[date].serial_ids.push(session.serial_id);
         groupedByDate[date].label = `${groupedByDate[date].hours}h`;
       });
-
       const groupedSessions = Object.values(groupedByDate);
       console.log("Grouped Sessions (flagger = 0):", groupedSessions);
     }
   }, [selectedUser, localDetailsByDate]);
 
-  // PRESET: always show fixed window ending today
+  // PRESET: fixed window ending today
   const baseSeriesPreset = useMemo(
     () => buildFixedWindowSeries(windowDays, TZ),
     [windowDays]
@@ -416,7 +439,8 @@ export default function TimeSheet({
     return series;
   }, [rangeMode, clientData]);
 
-  const baseSeries = rangeMode === "custom" ? baseSeriesCustom : baseSeriesPreset;
+  const baseSeries =
+    rangeMode === "custom" ? baseSeriesCustom : baseSeriesPreset;
 
   // Apply filters
   const filteredSeries = useMemo(() => {
@@ -428,8 +452,9 @@ export default function TimeSheet({
     );
   }, [baseSeries, localDetailsByDate, selectedProject, selectedUser]);
 
-  // Pagination when custom > 31
-  const needsPaging = rangeMode === "custom" && filteredSeries.length > PAGE_SIZE;
+  // Paging
+  const needsPaging =
+    rangeMode === "custom" && filteredSeries.length > PAGE_SIZE;
   const totalPages = needsPaging
     ? Math.ceil(filteredSeries.length / PAGE_SIZE)
     : 1;
@@ -472,20 +497,14 @@ export default function TimeSheet({
       }
       const payload = await res.json();
       const rows = Array.isArray(payload?.items) ? payload.items : [];
-      console.log("Rows secs computed:-----------------payment-------------------", rows);
-
       const daySessions = new Map();
       for (const row of rows) {
         const startDt = parseISO2(row?.task_start);
         const endDt = parseISO2(row?.task_end);
         const anchor = startDt || endDt || parseISO2(row?.work_date);
         if (!anchor) continue;
-
         const dayKey = keyInTZ(anchor, TZ);
         const secs = computeSecondsFromRow(row);
-
-        console.log("Row secs computed:-----------------payment-------------------", row);
-
         const item = {
           serial_id: row?.serial_id ?? null,
           seconds: secs,
@@ -509,12 +528,10 @@ export default function TimeSheet({
               : Number(row?.flagger ?? 0),
           session_payment: Number(row?.session_payment) || 0,
         };
-
         const list = daySessions.get(dayKey) || [];
         list.push(item);
         daySessions.set(dayKey, list);
       }
-
       const newDetails = {};
       const newData = Array.from(daySessions.entries())
         .map(([date, sessions]) => {
@@ -527,7 +544,6 @@ export default function TimeSheet({
           return { date, hours, label: secondsToLabel(totalSecs) };
         })
         .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
-
       setLocalDetailsByDate(newDetails);
       setLocalData(newData);
       setRangeMode("custom");
@@ -552,7 +568,6 @@ export default function TimeSheet({
         const uOK = selectedUser === "all" || it.user_id === selectedUser;
         return pOK && uOK;
       });
-
       const taskIdOfSerialIds = srcItems
         .map((it) => it.task_id)
         .filter((x) => Number.isFinite(x));
@@ -563,7 +578,6 @@ export default function TimeSheet({
       });
       const { any_busy, busy_serials } = await res.json();
       if (!res.ok) throw new Error("Busy check failed");
-
       if (any_busy) {
         alert(
           busy_serials?.length
@@ -672,8 +686,6 @@ export default function TimeSheet({
   const [approvalErr, setApprovalErr] = useState(null);
 
   const targetUserId = currentUser?.id ?? userId;
-
-  // 🔒 NEW: computed flag whether there are any unprocessed (flagger===0) entries for this user
   const hasUnprocessedForSelf = useMemo(
     () => hasAnyFlaggerZeroForUser(localDetailsByDate, targetUserId),
     [localDetailsByDate, targetUserId]
@@ -696,6 +708,7 @@ export default function TimeSheet({
       setApprovalErr(e?.message || "Failed to fetch approval");
     } finally {
       setApprovalLoading(false);
+      setApprovalFetched(true);
     }
   }
 
@@ -708,15 +721,19 @@ export default function TimeSheet({
     }
   }, [targetUserId, userRole]);
 
+  useEffect(() => {
+    if (String(userRole).toLowerCase() !== "freelancer") {
+      setApprovalFetched(true);
+    }
+  }, [userRole]);
+
   async function handleApproveForPayment() {
-    // 🚫 NEW: block if there are no flagger===0 entries
     if (!hasUnprocessedForSelf) {
       alert(
         "No unprocessed entries found in this range. Only days with entries marked flagger = 0 can be sent for payment."
       );
       return;
     }
-
     try {
       setApprovalLoading(true);
       const res = await fetch("/api/users/Time-sheet-approval/send", {
@@ -735,7 +752,6 @@ export default function TimeSheet({
     }
   }
 
-  // NEW: dynamic tooltip text considering unprocessed availability
   const approvalStatusText = approvalLoading
     ? "Please wait…"
     : approval === 1
@@ -746,9 +762,26 @@ export default function TimeSheet({
     ? "It’s rejected — send again"
     : "Send your timesheet for payment";
 
-  // NEW: disable button if no unprocessed items
-  const disableSelfSend =
-    approvalLoading || approval === 1 || !hasUnprocessedForSelf;
+  const uiReadyForSelf =
+    mounted && approvalFetched && localDetailsByDate != null;
+
+  const buttonLabel = !uiReadyForSelf
+    ? "Loading…"
+    : approvalLoading
+    ? "Processing…"
+    : approval === 1
+    ? "Already sent for payment"
+    : !hasUnprocessedForSelf
+    ? "No unprocessed entries"
+    : approval === 2
+    ? "It’s rejected — send again"
+    : "Send your timesheet for payment";
+
+  const buttonDisabled =
+    !uiReadyForSelf ||
+    approvalLoading ||
+    approval === 1 ||
+    !hasUnprocessedForSelf;
 
   /* ----------------- Admin: Approve/Reject selected freelancer ----------------- */
   const [adminSelApproval, setAdminSelApproval] = useState(null);
@@ -797,7 +830,6 @@ export default function TimeSheet({
     }
   }, [isSelectedFreelancer, selectedUser]);
 
-  /* 🔍 DEBUG + build: whenever admin selects a freelancer, build the payables */
   const dailyPayablesForSelected = useMemo(() => {
     if (!isAdmin || !isAdminSelectedUserNumeric) return [];
     return buildDailyPayablesForUser(localDetailsByDate, selectedUser);
@@ -805,10 +837,8 @@ export default function TimeSheet({
 
   useEffect(() => {
     if (!isAdmin || !isAdminSelectedUserNumeric) return;
-
     const tenant_id = currentUser?.tenant_id ?? "MISSING_TENANT";
     const admin_user_id = currentUser?.id ?? "MISSING_ADMIN_ID";
-
     try {
       console.groupCollapsed(
         "%cPAY DEBUG → selection",
@@ -819,18 +849,15 @@ export default function TimeSheet({
         name: selectedUserName,
       });
       console.log("Tenant/Admin context:", { tenant_id, admin_user_id });
-      if (tenant_id === "MISSING_TENANT" || admin_user_id === "MISSING_ADMIN_ID") {
-        console.warn(
-          "⚠️ currentUser.tenant_id or currentUser.id is missing. Transactions will use fallback values. Pass proper currentUser to fix."
-        );
+      if (
+        tenant_id === "MISSING_TENANT" ||
+        admin_user_id === "MISSING_ADMIN_ID"
+      ) {
+        console.warn("⚠️ currentUser.tenant_id or currentUser.id is missing.");
       }
-      console.log(
-        "Daily payables (unprocessed) to be submitted on Approve:",
-        dailyPayablesForSelected
-      );
+      console.log("Daily payables:", dailyPayablesForSelected);
       console.log("Local details snapshot:", localDetailsByDate);
       console.groupEnd();
-
       if (typeof window !== "undefined") {
         window.__PAY_DEBUG__ = {
           ts: new Date().toISOString(),
@@ -857,8 +884,6 @@ export default function TimeSheet({
     if (!isSelectedFreelancer) return;
     try {
       setAdminSelLoading(true);
-
-      // 1) approve flag on the user
       const res = await fetch("/api/users/Time-sheet-approval/approve", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -869,32 +894,21 @@ export default function TimeSheet({
       const v = Number(j?.time_sheet_approval);
       setAdminSelApproval(Number.isFinite(v) ? v : 0);
 
-      // 2) build payables for submitter
       const dailyPayables = dailyPayablesForSelected;
       if (!dailyPayables.length) {
         alert("No payable unprocessed days found for this user.");
         return;
       }
-
-      // 3) pass currentUser context (fallbacks kept for dev)
       const currentUserForTxn = {
         ...(currentUser || {}),
         id: currentUser?.id ?? selectedUser,
         tenant_id: currentUser?.tenant_id ?? "9999",
       };
-
-      console.log("Submitting payments with currentUserForTxn:", currentUserForTxn);
-      console.log(".....................current user is ...........................", currentUser);
-      console.log("Daily payables to submit:", dailyPayables);
-      console.log("Developer ID override:", selectedUser);
-      console.log("dayprocessedMap before submit:", payProcessedMap);
-
-      // 4) Submit with the shared action (uncomment when ready)
       await submitAllVisiblePayments({
         currentRows: dailyPayables,
         processed: payProcessedMap,
         setProcessed: setPayProcessedMap,
-        setRows: setPayRows, // scratch
+        setRows: setPayRows,
         currentUser: currentUserForTxn,
         developerId: selectedUser,
       });
@@ -925,7 +939,6 @@ export default function TimeSheet({
     }
   }
 
-  // Buttons enabled only when value === 1 (sent). Disabled if 0 or 2 (or while loading).
   const adminActionDisabled = adminSelLoading || adminSelApproval !== 1;
 
   return (
@@ -961,9 +974,8 @@ export default function TimeSheet({
                   <button
                     key={String(btn.value)}
                     onClick={() => {
-                      if (isCustomBtn) {
-                        setRangeMode("custom");
-                      } else {
+                      if (isCustomBtn) setRangeMode("custom");
+                      else {
                         setRangeMode("preset");
                         setWindowDays(btn.value);
                       }
@@ -982,7 +994,7 @@ export default function TimeSheet({
               })}
             </div>
 
-            {/* Inline custom inputs (visible only when Custom active) */}
+            {/* Inline custom inputs */}
             {isAdmin && rangeMode === "custom" && (
               <div className="flex items-end gap-2">
                 <div className="flex flex-col">
@@ -1026,7 +1038,7 @@ export default function TimeSheet({
                 <TrendingUp className="h-4 w-4" /> Activity trend
               </div>
               <div className="text-xs text-neutral-500 dark:text-neutral-400">
-                Scale: 0–8h
+                Scale: 0–9h
               </div>
             </div>
             <svg
@@ -1039,7 +1051,10 @@ export default function TimeSheet({
                   d={buildSparkPath(
                     windowSeries.map((d) =>
                       typeof d.hours === "number" ? d.hours : 0
-                    )
+                    ),
+                    240,
+                    48,
+                    9
                   )}
                   fill="none"
                   stroke="currentColor"
@@ -1112,25 +1127,17 @@ export default function TimeSheet({
         <>
           <div className="flex items-center justify-start">
             <button
-              onClick={handleApproveForPayment}
-              disabled={disableSelfSend}
-              title={approvalStatusText}
+              onClick={uiReadyForSelf ? handleApproveForPayment : undefined}
+              disabled={buttonDisabled}
+              title={uiReadyForSelf ? approvalStatusText : "Loading state…"}
               className={cn(
                 "px-3 py-2 rounded-md text-sm font-medium transition shadow-sm",
-                disableSelfSend
+                buttonDisabled
                   ? "bg-neutral-300 text-neutral-600 cursor-not-allowed dark:bg-neutral-700 dark:text-neutral-300"
                   : "bg-indigo-600 text-white hover:bg-indigo-700"
               )}
             >
-              {approvalLoading
-                ? "Processing…"
-                : approval === 1
-                ? "Already sent for payment"
-                : !hasUnprocessedForSelf
-                ? "No unprocessed entries"
-                : approval === 2
-                ? "It’s rejected — send again"
-                : "Send your timesheet for payment"}
+              {buttonLabel}
             </button>
           </div>
           {approvalErr && (
@@ -1142,69 +1149,71 @@ export default function TimeSheet({
       )}
 
       {/* ADMIN banner for selected freelancer */}
-      {isAdmin && isAdminSelectedUserNumeric && selectedUserRole === "freelancer" && (
-        <div className="mt-2 space-y-2">
-          <div className="text-sm font-medium text-neutral-700 dark:text-neutral-200">
-            You need to approve this timesheet
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleAdminApproveSelected}
-              disabled={adminActionDisabled}
-              title={
-                adminSelLoading
-                  ? "Please wait…"
-                  : adminSelApproval === 1
-                  ? "Approve timesheet"
-                  : "Awaiting freelancer to send / already handled"
-              }
-              className={cn(
-                "px-3 py-2 rounded-md text-sm font-medium transition shadow-sm",
-                adminActionDisabled
-                  ? "bg-neutral-300 text-neutral-600 cursor-not-allowed dark:bg-neutral-700 dark:text-neutral-300"
-                  : "bg-indigo-600 text-white hover:bg-indigo-700"
-              )}
-            >
-              {adminSelLoading ? "Processing…" : "Approve Timesheet"}
-            </button>
+      {isAdmin &&
+        isAdminSelectedUserNumeric &&
+        selectedUserRole === "freelancer" && (
+          <div className="mt-2 space-y-2">
+            <div className="text-sm font-medium text-neutral-700 dark:text-neutral-200">
+              You need to approve this timesheet
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleAdminApproveSelected}
+                disabled={adminActionDisabled}
+                title={
+                  adminSelLoading
+                    ? "Please wait…"
+                    : adminSelApproval === 1
+                    ? "Approve timesheet"
+                    : "Awaiting freelancer to send / already handled"
+                }
+                className={cn(
+                  "px-3 py-2 rounded-md text-sm font-medium transition shadow-sm",
+                  adminActionDisabled
+                    ? "bg-neutral-300 text-neutral-600 cursor-not-allowed dark:bg-neutral-700 dark:text-neutral-300"
+                    : "bg-indigo-600 text-white hover:bg-indigo-700"
+                )}
+              >
+                {adminSelLoading ? "Processing…" : "Approve Timesheet"}
+              </button>
 
-            <button
-              onClick={handleAdminRejectSelected}
-              disabled={adminSelLoading || adminSelApproval !== 1}
-              title={
-                adminSelLoading
-                  ? "Please wait…"
-                  : adminSelApproval === 1
-                  ? "Reject timesheet"
-                  : "Awaiting freelancer to send / already handled"
-              }
-              className={cn(
-                "px-3 py-2 rounded-md text-sm font-medium transition shadow-sm",
-                adminSelLoading || adminSelApproval !== 1
-                  ? "bg-rose-300 text-white cursor-not-allowed dark:bg-rose-700/50"
-                  : "bg-rose-600 text-white hover:bg-rose-700"
-              )}
-            >
-              {adminSelLoading ? "Processing…" : "Reject Timesheet"}
-            </button>
+              <button
+                onClick={handleAdminRejectSelected}
+                disabled={adminSelLoading || adminSelApproval !== 1}
+                title={
+                  adminSelLoading
+                    ? "Please wait…"
+                    : adminSelApproval === 1
+                    ? "Reject timesheet"
+                    : "Awaiting freelancer to send / already handled"
+                }
+                className={cn(
+                  "px-3 py-2 rounded-md text-sm font-medium transition shadow-sm",
+                  adminSelLoading || adminSelApproval !== 1
+                    ? "bg-rose-300 text-white cursor-not-allowed dark:bg-rose-700/50"
+                    : "bg-rose-600 text-white hover:bg-rose-700"
+                )}
+              >
+                {adminSelLoading ? "Processing…" : "Reject Timesheet"}
+              </button>
 
-            {adminSelErr && (
-              <span className="text-xs text-rose-600 dark:text-rose-400">
-                {adminSelErr}
-              </span>
-            )}
+              {adminSelErr && (
+                <span className="text-xs text-rose-600 dark:text-rose-400">
+                  {adminSelErr}
+                </span>
+              )}
+            </div>
+            <div className="text-xs text-neutral-500">
+              {adminSelApproval === 1
+                ? "Freelancer has sent their timesheet. You can approve or reject now."
+                : adminSelApproval === 0
+                ? "Timesheet not yet sent."
+                : adminSelApproval === 2
+                ? "Timesheet was rejected."
+                : "Approval status unknown."}
+            </div>
           </div>
-          <div className="text-xs text-neutral-500">
-            {adminSelApproval === 1
-              ? "Freelancer has sent their timesheet. You can approve or reject now."
-              : adminSelApproval === 0
-              ? "Timesheet not yet sent."
-              : adminSelApproval === 2
-              ? "Timesheet was rejected."
-              : "Approval status unknown."}
-          </div>
-        </div>
-      )}
+        )}
 
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -1246,7 +1255,7 @@ export default function TimeSheet({
         ))}
       </div>
 
-      {/* Pagination (only when custom and > 31 days) */}
+      {/* Pagination */}
       {rangeMode === "custom" && needsPaging && (
         <div className="flex items-center justify-end gap-2">
           <button
@@ -1271,7 +1280,34 @@ export default function TimeSheet({
         </div>
       )}
 
-      {/* Day tiles */}
+      {/* Day tiles — VISUAL UPGRADE */}
+      <div className="mb-5 flex flex-wrap items-center gap-2">
+        <span
+          className="inline-flex items-center px-2 py-0.5 rounded-full text-[15px] font-medium
+                   bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300"
+        >
+          Empty
+        </span>
+        <span
+          className="inline-flex items-center px-2 py-0.5 rounded-full text-[15px] font-medium
+                   bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300"
+        >
+          Light (0–3h)
+        </span>
+        <span
+          className="inline-flex items-center px-2 py-0.5 rounded-full text-[15px] font-medium
+                   bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300"
+        >
+          Steady (4–7h)
+        </span>
+        <span
+          className="inline-flex items-center px-2 py-0.5 rounded-full text-[15px] font-medium
+                   bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300"
+        >
+          Heavy (7–9+h)
+        </span>
+      </div>
+
       <div>
         {!hasData ? (
           <div className="text-center py-10 text-neutral-500 dark:text-neutral-400">
@@ -1281,7 +1317,6 @@ export default function TimeSheet({
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2">
             {windowSeries.map((item, idx) => {
-              const hasHours = typeof item.hours === "number";
               const dateKey = keyOf(item.date);
               const dayAll = localDetailsByDate?.[dateKey] || [];
               const daySessions = dayAll.filter((r) => {
@@ -1291,7 +1326,9 @@ export default function TimeSheet({
                   selectedUser === "all" || r.user_id === selectedUser;
                 return pOK && uOK;
               });
-              const hasSessions = daySessions.length > 0;
+              const sessionsCount = daySessions.length;
+              const hasHours = typeof item.hours === "number";
+              const p = progressPercent(item.hours);
 
               return (
                 <div
@@ -1299,18 +1336,33 @@ export default function TimeSheet({
                     locale: enUS,
                   })}-${idx}`}
                   className={cn(
-                    "relative rounded-lg p-3 text-center transition-colors h-36 flex flex-col justify-between",
-                    getBoxChrome(item.hours)
+                    "relative rounded-xl border p-3 text-center transition-all h-40 flex flex-col justify-between",
+                    "hover:shadow-lg hover:-translate-y-[1px] group",
+                    getCardBackground(item.hours),
+                    getCardBorder(item.hours)
                   )}
                 >
-                  {hasSessions && (
+                  {/* left ribbon */}
+                  <span
+                    className={cn(
+                      "absolute left-0 top-0 h-full w-1.5 rounded-l-xl",
+                      getCardRibbon(item.hours)
+                    )}
+                  />
+                  {/* hover glow ring */}
+                  <span className="pointer-events-none absolute inset-0 rounded-xl ring-0 group-hover:ring-2 ring-indigo-200/60 dark:ring-indigo-400/30 transition" />
+
+                  {/* edit button if there are sessions */}
+                  {sessionsCount > 0 && (
                     <button
                       type="button"
                       onClick={() => handleEditIconClick(item)}
                       disabled={checkingBusy}
                       aria-busy={checkingBusy}
                       className={cn(
-                        "absolute right-1.5 top-1.5 inline-flex items-center justify-center h-7 w-7 rounded-md border border-neutral-200 bg-white/80 text-neutral-600 hover:bg-neutral-100 hover:text-neutral-800 dark:border-neutral-700 dark:bg-neutral-800/70 dark:text-neutral-300 dark:hover:bg-neutral-700",
+                        "absolute right-2 top-2 inline-flex items-center justify-center h-7 w-7 rounded-md border bg-white/80 text-neutral-600 hover:bg-neutral-100 hover:text-neutral-800",
+                        "dark:border-neutral-700 dark:bg-neutral-800/70 dark:text-neutral-300 dark:hover:bg-neutral-700",
+                        "shadow-sm backdrop-blur-sm",
                         checkingBusy && "opacity-60 pointer-events-none"
                       )}
                       aria-label={`View details for ${dateKey}`}
@@ -1320,11 +1372,12 @@ export default function TimeSheet({
                     </button>
                   )}
 
+                  {/* date header */}
                   <div>
                     <div className="text-[10px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
                       {format(item.date, "EEE", { locale: enUS })}
                     </div>
-                    <div className="text-xl font-semibold leading-none text-neutral-900 dark:text-neutral-100">
+                    <div className="text-2xl font-semibold leading-none text-neutral-900 dark:text-neutral-100">
                       {format(item.date, "d", { locale: enUS })}
                     </div>
                     <div className="text-[11px] mb-2 text-neutral-500 dark:text-neutral-400">
@@ -1332,27 +1385,65 @@ export default function TimeSheet({
                     </div>
                   </div>
 
-                  <div className="min-h-[1.25rem]">
-                    {item.label ? (
-                      <div className="inline-flex items-center gap-1 text-sm font-medium text-neutral-700 dark:text-neutral-200">
-                        <Clock className="h-4 w-4" />
-                        <span>{item.label}</span>
-                      </div>
-                    ) : hasHours ? (
+                  {/* center metrics */}
+                  <div className="min-h-[1.1rem]">
+                    {hasHours ? (
                       <div
                         className={cn(
-                          "inline-flex items-center gap-1 text-xl font-semibold",
-                          getHourTextTone(item.hours)
+                          "inline-flex items-center gap-1",
+                          item.label
+                            ? "text-sm font-medium"
+                            : "text-xl font-semibold",
+                          getHourRangeTone(item.hours)
                         )}
+                        title={item.label || `${item.hours}h`}
                       >
                         <Clock className="h-4 w-4" />
-                        <span>{item.hours}h</span>
+                        <span>{item.label ?? `${item.hours}h`}</span>
                       </div>
                     ) : (
                       <div className="text-xs text-neutral-400 dark:text-neutral-500">
                         —
                       </div>
                     )}
+                  </div>
+
+                  {/* bottom: progress + chips */}
+                  <div>
+                    {/* progress bar */}
+                    <div className="h-1.5 w-full rounded-full bg-neutral-200/70 dark:bg-neutral-700/60 overflow-hidden">
+                      <div
+                        className={cn(
+                          "h-full rounded-full transition-all",
+                          typeof item.hours !== "number"
+                            ? "bg-neutral-300 dark:bg-neutral-600"
+                            : item.hours <= 3
+                            ? "bg-rose-500"
+                            : item.hours <= 7
+                            ? "bg-amber-500"
+                            : "bg-emerald-500"
+                        )}
+                        style={{ width: `${p}%` }}
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-valuenow={p}
+                      />
+                    </div>
+
+                    {/* chips */}
+                    <div className="mt-2 flex items-center justify-between">
+                      <span
+                        className={cn(
+                          "inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium",
+                          getBadgeClasses(item.hours)
+                        )}
+                      >
+                        {getRangeLabel(item.hours)}
+                      </span>
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
+                        {sessionsCount} session{sessionsCount === 1 ? "" : "s"}
+                      </span>
+                    </div>
                   </div>
                 </div>
               );

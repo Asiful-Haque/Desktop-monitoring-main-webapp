@@ -17,8 +17,10 @@ function roundMoney(n) {
 
 // compute payment for a single row given duration (sec), project record, and optional per-user rate
 function computeSessionPayment(durationSec, projectRow, userRateForProject) {
+  console.log("Its called for ");
   if (durationSec == null || durationSec <= 0) return 0;
   const hours = durationSec / 3600;
+  console.log("Computed hours:", hours);
   if ((projectRow?.project_type || "").toLowerCase() === "hourly") {
     const rate = Number(projectRow?.project_hour_rate || 0);
     return roundMoney(hours * rate);
