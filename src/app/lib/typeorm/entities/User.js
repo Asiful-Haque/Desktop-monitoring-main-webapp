@@ -35,6 +35,11 @@ export const User = new EntitySchema({
       nullable: true,
       default: null,
     },
+    salary_type: {
+      type: "varchar",
+      length: 16,
+      nullable: true,
+    },
     created_at: {
       type: "timestamp",
       default: () => "CURRENT_TIMESTAMP",

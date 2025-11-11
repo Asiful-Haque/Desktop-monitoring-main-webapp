@@ -27,7 +27,7 @@ export async function apiCreateTransaction(payload) {
 }
 
 export async function apiPostPaymentLogs({ currentUser, transaction_number, logs }) {
-  console.log("logs to send to apiPostPaymentLogs:(((((((((((((((((", logs);
+  console.log("logs to send to apiPostPaymentLogs:((((((((((((((((( ", logs);
   const res = await fetch("/api/fit-payment-logs", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -65,10 +65,28 @@ export async function getNextTxnFactory(currentUser) {
   return (offset = 1) => `Trx_tnt${tenantId}_${lastVal + offset}`;
 }
 
+/* ------------ NEW: Make rows safe for the backend (prevents 500s) ------------ */
+function sanitizePayRow(row = {}) {
+  const hoursNum = Number.isFinite(row?.hours) ? Number(row.hours) : 0;
+  return {
+    ...row,
+    hours: hoursNum, // ensure number
+    label: typeof row?.label === "string" ? row.label : `${hoursNum}h`,
+    payment: Number(row?.payment) || 0,
+    serial_ids: Array.isArray(row?.serial_ids) ? row.serial_ids : [],
+    session_payments: Array.isArray(row?.session_payments)
+      ? row.session_payments
+      : [],
+    flaggers: Array.isArray(row?.flaggers) ? row.flaggers : [],
+    user_id: Array.isArray(row?.user_id) ? row.user_id : [],
+  };
+}
+
 /**
  * createTxnAndLogs
  * - NEW: optional developerId override for admin submit-for-user.
  *   Defaults to currentUser.id -> no behavior change for existing flows.
+ * - Uses sanitized data so hours/label/arrays are always valid.
  */
 export async function createTxnAndLogs({
   currentUser,
@@ -78,20 +96,24 @@ export async function createTxnAndLogs({
   data,
   developerId, // optional (admin submit-for-user)
 }) {
-  console.log("data to send to apiCreateTransaction:---------------------", data);
+  const safeData = sanitizePayRow(data);
+  const safeHours = Number.isFinite(hours) ? Number(hours) : 0;
+  const safePayment = Number(payment) || 0;
+
+  console.log("data to send to apiCreateTransaction:---------------------", safeData);
 
   await apiCreateTransaction({
     transaction_number: txnNumber,
-    hours,
-    payment_of_transaction: payment,
-    developer_id: developerId ?? currentUser?.id, // <—
+    hours: safeHours,
+    payment_of_transaction: safePayment,
+    developer_id: developerId ?? currentUser?.id,
     status: "pending",
   });
 
   await apiPostPaymentLogs({
     currentUser,
     transaction_number: txnNumber,
-    logs: data,
+    logs: safeData,
   });
 
   toast.success(`Transaction created: ${txnNumber}`);
@@ -119,7 +141,10 @@ export function buildDailyPayablesFromDetails(
 ) {
   if (!detailsByDate) return [];
 
-  console.log("detailsByDate in buildDailyPayablesFromDetails:............common..............", detailsByDate);
+  console.log(
+    "detailsByDate in buildDailyPayablesFromDetails:............common..............",
+    detailsByDate
+  );
 
   const dayMap = new Map(); // dateKey -> { secs, payment, serial_ids[] }
   for (const [dateKey, items] of Object.entries(detailsByDate)) {
@@ -180,7 +205,7 @@ export async function submitSinglePayment({
   processed,
   setProcessed,
   currentUser,
-  developerId, // optional (admin submit-for-user)
+  developerId,
 }) {
   // optimistic ON
   setProcessed((prev) => ({ ...prev, [id]: true }));
@@ -197,7 +222,7 @@ export async function submitSinglePayment({
 
   const newTransactionNumber = makeTxn(1);
 
-  // find clicked row (unchanged behavior)
+  // find clicked row
   const clickedRowLogs = rows.find((r) => r.id === id);
   console.log("clickedRowLogsxxxxxxxxxxxxxxxxxxxxxxxxxxxx:", clickedRowLogs);
   if (!clickedRowLogs) {
@@ -206,15 +231,18 @@ export async function submitSinglePayment({
     return;
   }
 
+  // SANITIZE row before using it
+  const safeRow = sanitizePayRow(clickedRowLogs);
+
   // create transaction + logs
   try {
     await createTxnAndLogs({
       currentUser,
-      hours: clickedRowLogs.hours,
-      payment: clickedRowLogs.payment,
+      hours: safeRow.hours,
+      payment: safeRow.payment,
       txnNumber: newTransactionNumber,
-      data: clickedRowLogs,
-      developerId, // <—
+      data: safeRow,
+      developerId,
     });
   } catch (error) {
     console.error("create transaction/logs error:", error);
@@ -223,16 +251,16 @@ export async function submitSinglePayment({
     return;
   }
 
-  // mark processed (single date, data = full clicked row object)
+  // mark processed
   try {
     await apiMarkIdsProcessed({
       dates: [date],
-      userId: developerId ?? currentUser?.id, // <—
-      data: clickedRowLogs,
+      userId: developerId ?? currentUser?.id,
+      data: safeRow,
     });
 
     toast.success("Marked as processed", {
-      description: `Date ${date} • ${fmtMoney(clickedRowLogs.payment)} processed.`,
+      description: `Date ${date} • ${fmtMoney(safeRow.payment)} processed.`,
     });
 
     // remove this row from UI
@@ -254,7 +282,10 @@ export async function submitAllVisiblePayments({
   currentUser,
   developerId, // optional (admin submit-for-user)
 }) {
-  const toProcess = currentRows.filter((r) => !processed[r.id]);
+  // sanitize all rows up-front so we never pass null/invalid shapes to API
+  const sanitizedRows = (currentRows || []).map(sanitizePayRow);
+
+  const toProcess = sanitizedRows.filter((r) => !processed[r.id]);
   console.log("toProcesssssssssssssssssssssssssss:", toProcess);
 
   if (toProcess.length === 0) {
@@ -292,8 +323,8 @@ export async function submitAllVisiblePayments({
         hours: row.hours,
         payment: row.payment,
         txnNumber: txn,
-        data: row,
-        developerId, // <—
+        data: row, // already sanitized
+        developerId,
       });
     } catch (err) {
       console.error("create transaction/logs error:", err);
@@ -318,7 +349,7 @@ export async function submitAllVisiblePayments({
 
     await apiMarkIdsProcessed({
       dates,
-      userId: developerId ?? currentUser?.id, // <—
+      userId: developerId ?? currentUser?.id,
       data: (data || []).flat(),
     });
 
@@ -327,6 +358,6 @@ export async function submitAllVisiblePayments({
   } catch (error) {
     console.error("mark processed all error:", error);
     toast.error("Failed to mark all rows as processed");
-    // keep flags as-is (same as original)
+    // keep flags as-is
   }
 }

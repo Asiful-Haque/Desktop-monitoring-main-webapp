@@ -18,47 +18,55 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { toast } from "sonner"; 
-
+import { toast } from "sonner";
 
 const AddUserModal = ({ addUserModalOpen, setAddUserModalOpen }) => {
-  // 📝 Form State
   const [formData, setFormData] = useState({
     name: "",
     email: "",
     role: "",
     password: "",
-    defaultRate: "", 
+    defaultRate: "",
+    paymentType: "", 
   });
+
+  const isFreelancer = formData.role === "Freelancer";
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // ❗ Field Validation
     if (
       !formData.name ||
       !formData.email ||
       !formData.role ||
       !formData.password ||
-      !formData.defaultRate
+      !formData.defaultRate ||
+      (!isFreelancer && !formData.paymentType) 
     ) {
-      toast.error("Please fill in all fields");
+      toast.error("Please fill in all required fields");
       return;
     }
 
     try {
+      const payload = {
+        username: formData.name,
+        email: formData.email,
+        role: formData.role,
+        password: formData.password,
+        default_hour_rate: parseFloat(formData.defaultRate),
+      };
+
+      // Include salary_type only for non-freelancers
+      if (!isFreelancer) {
+        payload.salary_type = formData.paymentType; // <-- send to API
+        // If your API expects `payment_type` instead:
+        // payload.payment_type = formData.paymentType;
+      }
+
       const res = await fetch(`${process.env.NEXT_PUBLIC_MAIN_HOST}/api/users`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          username: formData.name,
-          email: formData.email,
-          role: formData.role,
-          password: formData.password,
-          default_hour_rate: parseFloat(formData.defaultRate), 
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
@@ -68,27 +76,24 @@ const AddUserModal = ({ addUserModalOpen, setAddUserModalOpen }) => {
       }
 
       const data = await res.json();
-      console.log("User created:", data);
-
-      // 🎉 Show success message
       toast.success(`User ${data.user.username} has been added successfully`);
 
-      // 🔄 Reset form and close modal
+      // Reset & close
       setFormData({
         name: "",
         email: "",
         role: "",
         password: "",
         defaultRate: "",
+        paymentType: "",
       });
       setAddUserModalOpen(false);
     } catch (error) {
       console.error("Error adding user:", error);
-      toast.error(error.message || "Something went wrong");
+      toast.error(error?.message || "Something went wrong");
     }
   };
 
-  // 🖼️ UI Structure
   return (
     <Dialog open={addUserModalOpen} onOpenChange={setAddUserModalOpen}>
       <DialogContent className="sm:max-w-[425px]">
@@ -175,27 +180,53 @@ const AddUserModal = ({ addUserModalOpen, setAddUserModalOpen }) => {
                 Role
               </Label>
               <Select
+                value={formData.role}
                 onValueChange={(value) =>
-                  setFormData({ ...formData, role: value })
+                  setFormData({
+                    ...formData,
+                    role: value,
+                    // Clear paymentType if role becomes Freelancer
+                    paymentType: value === "Freelancer" ? "" : formData.paymentType,
+                  })
                 }
               >
-                <SelectTrigger className="col-span-3">
+                <SelectTrigger id="role" className="col-span-3">
                   <SelectValue placeholder="Select a role" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Developer">Developer</SelectItem>
                   <SelectItem value="Team Lead">Team Lead</SelectItem>
                   <SelectItem value="Admin">Admin</SelectItem>
-                  <SelectItem value="Product Manager">
-                    Product Manager
-                  </SelectItem>
+                  <SelectItem value="Product Manager">Product Manager</SelectItem>
                   <SelectItem value="Freelancer">Freelancer</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Salary Type – hidden for Freelancer */}
+            {!isFreelancer && (
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="paymentType" className="text-right">
+                  Salary Type
+                </Label>
+                <Select
+                  value={formData.paymentType}
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, paymentType: value })
+                  }
+                >
+                  <SelectTrigger id="paymentType" className="col-span-3">
+                    <SelectValue placeholder="Select salary type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Weekly">Weekly</SelectItem>
+                    <SelectItem value="Monthly">Monthly</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
 
-          {/* Footer Buttons */}
           <DialogFooter>
             <Button
               type="button"

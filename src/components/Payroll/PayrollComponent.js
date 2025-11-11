@@ -208,7 +208,7 @@ export default function PayrollComponent({
   const isEmpty = payableRows.length === 0;
   const isAdmin = currentUser?.role === "Admin";
 
-  // --- Submit handlers now delegate to the common actions ---
+  // --- Submit handlers now delegate to the common actions ----------------------------------------------------------------
 
   const handleProcess = async (id, date /* payment, hours, label not needed here */) => {
     await submitSinglePayment({
@@ -239,6 +239,10 @@ export default function PayrollComponent({
     });
   };
 
+
+    // --- Submit handlers now delegate to the common actions ----------------------------------------------------------------
+
+    
   return (
     <div className="space-y-6">
       <Toaster richColors position="top-right" />

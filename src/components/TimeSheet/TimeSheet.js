@@ -1,3 +1,4 @@
+// src/components/TimeSheet/TimeSheet.js
 "use client";
 
 import React, { useMemo, useState, useEffect } from "react";
@@ -7,12 +8,16 @@ import {
   Pencil,
   ChevronLeft,
   ChevronRight,
+  PlayCircle,
 } from "lucide-react";
 import { format } from "date-fns";
 import { enUS } from "date-fns/locale";
 import { useRouter } from "next/navigation";
 import TimeSheetEditModal from "../TimeSheetEditModal";
-import { submitAllVisiblePayments } from "@/app/lib/PaymentCommonApi";
+import {
+  submitAllVisiblePayments,
+  submitSinglePayment,
+} from "@/app/lib/PaymentCommonApi";
 
 /* utils */
 function cn(...classes) {
@@ -65,8 +70,8 @@ function buildFixedWindowSeries(windowDays, timeZone = TZ) {
   }
   return series;
 }
-/** ---------------------------------------------------------------- */
 
+/* spark line */
 function buildSparkPath(points, width = 240, height = 48, maxY = 9) {
   if (!points.length) return "";
   const stepX = width / Math.max(points.length - 1, 1);
@@ -81,17 +86,15 @@ function buildSparkPath(points, width = 240, height = 48, maxY = 9) {
     .join(" ");
 }
 
-/** Range tone: 0–3 (rose), 4–7 (amber), 7–9+ (emerald) */
+/** Range tone / visuals */
 function getHourRangeTone(hours) {
   if (typeof hours !== "number") return "";
   if (hours <= 3) return "text-rose-600 dark:text-rose-400";
   if (hours <= 7) return "text-amber-600 dark:text-amber-400";
   return "text-emerald-600 dark:text-emerald-400";
 }
-
-/** Backgrounds & ribbons by range */
 function getCardBackground(hours) {
-  if (typeof hours !== "number") return "bg-white dark:bg-neutral-900"; // empty day
+  if (typeof hours !== "number") return "bg-white dark:bg-neutral-900";
   if (hours <= 3)
     return "bg-gradient-to-br from-rose-50 to-white dark:from-rose-950/30 dark:to-neutral-900";
   if (hours <= 7)
@@ -165,7 +168,7 @@ function buildFilteredSeries(baseSeries, detailsByDate, projectId, userId) {
   });
 }
 
-/* Time helpers */
+/* time helpers */
 function isoToLocalHMS(iso) {
   if (!iso) return "";
   const d = new Date(iso);
@@ -236,7 +239,7 @@ function computeSecondsFromRow(row) {
   return 0;
 }
 
-/* Payroll day builder */
+/* Payroll day builder (for old daily flow) */
 function buildDailyPayablesForUser(detailsByDate, userId) {
   if (!detailsByDate || userId == null) return [];
   const datesAsc = Object.keys(detailsByDate).sort((a, b) =>
@@ -282,9 +285,131 @@ function hasAnyFlaggerZeroForUser(detailsByDate, userId) {
   return false;
 }
 
+/* ---------- Payment grouping (current month only) ---------- */
+const CURRENT_TZ = "Asia/Dhaka";
+function currentMonthKey(timeZone = CURRENT_TZ) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+  }).formatToParts(new Date());
+  const obj = Object.fromEntries(parts.map((p) => [p.type, p.value]));
+  return `${obj.year}-${obj.month}`; // e.g. "2025-11"
+}
+function bucketForDay(day) {
+  if (day >= 1 && day <= 7) return "1-7";
+  if (day >= 8 && day <= 15) return "8-15";
+  if (day >= 16 && day <= 23) return "16-23";
+  return "24-31";
+}
+
+/**
+ * data: [
+ *  {
+ *    date, hours, label,
+ *    serial_ids[], session_payments[], flaggers[], user_id[],
+ *    session_seconds[] (added)
+ *  }
+ * ]
+ * Returns:
+ * { month: "YYYY-MM", "<devId>": { "1-7": [...], "8-15": [...], "16-23": [...], "24-31": [...] }, ... }
+ *
+ * FIXES:
+ * - hours/label are computed per developer from session_seconds (never null).
+ * - payment = sum of ALL session_payments for that developer/day (not filtered by flagger).
+ */
+function groupCurrentMonthForPayment(data, timeZone = CURRENT_TZ) {
+  const month = currentMonthKey(timeZone);
+  const out = { month };
+  if (!Array.isArray(data) || data.length === 0) return out;
+
+  // Filter to current month only
+  const monthItems = data.filter((d) =>
+    String(d?.date ?? "").startsWith(month + "-")
+  );
+
+  // Dev ids present this month
+  const devSet = new Set();
+  for (const day of monthItems) {
+    (day.user_id || []).forEach((uid) => devSet.add(Number(uid)));
+  }
+  for (const devId of devSet) {
+    out[devId] = out[devId] || {
+      "1-7": [],
+      "8-15": [],
+      "16-23": [],
+      "24-31": [],
+    };
+  }
+
+  // Per-day per-dev split into buckets
+  for (const day of monthItems) {
+    const ymd = String(day.date);
+    const dayNum = Number(ymd.slice(-2));
+    const bucket = bucketForDay(dayNum);
+
+    const serials = day.serial_ids || [];
+    const pays = day.session_payments || [];
+    const flags = day.flaggers || [];
+    const users = day.user_id || [];
+    const secsArr = day.session_seconds || []; // NEW: per-session seconds
+
+    const byDev = new Map();
+    for (let i = 0; i < users.length; i++) {
+      const dev = Number(users[i]);
+      if (!byDev.has(dev)) byDev.set(dev, []);
+      byDev.get(dev).push(i);
+    }
+
+    for (const [dev, idxs] of byDev.entries()) {
+      const devSerials = [];
+      const devFlaggers = [];
+      const devUsers = [];
+      const devPays = [];
+      let devSeconds = 0;
+
+      for (const i of idxs) {
+        devSerials.push(serials[i]);
+        const pay = Number(pays[i] || 0);
+        devPays.push(pay);
+        const fl = Number(flags[i] || 0);
+        devFlaggers.push(fl);
+        devUsers.push(Number(users[i]));
+        devSeconds += Number(secsArr[i] || 0);
+      }
+
+      // ✅ hours/label computed from this developer's seconds
+      const hours = roundHours2(devSeconds);
+      const label = secondsToLabel(devSeconds);
+
+      // ✅ payment = sum of ALL session payments for this dev on this day
+      const payment =
+        Math.round(
+          devPays.reduce((acc, p) => acc + (Number(p) || 0), 0) * 100
+        ) / 100;
+
+      const entry = {
+        date: ymd,
+        hours,
+        label,
+        serial_ids: devSerials,
+        session_payments: devPays,
+        flaggers: devFlaggers,
+        user_id: devUsers,
+        payment,
+      };
+
+      out[dev][bucket].push(entry);
+    }
+  }
+
+  return out;
+}
+
+/* ----------------- Component ----------------- */
 export default function TimeSheet({
   initialWindow,
-  data,
+  data, // month-mixed array (now includes session_seconds)
   detailsByDate,
   userRole = "Developer",
   userId,
@@ -305,7 +430,7 @@ export default function TimeSheet({
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
 
-  // Pagination for custom > 31
+  // Paging
   const PAGE_SIZE = 31;
   const [pageIndex, setPageIndex] = useState(0);
   useEffect(() => setPageIndex(0), [rangeMode, customStart, customEnd]);
@@ -324,7 +449,7 @@ export default function TimeSheet({
   const [payProcessedMap, setPayProcessedMap] = useState({});
   const [payRows, setPayRows] = useState([]);
 
-  // Gating to avoid UI flicker / mis-clicks
+  // Gating
   const [mounted, setMounted] = useState(false);
   const [approvalFetched, setApprovalFetched] = useState(false);
   useEffect(() => setMounted(true), []);
@@ -411,13 +536,13 @@ export default function TimeSheet({
     }
   }, [selectedUser, localDetailsByDate]);
 
-  // PRESET: fixed window ending today
+  // PRESET window
   const baseSeriesPreset = useMemo(
     () => buildFixedWindowSeries(windowDays, TZ),
     [windowDays]
   );
 
-  // CUSTOM: span of loaded data
+  // CUSTOM window
   const baseSeriesCustom = useMemo(() => {
     if (rangeMode !== "custom" || !clientData.length) return [];
     const first = clientData[0]?.date;
@@ -453,13 +578,10 @@ export default function TimeSheet({
   }, [baseSeries, localDetailsByDate, selectedProject, selectedUser]);
 
   // Paging
-  const needsPaging =
-    rangeMode === "custom" && filteredSeries.length > PAGE_SIZE;
-  const totalPages = needsPaging
-    ? Math.ceil(filteredSeries.length / PAGE_SIZE)
-    : 1;
-  const pageStart = needsPaging ? pageIndex * PAGE_SIZE : 0;
-  const pageEnd = needsPaging ? pageStart + PAGE_SIZE : filteredSeries.length;
+  const needsPaging = rangeMode === "custom" && filteredSeries.length > 31;
+  const totalPages = needsPaging ? Math.ceil(filteredSeries.length / 31) : 1;
+  const pageStart = needsPaging ? pageIndex * 31 : 0;
+  const pageEnd = needsPaging ? pageStart + 31 : filteredSeries.length;
   const windowSeries = filteredSeries.slice(pageStart, pageEnd);
 
   const hasData = windowSeries.length > 0;
@@ -941,6 +1063,105 @@ export default function TimeSheet({
 
   const adminActionDisabled = adminSelLoading || adminSelApproval !== 1;
 
+  /* --------- NEW: build & log the grouped payment data (current month) --------- */
+  const groupedForPayment = useMemo(
+    () => groupCurrentMonthForPayment(data),
+    [data]
+  );
+
+  useEffect(() => {
+    try {
+      console.groupCollapsed(
+        "%cCurrent Month Payment Buckets (by Developer)",
+        "background:#4f46e5;color:#fff;padding:2px 6px;border-radius:4px;"
+      );
+      console.log(groupedForPayment);
+      console.groupEnd();
+      if (typeof window !== "undefined") {
+        window.__CURRENT_MONTH_PAY_BUCKETS__ = groupedForPayment;
+      }
+    } catch (_) {}
+  }, [groupedForPayment]);
+
+  /* --------- NEW: Start Payment — batch over groupedForPayment --------- */
+  function buildRowsForDeveloper(grouped, developerId) {
+    const dev = grouped?.[String(developerId)];
+    if (!dev) return [];
+    const buckets = ["1-7", "8-15", "16-23", "24-31"];
+    let rid = 1;
+    const rows = [];
+    for (const b of buckets) {
+      const arr = dev[b] || [];
+      for (const it of arr) {
+        const hoursNum = Number.isFinite(it?.hours) ? Number(it.hours) : 0;
+        rows.push({
+          id: rid++,
+          date: it.date,
+          hours: hoursNum,
+          label: typeof it.label === "string" ? it.label : secondsToLabel((hoursNum || 0) * 3600),
+          payment: Number(it.payment ?? 0),
+          serial_ids: Array.isArray(it.serial_ids) ? it.serial_ids : [],
+          session_payments: Array.isArray(it.session_payments)
+            ? it.session_payments
+            : [],
+          flaggers: Array.isArray(it.flaggers) ? it.flaggers : [],
+          user_id: Array.isArray(it.user_id) ? it.user_id : [],
+          bucket: b,
+          _raw: it,
+        });
+      }
+    }
+    return rows;
+  }
+
+  async function handleStartPayment() {
+    try {
+      const { month, ...rest } = groupedForPayment || {};
+      const devIds = Object.keys(rest).filter((k) => k !== "month");
+
+      for (const devId of devIds) {
+        const devKey = String(devId);
+        const devBuckets = rest[devKey];
+        if (!devBuckets) continue;
+
+        console.groupCollapsed(`%cPAY RUN → Developer ${devKey}`, "color:#059669");
+        const rowsForDev = buildRowsForDeveloper(rest, devKey);
+
+        // decide whether to skip zero-payment rows; here we process all (as requested)
+        const payableRows = rowsForDev;
+
+        // per-dev processed map and rows array
+        let processedMap = {};
+        let rowsBag = [...payableRows];
+
+        for (const row of payableRows) {
+          console.log("00000000Row to be processed:", row);
+          console.log("Current User:", currentUser);
+          // await submitSinglePayment({
+          //   id: row.id,
+          //   date: row.date,
+          //   rows: rowsBag,
+          //   setRows: (fn) => {
+          //     rowsBag = typeof fn === "function" ? fn(rowsBag) : fn;
+          //   },
+          //   processed: processedMap,
+          //   setProcessed: (fn) => {
+          //     processedMap =
+          //       typeof fn === "function" ? fn(processedMap) : fn;
+          //   },
+          //   currentUser,
+          //   developerId: Number(devKey),
+          // });
+        }
+        console.groupEnd();
+      }
+      console.log("PAY RUN COMPLETED");
+    } catch (e) {
+      console.error("PAY RUN ERROR:", e);
+      alert(e?.message || "Payment run failed");
+    }
+  }
+
   return (
     <div className="p-4 md:p-6 space-y-6 bg-gradient-to-br from-blue-50 to-indigo-50 min-h-screen">
       {/* Header */}
@@ -993,6 +1214,18 @@ export default function TimeSheet({
                 );
               })}
             </div>
+
+            {/* NEW: Start Payment button */}
+            {isAdmin && (
+              <button
+                onClick={handleStartPayment}
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm"
+                title="Run payments for current-month grouped data"
+              >
+                <PlayCircle className="h-4 w-4" />
+                Start Payment
+              </button>
+            )}
 
             {/* Inline custom inputs */}
             {isAdmin && rangeMode === "custom" && (
@@ -1280,34 +1513,23 @@ export default function TimeSheet({
         </div>
       )}
 
-      {/* Day tiles — VISUAL UPGRADE */}
+      {/* Legend */}
       <div className="mb-5 flex flex-wrap items-center gap-2">
-        <span
-          className="inline-flex items-center px-2 py-0.5 rounded-full text-[15px] font-medium
-                   bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300"
-        >
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[15px] font-medium bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
           Empty
         </span>
-        <span
-          className="inline-flex items-center px-2 py-0.5 rounded-full text-[15px] font-medium
-                   bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300"
-        >
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[15px] font-medium bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300">
           Light (0–3h)
         </span>
-        <span
-          className="inline-flex items-center px-2 py-0.5 rounded-full text-[15px] font-medium
-                   bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300"
-        >
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[15px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300">
           Steady (4–7h)
         </span>
-        <span
-          className="inline-flex items-center px-2 py-0.5 rounded-full text-[15px] font-medium
-                   bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300"
-        >
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[15px] font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300">
           Heavy (7–9+h)
         </span>
       </div>
 
+      {/* Day tiles */}
       <div>
         {!hasData ? (
           <div className="text-center py-10 text-neutral-500 dark:text-neutral-400">

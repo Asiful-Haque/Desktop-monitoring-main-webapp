@@ -49,7 +49,8 @@ export class UsersService {
     roleName,
     password,
     tenant_id,
-    default_hour_rate
+    default_hour_rate,
+    salary_type
   ) {
     const ds = await getDataSource();
     const userRepo = ds.getRepository(User);
@@ -58,18 +59,42 @@ export class UsersService {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // determine approval value based on role
-    const timeSheetApproval = roleName === "Freelancer" ? 0 : 1;
+    const isFreelancer = roleName === "Freelancer";
+    const timeSheetApproval = isFreelancer ? 0 : 1;
+
+    // validate/normalize rate
+    let rate = 0.0;
+    if (
+      default_hour_rate !== undefined &&
+      default_hour_rate !== null &&
+      default_hour_rate !== ""
+    ) {
+      const parsed = Number(default_hour_rate);
+      if (!Number.isFinite(parsed) || parsed < 0) {
+        throw new Error("default_hour_rate must be a non-negative number");
+      }
+      rate = Math.round(parsed * 100) / 100;
+    }
+
+    // validate salary_type for non-freelancers
+    let normalizedSalaryType = null;
+    if (!isFreelancer) {
+      const allowed = ["Weekly", "Monthly"];
+      if (!salary_type || !allowed.includes(salary_type)) {
+        throw new Error(
+          "salary_type is required for non-freelancers and must be 'Weekly' or 'Monthly'"
+        );
+      }
+      normalizedSalaryType = salary_type;
+    }
 
     const user = userRepo.create({
       username,
       email,
       password: hashedPassword,
-      default_hour_rate:
-        default_hour_rate !== undefined && default_hour_rate !== null
-          ? Number(parseFloat(default_hour_rate).toFixed(2))
-          : 0.0,
+      default_hour_rate: rate,
       time_sheet_approval: timeSheetApproval,
+      salary_type: normalizedSalaryType, // persisted
     });
 
     const savedUser = await userRepo.save(user);
@@ -91,7 +116,11 @@ export class UsersService {
 
   //Time sheet approval status: 0 = Approved, 1 = Sent/Pending
   async setTimeSheetApproval(userId, value /* 0 | 1 | 2 */) {
-    console.log("setTimeSheetApproval dddddediting.............................................................................. called with:", userId, value);
+    console.log(
+      "setTimeSheetApproval dddddediting.............................................................................. called with:",
+      userId,
+      value
+    );
     const ds = await getDataSource();
     const userRepo = ds.getRepository(User);
 

@@ -5,7 +5,6 @@ import jwt from "jsonwebtoken";
 export const dynamic = "force-dynamic";
 
 /** ----------------------- helpers ----------------------- **/
-// Helper functions remain unchanged
 function ymd(d) {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -171,10 +170,11 @@ export default async function Page() {
   const data = Array.from(daySessions.entries())
     .map(([date, sessions]) => {
       detailsByDate[date] = sessions;
+
       const totalSecs = sessions.reduce((acc, s) => acc + s.seconds, 0);
       const hours = Math.round((totalSecs / 3600) * 100) / 100;
 
-      // ✅ Include the serial IDs and payment for this day
+      // ✅ Per-session arrays (parallel)
       const serial_ids = Array.from(
         new Set(
           sessions
@@ -183,29 +183,42 @@ export default async function Page() {
         )
       );
       const session_payments = sessions.map((s) => s.session_payment);
-      const flaggers = sessions.map((s) => s.flagger);  
+      const flaggers = sessions.map((s) => s.flagger);
       const user_id = sessions.map((s) => s.user_id);
+
+      // ✅ NEW: session-by-session seconds (+ labels)
+      const session_seconds = sessions.map((s) => Number(s.seconds) || 0);
+      const session_seconds_label = sessions.map((s) =>
+        formatHMS(Number(s.seconds) || 0)
+      );
 
       return {
         date,
         hours,
         label: formatHMS(totalSecs),
-        serial_ids, // serial IDs for the day
-        session_payments, // corresponding payments for each session
-        flaggers,  // Include flaggers in the data as well
+
+        // existing arrays
+        serial_ids,
+        session_payments,
+        flaggers,
         user_id,
+
+        // NEW arrays
+        session_seconds,
+        session_seconds_label,
       };
     })
     .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 
   const userRolesById = Object.fromEntries(rolesByUserId);
   console.log("sending data from page.js to TimeSheet component: ", data);
+  console.log("Details by date: ", detailsByDate);
 
   return (
     <div className="min-h-screen">
       <TimeSheet
         initialWindow={31}
-        data={data}                 // now contains { date, hours, label, serial_ids, session_payments, flaggers }
+        data={data}                 // now contains per-session seconds arrays
         detailsByDate={detailsByDate}
         userRole={userRole || "Developer"}
         userId={userId}
