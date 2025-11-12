@@ -43,6 +43,25 @@ export class UsersService {
     });
   }
 
+    async getPaymentTypeByUserId(tenant_id, userId) {
+    const ds = await getDataSource();
+    const userRepo = ds.getRepository(User);
+
+    const row = await userRepo
+      .createQueryBuilder("user")
+      .innerJoin("user.user_roles_rel", "ur")
+      .select([
+        "user.user_id AS user_id",
+        "user.salary_type AS salary_type",
+      ])
+      .where("user.user_id = :userId", { userId })
+      .andWhere("ur.tenant_id = :tenant_id", { tenant_id })
+      .getRawOne();
+
+    // returns { user_id, payment_type } or undefined
+    return row || null;
+  }
+
   async createUser(
     username,
     email,
