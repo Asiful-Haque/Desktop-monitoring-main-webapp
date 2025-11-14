@@ -6,11 +6,24 @@ import { TransactionService } from "@/app/services/transaction/transactionServic
 const transactionService = new TransactionService();
 
 export async function POST(req) {
+  console.log("H1");
   try {
-    const token = await getAuthFromCookie(req);
+    let token;
+    const authHeader = req.headers.get("Authorization");
+    if (authHeader) {
+      token = authHeader.split(" ")[1]; 
+    }
+    if (!token) {
+      token = await getAuthFromCookie(req);
+    }
     if (!token) {
       return corsJson({ error: "Token missing or invalid" }, 401);
     }
+
+
+    console.log("++token", token);
+
+
     const { transaction_number, hours, payment_of_transaction, developer_id, status } = await req.json();
 
     if (!developer_id) {

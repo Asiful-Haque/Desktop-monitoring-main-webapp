@@ -18,6 +18,7 @@ export async function POST(req) {
 
   const loginService = new LoginService();
   const user = await loginService.validateUser(email, password);
+  console.log("uuuu",user);
   if (!user) return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
 
   const payload = {

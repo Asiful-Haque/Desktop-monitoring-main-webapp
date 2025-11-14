@@ -7,7 +7,14 @@ const paymentLogService = new PaymentLogService();
 
 export async function POST(req) {
   try {
-    const token = await getAuthFromCookie(req);
+    let token;
+    const authHeader = req.headers.get("Authorization");
+    if (authHeader) {
+      token = authHeader.split(" ")[1]; 
+    }
+    if (!token) {
+      token = await getAuthFromCookie(req);
+    }
     if (!token) {
       return corsJson({ error: "Token missing or invalid" }, 401);
     }
@@ -18,7 +25,7 @@ export async function POST(req) {
     console.log("in apiiiiiiiiiiii currentUser, transaction_number, logs:", currentUser, transaction_number, logs);
 
     // Check if currentUser has an id
-    if (!currentUser?.id) {
+    if ((typeof currentUser === 'object' && !currentUser?.id) || (typeof currentUser !== 'object' && isNaN(Number(currentUser)))) {
       return corsJson({ error: "currentUser.id is required" }, 400);
     }
 

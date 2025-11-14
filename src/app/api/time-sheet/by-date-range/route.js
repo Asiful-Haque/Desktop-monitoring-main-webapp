@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { TimeTrackingService } from "@/app/services/Time-Tracking/TimeTrackingService";
+import { getAuthFromCookie } from "@/app/lib/auth-server";
 
 const service = new TimeTrackingService();
 console.log("TimeTrackingService initialized in /api/time-sheet/by-date-range");
@@ -7,7 +8,6 @@ console.log("TimeTrackingService initialized in /api/time-sheet/by-date-range");
 export async function POST(req) {
   try {
     const { startDate, endDate, userId, userRole, all = false } = await req.json();
-
     if (!all) {
       const { rows, total } = await service.findAllToSubmitForPayment({ userId });
       console.log("Called with all=============false, returning");
@@ -25,6 +25,8 @@ export async function POST(req) {
 
     console.log("Called with all=============true, returning");
     const items = await service.findByDateRangeAll({ startDate, endDate, userId, userRole });
+    console.log("Item count for date range:", items.length);
+    console.log("Sample item for date range:", items[0]);
     return NextResponse.json({
       ok: true,
       mode: "range-all",

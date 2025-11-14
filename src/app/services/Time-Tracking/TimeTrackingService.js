@@ -291,6 +291,7 @@ export class TimeTrackingService {
 
   // ------------------ ROLE-AWARE RANGE QUERY ------------------
   async findByDateRangeAll({ startDate, endDate, userId, userRole }) {
+    console.log("Got the function for database call you called ");
     const repo = await this.repo();
     const role = String(userRole || "").trim().toLowerCase();
     const isDeveloper = role === "developer" || role === "freelancer";

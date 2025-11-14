@@ -67,15 +67,12 @@ export default async function Page() {
   const cookieStore = await cookies();
   const token = cookieStore.get("token")?.value;
   const currentUser = token ? jwt.decode(token) : null;
-
   const userId = currentUser ? currentUser.id : null;
   const userName = currentUser?.name || null;
   const userRole = currentUser?.role || currentUser?.user_role || "Developer";
-
   const end = new Date();
   const start = new Date(end);
   start.setDate(end.getDate() - 30);
-
   const body = {
     startDate: ymd(start),
     endDate: ymd(end),
@@ -83,7 +80,6 @@ export default async function Page() {
     userId,
     userRole,
   };
-
   const apiUrl = process.env.NEXT_PUBLIC_MAIN_HOST
     ? `${process.env.NEXT_PUBLIC_MAIN_HOST}/api/time-sheet/by-date-range`
     : "/api/time-sheet/by-date-range";
@@ -98,6 +94,7 @@ export default async function Page() {
     });
     if (res.ok) {
       const payload = await res.json();
+      console.log("}}}}}}}}}}}}", payload);
       rows = Array.isArray(payload?.items) ? payload.items : [];
     } else {
       console.error("Failed to load time-sheet data:", res.status, res.statusText);
@@ -212,7 +209,7 @@ export default async function Page() {
 
   const userRolesById = Object.fromEntries(rolesByUserId);
   console.log("sending data from page.js to TimeSheet component: ", data);
-  console.log("Details by date: ", detailsByDate);
+  // console.log("Details by date: ", detailsByDate);
 
   return (
     <div className="min-h-screen">

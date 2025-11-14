@@ -6,9 +6,17 @@ import { TransactionService } from "@/app/services/transaction/transactionServic
 const transactionService = new TransactionService();
 
 export async function GET(req) {
+  console.log("🔍 GET /api/get-last-transaction called", req);
   try {
     console.log("🔍 GET request received for last transaction number called");
-    const token = await getAuthFromCookie(req); 
+    let token;
+    const authHeader = req.headers.get("Authorization");
+    if (authHeader) {
+      token = authHeader.split(" ")[1]; 
+    }
+    if (!token) {
+      token = await getAuthFromCookie(req);
+    }
     if (!token) {
       return corsJson({ error: "Token missing or invalid" }, 401);
     }

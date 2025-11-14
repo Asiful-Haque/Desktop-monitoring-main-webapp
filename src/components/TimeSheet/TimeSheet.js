@@ -18,8 +18,16 @@ import {
   submitAllVisiblePayments,
   submitSinglePayment,
 } from "@/app/lib/PaymentCommonApi";
+
+// 🔹 NEW: Use the JS payment buckets builder (no TS)
 import {
   groupCurrentMonthForPayment,
+  debugLogPaymentBuckets,
+} from "@/app/lib/payment-buckets";
+
+// keep using your utils (no TS)
+import {
+  groupCurrentMonthForPayment as UNUSED_old_group_fn, // not used anymore (kept just to avoid import drift)
   cn,
   normalizeAndSort,
   keyOf,
@@ -709,24 +717,11 @@ export default function TimeSheet({
   const adminActionDisabled = adminSelLoading || adminSelApproval !== 1;
 
   /* --------- Build the grouped payment data (current month) --------- */
-  const groupedForPayment = useMemo(
-    () => groupCurrentMonthForPayment(data),
-    [data]
-  );
-
-  useEffect(() => {
-    try {
-      console.groupCollapsed(
-        "%cCurrent Month Payment Buckets (by Developer)",
-        "background:#4f46e5;color:#fff;padding:2px 6px;border-radius:4px;"
-      );
-      console.log(groupedForPayment);
-      console.groupEnd();
-      if (typeof window !== "undefined") {
-        window.__CURRENT_MONTH_PAY_BUCKETS__ = groupedForPayment;
-      }
-    } catch (_) {}
-  }, [groupedForPayment]);
+  const groupedForPayment = useMemo(() => {
+    const g = groupCurrentMonthForPayment(data); // uses Asia/Dhaka by default
+    debugLogPaymentBuckets(g); // console helper
+    return g;
+  }, [data]);
 
   /* --------- Start Payment — batch over groupedForPayment --------- */
   function buildRowsForDeveloper(grouped, developerId) {
@@ -747,8 +742,7 @@ export default function TimeSheet({
         const hoursNum = Number.isFinite(it?.hours) ? Number(it.hours) : 0;
         const paymentNum = Number(it?.payment || 0);
 
-        // When grouping we already kept only flagger===0 sessions.
-        // Still, skip if there’s nothing meaningful.
+        // Already only flagger===0 sessions; still guard for empties
         if (
           Array.isArray(it.flaggers) &&
           it.flaggers.length === 0 &&
@@ -783,7 +777,9 @@ export default function TimeSheet({
 
   async function handleStartPayment() {
     try {
-      const { month, ...rest } = groupedForPayment || {};
+      const { month, ...rest } = groupedForPayment;
+      console.log("month for payment:", month);
+      console.log("Initiating PAY RUN for month:", rest);
       const devIds = Object.keys(rest).filter((k) => k !== "month");
 
       for (const devId of devIds) {
@@ -837,6 +833,91 @@ export default function TimeSheet({
       alert(e?.message || "Payment run failed");
     }
   }
+
+// async function handleStartPayment() {
+//   try {
+//     console.log("Starting call to /api/cronjob/trigger...");
+    
+//     // Trigger the API call to start the payment process
+//     const res = await fetch("/api/cronjob/trigger", {
+//       method: "POST",
+//       headers: {
+//         "Content-Type": "application/json", // Ensure the body is in JSON format
+//       },
+//       credentials: "same-origin", // Include credentials automatically (cookies, etc.)
+//     });
+
+//     if (!res.ok) {
+//       throw new Error("Failed to trigger payroll process");
+//     }
+
+//     const {data} = await res.json();
+//     console.log("Payroll process triggered successfully:", data);
+
+//     // Process the data here using groupCurrentMonthForPayment
+//     console.log("data came from api..now sending to monthforpay fun.");
+  
+    
+ 
+
+//     const { month, ...rest } = groupCurrentMonthForPayment(data); // Extract month and the rest of the data
+//     console.log("month for payment:", month);
+//     console.log("Initiating PAY RUN for month:", rest);
+//     const devIds = Object.keys(rest).filter((k) => k !== "month");
+
+//     // Loop through the developers and process payments
+//     for (const devId of devIds) {
+//       // Skip freelancers from bulk payment
+//       const roleLower = String(getRoleForUser(Number(devId)) || "").toLowerCase();
+//       if (roleLower === "freelancer") {
+//         console.info(`Skipping bulk payment for freelancer userId=${devId}`);
+//         continue;
+//       }
+
+//       const devKey = String(devId);
+//       const devBuckets = rest[devKey];
+//       if (!devBuckets) continue;
+
+//       console.groupCollapsed(`%cPAY RUN → Developer ${devKey}`, "color:#059669");
+      
+//       // Build rows for the developer
+//       const rowsForDev = buildRowsForDeveloper(rest, devKey);
+
+//       let processedMap = {};
+//       let rowsBag = [...rowsForDev]; // Prepare the rows for processing
+
+//       // Step 3: Process each row (payment) for the developer
+//       for (const row of rowsForDev) {
+//         console.log("Row to be processed:", row);
+//         console.log("Current User:", currentUser);
+
+//         // Submit the payment for this row
+//         await submitSinglePayment({
+//           id: row.id,
+//           date: row.date,
+//           rows: rowsBag,
+//           setRows: (fn) => {
+//             rowsBag = typeof fn === "function" ? fn(rowsBag) : fn;
+//           },
+//           processed: processedMap,
+//           setProcessed: (fn) => {
+//             processedMap = typeof fn === "function" ? fn(processedMap) : fn;
+//           },
+//           currentUser,
+//           developerId: Number(devKey),
+//         });
+//       }
+//       console.groupEnd();
+//     }
+
+//     console.log("PAY RUN COMPLETED (freelancers were skipped; only flagger=0 sessions processed)");
+//   } catch (error) {
+//     console.error("Error triggering payroll process:", error);
+//     alert("Error triggering payroll process: " + error.message);
+//   }
+// }
+
+
 
   return (
     <div className="p-4 md:p-6 space-y-6 bg-gradient-to-br from-blue-50 to-indigo-50 min-h-screen">

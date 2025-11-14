@@ -1,22 +1,37 @@
-// /app/lib/payrollActions.js
-// One file that contains: API calls + shared helpers + both submit actions
-// + admin-friendly helpers. Existing behavior preserved.
-
 import { toast } from "sonner";
-
 /* --------------------------- API HELPERS (UNCHANGED) --------------------------- */
 
-export async function apiGetLastTransaction() {
-  const res = await fetch("/api/get-last-transaction");
+export async function apiGetLastTransaction(token) {
+  console.log("entered");
+  console.log("entered..............", );
+  const res = await fetch(`${process.env.NEXT_PUBLIC_MAIN_HOST}/api/get-last-transaction`, {
+    method: 'GET',
+    cache: 'no-store',  // prevents caching
+    credentials: 'include',
+    headers: {
+      'Authorization': `Bearer ${token}`, 
+      'Content-Type': 'application/json', 
+    },
+  });
+
+  if(res.ok){
+    console.log("response is ok");
+  }
   if (!res.ok) throw new Error("Failed to fetch last transaction number");
   const j = await res.json();
+    console.log("-----||", j.lastTransactionNumber);
   return j.lastTransactionNumber;
 }
 
 export async function apiCreateTransaction(payload) {
-  const res = await fetch("/api/create-transaction", {
+  const token = payload.token;
+  console.log("Lpg token from payload.token", token);
+  const res = await fetch(`${process.env.NEXT_PUBLIC_MAIN_HOST}/api/create-transaction`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      'Authorization': `Bearer ${token}`, 
+      'Content-Type': 'application/json', 
+    },
     body: JSON.stringify(payload),
   });
   if (!res.ok) {
@@ -26,11 +41,15 @@ export async function apiCreateTransaction(payload) {
   return res.json();
 }
 
-export async function apiPostPaymentLogs({ currentUser, transaction_number, logs }) {
+export async function apiPostPaymentLogs({ currentUser, transaction_number, logs, token }) {
+  console.log("+_",currentUser);
   console.log("logs to send to apiPostPaymentLogs:((((((((((((((((( ", logs);
-  const res = await fetch("/api/fit-payment-logs", {
+  const res = await fetch(`${process.env.NEXT_PUBLIC_MAIN_HOST}/api/fit-payment-logs`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      'Authorization': `Bearer ${token}`, 
+      'Content-Type': 'application/json', 
+    },
     body: JSON.stringify({ currentUser, transaction_number, logs }),
   });
   if (!res.ok) {
@@ -42,7 +61,7 @@ export async function apiPostPaymentLogs({ currentUser, transaction_number, logs
 
 export async function apiMarkIdsProcessed({ dates, userId, data }) {
   console.log("Before api logs are ..........................", data);
-  const res = await fetch("/api/update-flagger", {
+  const res = await fetch(`${process.env.NEXT_PUBLIC_MAIN_HOST}/api/update-flagger`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ dates, flagger: 1, userId: userId || null, data }),
@@ -58,8 +77,10 @@ export async function apiMarkIdsProcessed({ dates, userId, data }) {
 
 export const fmtMoney = (n) => `$${Number(n || 0).toLocaleString()}`;
 
-export async function getNextTxnFactory(currentUser) {
-  const last = await apiGetLastTransaction(); // e.g., Trx_tnt1_5
+export async function getNextTxnFactory(currentUser, token) {
+  console.log("inthe get transacion function", currentUser);
+  const last = await apiGetLastTransaction(token); // e.g., Trx_tnt1_5
+  console.log("Last transaction", last);
   const lastVal = parseInt(String(last).split("_")[2] || "0", 10);
   const tenantId = currentUser?.tenant_id;
   return (offset = 1) => `Trx_tnt${tenantId}_${lastVal + offset}`;
@@ -94,7 +115,8 @@ export async function createTxnAndLogs({
   payment,
   txnNumber,
   data,
-  developerId, // optional (admin submit-for-user)
+  developerId, 
+  token,
 }) {
   const safeData = sanitizePayRow(data);
   const safeHours = Number.isFinite(hours) ? Number(hours) : 0;
@@ -108,15 +130,15 @@ export async function createTxnAndLogs({
     payment_of_transaction: safePayment,
     developer_id: developerId ?? currentUser?.id,
     status: "pending",
+    token: token,
   });
 
   await apiPostPaymentLogs({
     currentUser,
     transaction_number: txnNumber,
     logs: safeData,
+    token: token,
   });
-
-  toast.success(`Transaction created: ${txnNumber}`);
 }
 
 /* ---------------------- DAILY PAYABLES BUILDER (NEW) ---------------------- */
@@ -206,16 +228,29 @@ export async function submitSinglePayment({
   setProcessed,
   currentUser,
   developerId,
+  token,
 }) {
   // optimistic ON
   setProcessed((prev) => ({ ...prev, [id]: true }));
 
+    if (token) {
+    console.log("Token passed:", token);
+  } else {
+    console.log("No token passed");
+  }
   // txn factory
   let makeTxn;
+  console.log("id is ...........................", id);
+  console.log("date is ...........................", date);
+  console.log("rows in submitSinglePayment:...........................", rows[0]);
+  console.log("developerId in submitSinglePayment:...........................", developerId);
+  console.log("currentUser in submitSinglePayment:...........................", currentUser);
   try {
-    makeTxn = await getNextTxnFactory(currentUser);
+    console.log("In the try", Number(currentUser));
+    makeTxn = await getNextTxnFactory(Number(currentUser), token);
+    console.log("makeTxn function obtained:", makeTxn);
   } catch (e) {
-    toast.error(e.message || "Failed to prepare transaction number");
+    // toast.error(e.message || "Failed to prepare transaction number");
     setProcessed((prev) => ({ ...prev, [id]: false }));
     return;
   }
@@ -243,11 +278,13 @@ export async function submitSinglePayment({
       txnNumber: newTransactionNumber,
       data: safeRow,
       developerId,
+      token,
     });
   } catch (error) {
     console.error("create transaction/logs error:", error);
     toast.error(error.message || "Error creating the transaction");
     setProcessed((prev) => ({ ...prev, [id]: false }));
+    // toast.success(`Transaction created: ${txnNumber}`);
     return;
   }
 

@@ -8,12 +8,14 @@ import { signToken, verifyToken } from "./auth";
 export async function getAuthFromCookie(req) {
   // console.log("getAuthFromCookie called with get time req:", req);
   if (!req) { //This is for direct cookie access 
+    console.log("Its not req");
     const cookieStore = await cookies();
     const tokenCookie = cookieStore.get("token");
     const token = tokenCookie?.value;
     if (token) return verifyToken(token);
   }
   if (req) {
+    console.log("Its req");
     // This is for manual fetch where we forward the cookie in headers
     const cookieHeader = req.headers.get("cookie");
     // console.log("Cookie Header received:", cookieHeader); // Log the cookie header

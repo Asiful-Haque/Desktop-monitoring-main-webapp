@@ -1,5 +1,5 @@
 "use client";
-
+import { toast } from "sonner";
 import React, { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -15,6 +15,14 @@ import { Button } from "@/components/ui/button";
 import { CheckSquare, Clock, AlertCircle, Plus } from "lucide-react";
 import AddTaskModal from "@/components/AddTaskModal";
 import moment from "moment";
+import {
+  groupCurrentMonthForPayment,
+  debugLogPaymentBuckets,
+} from "@/app/lib/payment-buckets";
+import {
+  submitAllVisiblePayments,
+  submitSinglePayment,
+} from "@/app/lib/PaymentCommonApi";
 
 // Chart.js
 import {
@@ -287,6 +295,38 @@ const Tasks = ({ tasks: initialTasks, projects, curruser, allusers }) => {
       ? "All Projects"
       : projects.find((p) => String(p.project_id) === String(selectedProject))
           ?.project_name || "Project";
+  // --------------------------------------------------------------------------------------------------------------------
+  async function handleStartPayment() {
+    try {
+      console.log("Starting call to /api/cronjob/trigger.111..");
+
+      // Trigger the API call to start the payment process
+      const res = await fetch("/api/cronjob/trigger", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "same-origin",
+      });
+
+      // Check if the API call was successful
+      if (!res.ok) {
+        throw new Error("Failed to call the api");
+      }
+
+      // Parse the response from the /api/cronjob/trigger API
+      const { data } = await res.json();
+
+      console.log("Payroll process triggered successfully:", data);
+      toast.success(`Transaction created`);
+
+      // Optionally, you can handle or log the data here if needed
+      // e.g., process the response data or log it for verification
+    } catch (error) {
+      console.error("Error triggering payroll process:", error);
+      alert("Error triggering payroll process: " + error.message);
+    }
+  }
 
   return (
     <div
@@ -305,6 +345,13 @@ const Tasks = ({ tasks: initialTasks, projects, curruser, allusers }) => {
             Add Task
           </Button>
         )}
+        <Button
+          className="bg-primary text-primary-foreground hover:bg-primary/90"
+          onClick={handleStartPayment}
+        >
+          <Plus className="mr-2 h-4 w-4" />
+          Log payment data
+        </Button>
       </div>
 
       {/* Project Filter */}
