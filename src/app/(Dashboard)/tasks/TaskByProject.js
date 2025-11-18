@@ -317,7 +317,7 @@ const Tasks = ({ tasks: initialTasks, projects, curruser, allusers }) => {
       // Parse the response from the /api/cronjob/trigger API
       const { data } = await res.json();
 
-      console.log("Payroll process triggered successfully:", data);
+      // console.log("Payroll process triggered successfully:", data);
       toast.success(`Transaction created`);
 
       // Optionally, you can handle or log the data here if needed

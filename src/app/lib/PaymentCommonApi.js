@@ -83,6 +83,7 @@ export async function getNextTxnFactory(currentUser, token) {
   console.log("Last transaction", last);
   const lastVal = parseInt(String(last).split("_")[2] || "0", 10);
   const tenantId = currentUser?.tenant_id;
+  console.log("got in th func", tenantId);
   return (offset = 1) => `Trx_tnt${tenantId}_${lastVal + offset}`;
 }
 
@@ -247,7 +248,7 @@ export async function submitSinglePayment({
   console.log("currentUser in submitSinglePayment:...........................", currentUser);
   try {
     console.log("In the try", Number(currentUser));
-    makeTxn = await getNextTxnFactory(Number(currentUser), token);
+    makeTxn = await getNextTxnFactory(currentUser, token);
     console.log("makeTxn function obtained:", makeTxn);
   } catch (e) {
     // toast.error(e.message || "Failed to prepare transaction number");
@@ -261,7 +262,7 @@ export async function submitSinglePayment({
   const clickedRowLogs = rows.find((r) => r.id === id);
   console.log("clickedRowLogsxxxxxxxxxxxxxxxxxxxxxxxxxxxx:", clickedRowLogs);
   if (!clickedRowLogs) {
-    toast.error("Clicked row not found.");
+    // toast.error("Clicked row not found.");
     setProcessed((prev) => ({ ...prev, [id]: false }));
     return;
   }
@@ -296,9 +297,9 @@ export async function submitSinglePayment({
       data: safeRow,
     });
 
-    toast.success("Marked as processed", {
-      description: `Date ${date} • ${fmtMoney(safeRow.payment)} processed.`,
-    });
+    // toast.success("Marked as processed", {
+    //   description: `Date ${date} • ${fmtMoney(safeRow.payment)} processed.`,
+    // });
 
     // remove this row from UI
     setRows((prevRows) => prevRows.filter((r) => r.id !== id));

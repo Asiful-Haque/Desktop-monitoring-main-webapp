@@ -324,6 +324,7 @@ export class TimeTrackingService {
         "u.username AS developer_name",
         "u.email AS developer_email",
         "r.role_name AS role",
+        "ur.tenant_id AS tenant_id",
       ]);
 
     if (isDeveloper) {
