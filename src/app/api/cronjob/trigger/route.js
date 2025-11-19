@@ -72,12 +72,14 @@ export async function POST(req) {
   console.log("Starting call to /api/cronjob/trigger...");
 
   try {
-    const cookieHeader = req.headers.get("cookie");
-    console.log("ckhdr", cookieHeader);
-    const token = cookieHeader
-      .split("; ")
-      .find((c) => c.startsWith("token="))
-      ?.split("=")[1];
+    const authorizationHeader = req.headers.get("Authorization");
+    console.log("Authorization header:", authorizationHeader);
+
+    if (!authorizationHeader || !authorizationHeader.startsWith("Bearer ")) {
+      throw new Error("Authorization header is missing or malformed.");
+    }
+    const token = authorizationHeader.split(" ")[1];
+    console.log("Extracted token:", token);
 
     const data = await fetchDataForCronJob(token);
     if (!data || data.length === 0) {

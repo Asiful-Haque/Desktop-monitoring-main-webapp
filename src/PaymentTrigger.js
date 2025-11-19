@@ -21,7 +21,7 @@ async function handleStartPayment() {
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ email: username, password: password, isCronJob: true }),  
+      body: JSON.stringify({ email: "adm1@example.com", password: "456", isCronJob: true }),  
     });
 
     if (!loginRes.ok) {
@@ -35,15 +35,17 @@ async function handleStartPayment() {
     }
 
     // Step 2: Extract the cron tokens (access and refresh)
-    const cronAccessToken = loginData.cron_access_token;  // Access token for cron job
+    const token = loginData.cron_access_token;  // Access token for cron job
     const cronRefreshToken = loginData.cron_refresh_token;  // Refresh token for cron job
 
+    console.log("got the cron access ", token);
+
     // Step 3: Trigger the cron job API with the obtained cron access token
-    const cronJobRes = await fetch("/api/cronjob/trigger", {
+    const cronJobRes = await fetch("http://localhost:5500/api/cronjob/trigger", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${cronAccessToken}`,  // Pass the cron access token in the header
+        "Authorization": `Bearer ${token}`,  // Pass the cron access token in the header
       },
       credentials: "same-origin",  // Ensure cookies (if needed) are sent with the request
     });
