@@ -1,6 +1,10 @@
 import fetch from 'node-fetch';  // For making POST requests
-import 'dotenv/config';  // Load environment variables from .env file
 import dotenv from 'dotenv';  
+
+dotenv.config({
+  path: 'C:/Users/User/Documents/Sourav/task-monitoring/.env'
+});
+
 
 async function handleStartPayment() {
   console.log("dotenv version:", dotenv.version);
@@ -9,19 +13,22 @@ async function handleStartPayment() {
 
     // Fetch username and password (securely stored, like environment variables)
     console.log("NEXT_PUBLIC_MAIN_HOST:", process.env.NEXT_PUBLIC_MAIN_HOST);
-    console.log("USERNAME:", process.env.USERNAME);
-    console.log("PASSWORD:", process.env.PASSWORD);
+    console.log("CRON_USERNAME:", process.env.CRON_USERNAME);
+    console.log("CRON_PASSWORD:", process.env.CRON_PASSWORD);
 
-    const username = process.env.USERNAME;
-    const password = process.env.PASSWORD;
+    const username = process.env.CRON_USERNAME;
+    const password = process.env.CRON_PASSWORD;
+    // ------------------------------------------------------------------------------------------------------
+    // make a super admin checker so that only his email can trigger this cron job api's
+    // ------------------------------------------------------------------------------------------------------
 
     // Step 1: Call the cron job login API to get cron access and refresh tokens
-    const loginRes = await fetch("http://localhost:5500/api/auth/login/cron", {
+    const loginRes = await fetch(`${process.env.NEXT_PUBLIC_MAIN_HOST}/api/auth/login/cron`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ email: "adm1@example.com", password: "456", isCronJob: true }),  
+      body: JSON.stringify({ email: username, password: password, isCronJob: true }),  
     });
 
     if (!loginRes.ok) {
