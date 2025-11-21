@@ -241,11 +241,6 @@ export async function submitSinglePayment({
   }
   // txn factory
   let makeTxn;
-  console.log("id is ...........................", id);
-  console.log("date is ...........................", date);
-  console.log("rows in submitSinglePayment:...........................", rows[0]);
-  console.log("developerId in submitSinglePayment:...........................", developerId);
-  console.log("currentUser in submitSinglePayment:...........................", currentUser);
   try {
     console.log("In the try", Number(currentUser));
     makeTxn = await getNextTxnFactory(currentUser, token);
