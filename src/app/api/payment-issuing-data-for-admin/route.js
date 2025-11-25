@@ -13,6 +13,7 @@ export async function POST(req) {
 
     // Fetch pending transactions
     const pendingTransactions = await transactionService.getPendingDatoForAdminToPayorReject();
+    console.log("Pending Transactions:==================================", pendingTransactions);
 
     return corsJson(
       { message: "Pending transactions fetched successfully", data: pendingTransactions },

@@ -173,156 +173,178 @@ export class TimeEditService {
   }
 
   
-  async applyEdits({ changes, context = {}, tenantId }) {
-    if (!Array.isArray(changes) || changes.length === 0) {
-      const err = new Error("No changes provided.");
-      err.statusCode = 400;
-      throw err;
+async applyEdits({ changes, context = {}, tenantId }) {
+  console.log("Applying time edits:", { changesLength: changes.length });
+  console.log("changes sample:", changes.slice(0, 2));
+
+  if (!Array.isArray(changes) || changes.length === 0) {
+    const err = new Error("No changes provided.");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const ds = await getDataSource();
+
+  return ds.manager.transaction(async (trx) => {
+    const ttRepo = trx.getRepository(TimeTracking);
+    const taskRepo = trx.getRepository(Task);
+
+    const taskDeltaMap = new Map(); // task_id -> deltaSeconds
+    const updatedRows = [];
+
+    for (const [idx, c] of changes.entries()) {
+      if (
+        !c?.serial_id ||
+        !c?.task_id ||
+        !c?.new?.startISO ||
+        !c?.new?.endISO ||
+        typeof c?.new?.seconds !== "number"
+      ) {
+        const err = new Error(
+          `Invalid change at index ${idx}: serial_id, task_id, new.startISO, new.endISO, new.seconds required.`
+        );
+        err.statusCode = 400;
+        throw err;
+      }
+
+      const serialId = Number(c.serial_id);
+      const claimedTaskId = Number(c.task_id);
+      const newStart = new Date(c.new.startISO);
+      const newEnd = new Date(c.new.endISO);
+      const newSeconds = Number(c.new.seconds);
+
+      // Load current time_tracking row with Task join for tenant scope
+      const current = await ttRepo
+        .createQueryBuilder("tt")
+        .innerJoin(Task, "t", "t.task_id = tt.task_id")
+        .where("tt.serial_id = :serialId", { serialId })
+        .andWhere(tenantId != null ? "t.tenant_id = :tenantId" : "1=1", {
+          tenantId: tenantId != null ? Number(tenantId) : undefined,
+        })
+        .select([
+          "tt.serial_id AS serial_id",
+          "tt.task_id   AS tt_task_id",
+          "tt.task_start AS task_start",
+          "tt.task_end   AS task_end",
+          "tt.duration   AS duration",
+          "t.task_id     AS t_task_id",
+          "t.last_timing AS last_timing",
+        ])
+        .getRawOne();
+
+      if (!current) {
+        const err = new Error(
+          `time_tracking row not found or not accessible (serial_id=${serialId})`
+        );
+        err.statusCode = 404;
+        throw err;
+      }
+
+      const dbTaskId = Number(current.tt_task_id ?? current.t_task_id);
+      if (dbTaskId !== claimedTaskId) {
+        const err = new Error(
+          `serial_id ${serialId} belongs to task_id=${dbTaskId}, not ${claimedTaskId}`
+        );
+        err.statusCode = 400;
+        throw err;
+      }
+
+      // Duration currently stored in DB (null treated as 0)
+      const oldDurationFromDb = Number(current.duration || 0);
+
+      // Client-sent diff (may be undefined / NaN)
+      const clientDiffRaw = c.new && c.new.diff;
+      const clientDiff =
+        clientDiffRaw !== undefined && Number.isFinite(Number(clientDiffRaw))
+          ? Number(clientDiffRaw)
+          : null;
+
+      // Final delta used to update tasks.last_timing
+      // Prefer client diff if present, otherwise fall back to recompute.
+      const delta =
+        clientDiff !== null ? clientDiff : newSeconds - oldDurationFromDb;
+
+      // Update the time_tracking row with the *new* values
+      await ttRepo
+        .createQueryBuilder()
+        .update(TimeTracking)
+        .set({
+          task_start: newStart,
+          task_end: newEnd,
+          duration: newSeconds,
+        })
+        .where("serial_id = :serialId", { serialId })
+        .execute();
+
+      // Accumulate delta per task
+      if (delta !== 0) {
+        const prev = taskDeltaMap.get(dbTaskId) || 0;
+        taskDeltaMap.set(dbTaskId, prev + delta);
+      }
+
+      updatedRows.push({
+        serial_id: serialId,
+        task_id: dbTaskId,
+        oldSeconds: oldDurationFromDb,
+        newSeconds,
+        deltaSeconds: delta,
+        clientDiff,
+      });
     }
 
-    const ds = await getDataSource();
+    // Apply accumulated deltas to tasks.last_timing
+    const taskAdjustments = [];
 
-    return ds.manager.transaction(async (trx) => {
-      const ttRepo = trx.getRepository(TimeTracking);
-      const taskRepo = trx.getRepository(Task);
-
-      const taskDeltaMap = new Map(); // task_id -> deltaSeconds
-      const updatedRows = [];
-
-      for (const [idx, c] of changes.entries()) {
-        if (
-          !c?.serial_id ||
-          !c?.task_id ||
-          !c?.new?.startISO ||
-          !c?.new?.endISO ||
-          typeof c?.new?.seconds !== "number"
-        ) {
-          const err = new Error(
-            `Invalid change at index ${idx}: serial_id, task_id, new.startISO, new.endISO, new.seconds required.`
-          );
-          err.statusCode = 400;
-          throw err;
-        }
-
-        const serialId = Number(c.serial_id);
-        const claimedTaskId = Number(c.task_id);
-        const newStart = new Date(c.new.startISO);
-        const newEnd = new Date(c.new.endISO);
-        const newSeconds = Number(c.new.seconds);
-
-        // Load current time_tracking row with Task join for tenant scope
-        const current = await ttRepo
-          .createQueryBuilder("tt")
-          .innerJoin(Task, "t", "t.task_id = tt.task_id")
-          .where("tt.serial_id = :serialId", { serialId })
-          .andWhere(tenantId != null ? "t.tenant_id = :tenantId" : "1=1", {
-            tenantId: tenantId != null ? Number(tenantId) : undefined,
-          })
-          .select([
-            "tt.serial_id AS serial_id",
-            "tt.task_id   AS tt_task_id",
-            "tt.task_start AS task_start",
-            "tt.task_end   AS task_end",
-            "tt.duration   AS duration",
-            "t.task_id     AS t_task_id",
-            "t.last_timing AS last_timing",
-          ])
-          .getRawOne();
-
-        if (!current) {
-          const err = new Error(
-            `time_tracking row not found or not accessible (serial_id=${serialId})`
-          );
-          err.statusCode = 404;
-          throw err;
-        }
-
-        const dbTaskId = Number(current.tt_task_id ?? current.t_task_id);
-        if (dbTaskId !== claimedTaskId) {
-          const err = new Error(
-            `serial_id ${serialId} belongs to task_id=${dbTaskId}, not ${claimedTaskId}`
-          );
-          err.statusCode = 400;
-          throw err;
-        }
-
-        // Compute delta using DB value for duration (null treated as 0)
-        const oldDurationFromDb = Number(current.duration || 0);
-        const delta = newSeconds - oldDurationFromDb;
-
-        // Update the time_tracking row
-        await ttRepo
-          .createQueryBuilder()
-          .update(TimeTracking)
-          .set({
-            task_start: newStart,
-            task_end: newEnd,
-            duration: newSeconds,
-          })
-          .where("serial_id = :serialId", { serialId })
-          .execute();
-
-        // Accumulate delta per task
-        if (delta !== 0) {
-          const prev = taskDeltaMap.get(dbTaskId) || 0;
-          taskDeltaMap.set(dbTaskId, prev + delta);
-        }
-
-        updatedRows.push({
-          serial_id: serialId,
-          task_id: dbTaskId,
-          oldSeconds: oldDurationFromDb,
-          newSeconds,
-          deltaSeconds: delta,
-        });
-      }
-
-      // Apply accumulated deltas to tasks.last_timing
-      const taskAdjustments = [];
-      for (const [taskId, delta] of taskDeltaMap.entries()) {
-        const task = await taskRepo.findOne({
-          where: {
-            task_id: Number(taskId),
-            ...(tenantId != null ? { tenant_id: Number(tenantId) } : {}),
-          },
-        });
-
-        if (!task) {
-          const err = new Error(`Task not found or not accessible (task_id=${taskId})`);
-          err.statusCode = 404;
-          throw err;
-        }
-
-        // MySQL BIGINT can come as string
-        const oldLast = Number(task.last_timing || 0);
-        const nextLast = Math.max(0, oldLast + Number(delta || 0));
-
-        await taskRepo
-          .createQueryBuilder()
-          .update(Task)
-          .set({ last_timing: nextLast })
-          .where("task_id = :taskId", { taskId })
-          .execute();
-
-        taskAdjustments.push({
+    for (const [taskId, delta] of taskDeltaMap.entries()) {
+      const task = await taskRepo.findOne({
+        where: {
           task_id: Number(taskId),
-          deltaSeconds: delta,
-          oldLastTiming: oldLast,
-          newLastTiming: nextLast,
-          direction: delta === 0 ? "none" : delta > 0 ? "increase" : "decrease",
-        });
+          ...(tenantId != null ? { tenant_id: Number(tenantId) } : {}),
+        },
+      });
+
+      if (!task) {
+        const err = new Error(
+          `Task not found or not accessible (task_id=${taskId})`
+        );
+        err.statusCode = 404;
+        throw err;
       }
 
-      return {
-        ok: true,
-        context: {
-          dateKey: context?.dateKey ?? null,
-          timezone: context?.timezone ?? null,
-          reason: (context?.reason || "").trim(),
-        },
-        updatedRows,
-        taskAdjustments,
-      };
-    });
-  }
+      // MySQL BIGINT can come as string
+      const oldLast = Number(task.last_timing || 0);
+      const nextLast = Math.max(0, oldLast + Number(delta || 0));
+
+      await taskRepo
+        .createQueryBuilder()
+        .update(Task)
+        .set({ last_timing: nextLast })
+        .where("task_id = :taskId", { taskId })
+        .execute();
+
+      taskAdjustments.push({
+        task_id: Number(taskId),
+        deltaSeconds: delta,
+        oldLastTiming: oldLast,
+        newLastTiming: nextLast,
+        direction: delta === 0 ? "none" : delta > 0 ? "increase" : "decrease",
+      });
+    }
+
+    console.log("✅ Task adjustments from time edits:", taskAdjustments);
+    console.log("✅ Updated rows from time edits:", updatedRows.slice(0, 5));
+
+    return {
+      ok: true,
+      context: {
+        dateKey: context?.dateKey ?? null,
+        timezone: context?.timezone ?? null,
+        reason: (context?.reason || "").trim(),
+      },
+      updatedRows,
+      taskAdjustments,
+    };
+  });
+}
+
 }

@@ -185,7 +185,7 @@ export default function TimeSheet({
         groupedByDate[date].label = `${groupedByDate[date].hours}h`;
       });
       const groupedSessions = Object.values(groupedByDate);
-      console.log("Grouped Sessions (flagger = 0):", groupedSessions);
+      // console.log("Grouped Sessions (flagger = 0):", groupedSessions);
     }
   }, [selectedUser, localDetailsByDate]);
 
@@ -687,6 +687,7 @@ export default function TimeSheet({
         currentUser: currentUserForTxn,
         developerId: selectedUser,
       });
+      console.log("You skipped code..............uncomment it to run payment of freelancer...................................................................................................");
     } catch (e) {
       alert(e?.message || "Could not approve timesheet");
     } finally {
@@ -973,7 +974,8 @@ export default function TimeSheet({
             </div>
 
             {/* NEW: Start Payment button */}
-            {isAdmin && (
+            {/* --------open it when you want to pay for devs by a direct click from timesheet page automatically. ---------*/}
+            {/* {isAdmin && (
               <button
                 onClick={handleStartPayment}
                 className="inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm"
@@ -982,7 +984,7 @@ export default function TimeSheet({
                 <PlayCircle className="h-4 w-4" />
                 Start Payment
               </button>
-            )}
+            )} */}
 
             {/* Inline custom inputs */}
             {isAdmin && rangeMode === "custom" && (

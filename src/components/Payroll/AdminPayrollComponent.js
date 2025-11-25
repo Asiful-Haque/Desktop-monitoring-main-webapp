@@ -53,6 +53,7 @@ function AdminPayrollComponent({ currentUser }) {
         throw new Error(j?.error || `Request failed: ${res.status}`);
       }
       const json = await res.json();
+      console.log("Jsonnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn", json);
       return Array.isArray(json?.data) ? json.data : [];
     },
     [currentUser]
@@ -85,9 +86,11 @@ function AdminPayrollComponent({ currentUser }) {
   }, [reload]);
 
   const totalPages = Math.max(1, Math.ceil(rows.length / itemsPerPage));
+  console.log("rows length", rows.length);
   const start = (page - 1) * itemsPerPage;
   const end = start + itemsPerPage;
   const visible = rows.slice(start, end);
+  console.log("Rowwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwws", rows);
 
   useEffect(() => {
     if (page > totalPages) setPage(totalPages);
@@ -226,6 +229,7 @@ function AdminPayrollComponent({ currentUser }) {
     <div className="space-y-4">
       <div className="space-y-3">
         {visible.map((item) => {
+          console.log("Itemmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm", item);
           const roleLower = String(item?.developer_rel?.role || "").toLowerCase();
           const isFreelancer = roleLower === "freelancer";
           const rejectDisabled =

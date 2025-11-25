@@ -16,7 +16,10 @@ function fmtHMS(totalSeconds) {
   const h = Math.floor(s / 3600);
   const m = Math.floor((s % 3600) / 60);
   const sec = s % 60;
-  return `${h}h ${String(m).padStart(2, "0")}m ${String(sec).padStart(2, "0")}s`;
+  return `${h}h ${String(m).padStart(2, "0")}m ${String(sec).padStart(
+    2,
+    "0"
+  )}s`;
 }
 
 /** Build the payload (same logic, while skipping locked rows) */
@@ -54,8 +57,11 @@ function buildTimeEditPayload(details, tzLabel) {
   for (const row of time_tracking_updates) {
     const tId = row.task_id;
     if (!tId) continue;
-    const prev =
-      taskMap.get(tId) || { task_id: tId, deltaSeconds: 0, serial_ids: [] };
+    const prev = taskMap.get(tId) || {
+      task_id: tId,
+      deltaSeconds: 0,
+      serial_ids: [],
+    };
     prev.deltaSeconds += row.deltaSeconds;
     if (row.serial_id != null) prev.serial_ids.push(row.serial_id);
     taskMap.set(tId, prev);
@@ -64,7 +70,11 @@ function buildTimeEditPayload(details, tzLabel) {
     task_id: x.task_id,
     deltaSeconds: x.deltaSeconds,
     direction:
-      x.deltaSeconds === 0 ? "none" : x.deltaSeconds > 0 ? "increase" : "decrease",
+      x.deltaSeconds === 0
+        ? "none"
+        : x.deltaSeconds > 0
+        ? "increase"
+        : "decrease",
     serial_ids: x.serial_ids,
   }));
 
@@ -124,8 +134,7 @@ export default function TimeSheetEditModal({
         return (
           !it.newStartISO ||
           !it.newEndISO ||
-          new Date(it.newEndISO).getTime() <=
-            new Date(it.newStartISO).getTime()
+          new Date(it.newEndISO).getTime() <= new Date(it.newStartISO).getTime()
         );
       }),
     [items]
@@ -167,18 +176,25 @@ export default function TimeSheetEditModal({
         // developer_id: details?.developer_id
       }));
 
-      const recomputeRes = await fetch("/api/time-tracking/compute-session-for-edit", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items: recomputeItems }),
-      });
+      const recomputeRes = await fetch(
+        "/api/time-tracking/compute-session-for-edit",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ items: recomputeItems }),
+        }
+      );
 
       const recomputeJson = await recomputeRes.json();
       if (!recomputeRes.ok) {
-        throw new Error(recomputeJson?.error || "Failed to recompute session payment");
+        throw new Error(
+          recomputeJson?.error || "Failed to recompute session payment"
+        );
       }
 
-      console.groupCollapsed("✅ Recompute result (duration + session_payment)");
+      console.groupCollapsed(
+        "✅ Recompute result (duration + session_payment)"
+      );
       console.log(recomputeJson);
       console.groupEnd();
 
@@ -190,7 +206,11 @@ export default function TimeSheetEditModal({
           serial_id: row.serial_id,
           task_id: row.task_id,
           project_id: row.project_id ?? null,
-          new: row.new,
+          new: {
+            ...row.new,
+            diff: row.deltaSeconds,
+            oldSeconds: row.old.seconds,
+          },
         })),
       };
 
@@ -306,8 +326,8 @@ export default function TimeSheetEditModal({
                     {/* locked warning */}
                     {locked && (
                       <div className="text-xs font-medium text-rose-700 dark:text-rose-300">
-                        This session is locked. It’s already submitted for payment
-                        and cannot be edited.
+                        This session is locked. It’s already submitted for
+                        payment and cannot be edited.
                       </div>
                     )}
 

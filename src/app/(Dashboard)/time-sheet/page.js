@@ -94,7 +94,7 @@ export default async function Page() {
     });
     if (res.ok) {
       const payload = await res.json();
-      console.log("}}}}}}}}}}}}", payload);
+      // console.log("}}}}}}}}}}}}", payload);
       rows = Array.isArray(payload?.items) ? payload.items : [];
     } else {
       console.error("Failed to load time-sheet data:", res.status, res.statusText);
@@ -208,7 +208,7 @@ export default async function Page() {
     .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 
   const userRolesById = Object.fromEntries(rolesByUserId);
-  console.log("sending data from page.js to TimeSheet component: ", data);
+  // console.log("sending data from page.js to TimeSheet component: ", data);
   // console.log("Details by date: ", detailsByDate);
 
   return (
