@@ -23,7 +23,7 @@ export async function POST(req) {
 
     if (!userId || !taskId || (flagger !== 0 && flagger !== 1)) {
       return NextResponse.json(
-        { ok: false, error: "Invalid payload. Expect { user_id, edit_task_id, flagger: 0|1, tenant_id? }" },
+        { ok: false, error: "Invalid payload.. Expect { user_id, edit_task_id, flagger: 0|1, tenant_id? }" },
         { status: 400 }
       );
     }
