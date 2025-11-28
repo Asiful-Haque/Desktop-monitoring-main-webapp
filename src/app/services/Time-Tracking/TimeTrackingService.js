@@ -36,7 +36,10 @@ export class TimeTrackingService {
   }
 
   async createOne(payload) {
-    console.log("Creating time-tracking record with payload:_______||||||_____", payload);
+    console.log(
+      "Creating time-tracking record with payload:_______||||||_____",
+      payload
+    );
     const repo = await this.repo();
     const ds = await getDataSource();
 
@@ -83,6 +86,7 @@ export class TimeTrackingService {
       task_end: payload.task_end ?? null,
       duration,
       session_payment,
+      tenant_id: payload.tenant_id ?? 0,
     });
 
     return repo.save(row);
@@ -130,7 +134,7 @@ export class TimeTrackingService {
       }
     }
 
-    let rateByProjectUser = new Map(); // key: `${project_id}:${user_id}` -> rate
+    let rateByProjectUser = new Map();
     if (pairs.length) {
       const projIdsForAup = [...new Set(pairs.map((p) => p.project_id))];
       const userIdsForAup = [...new Set(pairs.map((p) => p.user_id))];
@@ -182,6 +186,7 @@ export class TimeTrackingService {
         task_end: i.task_end ?? null,
         duration,
         session_payment,
+        tenant_id: i.tenant_id ?? 0,
       });
     });
 
@@ -289,11 +294,18 @@ export class TimeTrackingService {
     return { rows, total };
   }
 
-  // ------------------ ROLE-AWARE RANGE QUERY ------------------
-  async findByDateRangeAll({ startDate, endDate, userId, userRole }) {
+  async findByDateRangeAll({
+    startDate,
+    endDate,
+    userId,
+    userRole,
+    tenant_id,
+  }) {
     console.log("Got the function for database call you called ");
     const repo = await this.repo();
-    const role = String(userRole || "").trim().toLowerCase();
+    const role = String(userRole || "")
+      .trim()
+      .toLowerCase();
     const isDeveloper = role === "developer" || role === "freelancer";
 
     const qb = repo
@@ -303,7 +315,11 @@ export class TimeTrackingService {
       .leftJoin("users", "u", "u.user_id = t.developer_id")
       .leftJoin("user_roles", "ur", "ur.user_id = u.user_id")
       .leftJoin("roles", "r", "r.role_id = ur.role_id")
-      .where("t.work_date BETWEEN :start AND :end", { start: startDate, end: endDate })
+      .where("t.work_date BETWEEN :start AND :end", {
+        start: startDate,
+        end: endDate,
+      })
+      .andWhere("t.tenant_id = :tenantId", { tenantId: tenant_id })
       .orderBy("t.work_date", "ASC")
       .addOrderBy("t.task_start", "ASC")
       .select([
@@ -317,14 +333,13 @@ export class TimeTrackingService {
         "t.duration AS duration",
         "t.session_payment AS session_payment",
         "t.flagger AS flagger",
+        "t.tenant_id AS tenant_id",
         "p.project_name AS project_name",
         "task.task_name AS task_name",
-        // enrichment for UI filters
         "u.user_id AS dev_user_id",
         "u.username AS developer_name",
         "u.email AS developer_email",
         "r.role_name AS role",
-        "ur.tenant_id AS tenant_id",
       ]);
 
     if (isDeveloper) {
@@ -342,7 +357,7 @@ export class TimeTrackingService {
 
       let serialIdsRaw = [];
 
-      if (Array.isArray(data) && data.every(d => typeof d === 'number')) {
+      if (Array.isArray(data) && data.every((d) => typeof d === "number")) {
         serialIdsRaw = data;
         console.log("Serial IDs received directly:", serialIdsRaw);
       } else if (Array.isArray(data)) {
@@ -352,11 +367,17 @@ export class TimeTrackingService {
         serialIdsRaw = data.serial_ids || [];
         console.log("Serial IDs extracted from single object:", serialIdsRaw);
       } else {
-        console.error("Invalid data format. Expected an array of serial IDs or array of objects with `serial_ids`.");
+        console.error(
+          "Invalid data format. Expected an array of serial IDs or array of objects with `serial_ids`."
+        );
         return { affected: 0, raw: [], info: "Invalid data format" };
       }
 
-      const serialIds = [...new Set(serialIdsRaw.map(n => Number(n)).filter(n => !Number.isNaN(n)))];
+      const serialIds = [
+        ...new Set(
+          serialIdsRaw.map((n) => Number(n)).filter((n) => !Number.isNaN(n))
+        ),
+      ];
 
       console.log("Parsed serialIds:", serialIds);
       if (serialIds.length === 0) {

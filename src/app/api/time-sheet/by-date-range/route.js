@@ -7,7 +7,7 @@ console.log("TimeTrackingService initialized in /api/time-sheet/by-date-range");
 
 export async function POST(req) {
   try {
-    const { startDate, endDate, userId, userRole, all = false } = await req.json();
+    const { startDate, endDate, userId, userRole, all = false, tenant_id } = await req.json();
     if (!all) {
       const { rows, total } = await service.findAllToSubmitForPayment({ userId });
       console.log("Called with all=============false, returning");
@@ -24,7 +24,7 @@ export async function POST(req) {
     }
 
     console.log("Called with all=============true, returning");
-    const items = await service.findByDateRangeAll({ startDate, endDate, userId, userRole });
+    const items = await service.findByDateRangeAll({ startDate, endDate, userId, userRole, tenant_id });
     console.log("Item count for date range:", items.length);
     console.log("Sample item for date range:", items[0]);
     return NextResponse.json({

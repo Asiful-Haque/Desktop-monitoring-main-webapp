@@ -48,7 +48,7 @@ async function handleStartPayment() {
     console.log("got the cron access ", token);
 
     // Step 3: Trigger the cron job API with the obtained cron access token
-    const cronJobRes = await fetch("http://localhost:5500/api/cronjob/trigger", {
+    const cronJobRes = await fetch(`${process.env.NEXT_PUBLIC_MAIN_HOST}/api/cronjob/trigger`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

@@ -62,7 +62,7 @@ import {
 /* ----------------- Component ----------------- */
 export default function TimeSheet({
   initialWindow,
-  data, // month-mixed array (now includes session_seconds)
+  data, 
   detailsByDate,
   userRole = "Developer",
   userId,
@@ -72,6 +72,10 @@ export default function TimeSheet({
 }) {
   const router = useRouter();
   const isAdmin = String(userRole).toLowerCase() === "admin";
+  // console.log("sent data from page.js to TimeSheet component: @@@@@@@@@@@", data);
+  // console.log("user id in TimeSheet component: @@@@@@@@@@@", userId);
+  // console.log("user role in TimeSheet component: @@@@@@@@@@@", userRole);
+  // console.log("current user in TimeSheet component: @@@@@@@@@@@", currentUser);
 
   // Range selection
   const [rangeMode, setRangeMode] = useState("preset");

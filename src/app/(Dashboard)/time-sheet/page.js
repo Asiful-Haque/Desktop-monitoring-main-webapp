@@ -1,6 +1,7 @@
 import TimeSheet from "@/components/TimeSheet/TimeSheet";
 import { cookies } from "next/headers";
 import jwt from "jsonwebtoken";
+import { te } from "date-fns/locale";
 
 export const dynamic = "force-dynamic";
 
@@ -44,7 +45,10 @@ function formatHMS(totalSeconds) {
   const h = Math.floor(s / 3600);
   const m = Math.floor((s % 3600) / 60);
   const sec = s % 60;
-  return `${h}h ${String(m).padStart(2, "0")}m ${String(sec).padStart(2, "0")}s`;
+  return `${h}h ${String(m).padStart(2, "0")}m ${String(sec).padStart(
+    2,
+    "0"
+  )}s`;
 }
 function computeSeconds(row) {
   const start = parseISO(row?.task_start);
@@ -55,8 +59,8 @@ function computeSeconds(row) {
   if (typeof row?.duration === "number" && !Number.isNaN(row.duration)) {
     const d = row.duration;
     if (d >= 3600000) return Math.floor(d / 1000); // ms
-    if (d >= 3600) return Math.floor(d);           // seconds
-    if (d >= 60) return Math.floor(d * 60);        // minutes
+    if (d >= 3600) return Math.floor(d); // seconds
+    if (d >= 60) return Math.floor(d * 60); // minutes
     return Math.floor(d * 60);
   }
   return 0;
@@ -70,6 +74,7 @@ export default async function Page() {
   const userId = currentUser ? currentUser.id : null;
   const userName = currentUser?.name || null;
   const userRole = currentUser?.role || currentUser?.user_role || "Developer";
+  const tenant_id = currentUser?.tenant_id || null;
   const end = new Date();
   const start = new Date(end);
   start.setDate(end.getDate() - 30);
@@ -79,6 +84,7 @@ export default async function Page() {
     all: true,
     userId,
     userRole,
+    tenant_id,
   };
   const apiUrl = process.env.NEXT_PUBLIC_MAIN_HOST
     ? `${process.env.NEXT_PUBLIC_MAIN_HOST}/api/time-sheet/by-date-range`
@@ -97,7 +103,11 @@ export default async function Page() {
       // console.log("}}}}}}}}}}}}", payload);
       rows = Array.isArray(payload?.items) ? payload.items : [];
     } else {
-      console.error("Failed to load time-sheet data:", res.status, res.statusText);
+      console.error(
+        "Failed to load time-sheet data:",
+        res.status,
+        res.statusText
+      );
     }
   } catch (e) {
     console.error("Fetch failed:", e);
@@ -130,16 +140,25 @@ export default async function Page() {
     const task_id = row?.task_id ?? null;
     const task_name = row?.task_name ?? null;
 
-    const item_user_id = row?.user_id ?? row?.dev_user_id ?? row?.developer_id ?? userId ?? null;
-    const item_user_name = row?.user_name ?? row?.developer_name ?? userName ?? null;
+    const item_user_id =
+      row?.user_id ?? row?.dev_user_id ?? row?.developer_id ?? userId ?? null;
+    const item_user_name =
+      row?.user_name ?? row?.developer_name ?? userName ?? null;
     const item_role =
-      String(row?.role ?? row?.developer_role ?? "").trim().toLowerCase() || null;
-    if (Number.isFinite(item_user_id) && item_role) rolesByUserId.set(item_user_id, item_role);
+      String(row?.role ?? row?.developer_role ?? "")
+        .trim()
+        .toLowerCase() || null;
+    if (Number.isFinite(item_user_id) && item_role)
+      rolesByUserId.set(item_user_id, item_role);
 
     const flagger =
-      typeof row?.flagger === "number" ? row.flagger : Number(row?.flagger ?? 0);
+      typeof row?.flagger === "number"
+        ? row.flagger
+        : Number(row?.flagger ?? 0);
 
-    const contextPrefix = `[${project_name ?? project_id ?? "Project?"}] ${task_name ?? task_id ?? "Task?"} — `;
+    const contextPrefix = `[${project_name ?? project_id ?? "Project?"}] ${
+      task_name ?? task_id ?? "Task?"
+    } — `;
 
     const item = {
       serial_id,
@@ -155,7 +174,9 @@ export default async function Page() {
       user_name: item_user_name,
       user_role: item_role,
       flagger,
-      session_payment: typeof row?.session_payment === "number" ? row.session_payment : 0,
+      session_payment:
+        typeof row?.session_payment === "number" ? row.session_payment : 0,
+      tenant_id: row?.tenant_id ?? null,
     };
 
     const list = daySessions.get(dayKey) || [];
@@ -179,43 +200,43 @@ export default async function Page() {
             .filter((x) => x !== null && x !== undefined && x !== "")
         )
       );
+      // collecting all info per session
       const session_payments = sessions.map((s) => s.session_payment);
       const flaggers = sessions.map((s) => s.flagger);
       const user_id = sessions.map((s) => s.user_id);
 
-      // ✅ NEW: session-by-session seconds (+ labels)
+      // collecting all info per session
       const session_seconds = sessions.map((s) => Number(s.seconds) || 0);
       const session_seconds_label = sessions.map((s) =>
         formatHMS(Number(s.seconds) || 0)
       );
+      // collecting all info per session
+      const tenant_ids = sessions.map((s) => s.tenant_id);
 
       return {
         date,
         hours,
         label: formatHMS(totalSecs),
-
-        // existing arrays
         serial_ids,
         session_payments,
         flaggers,
         user_id,
-
-        // NEW arrays
         session_seconds,
         session_seconds_label,
+        tenant_ids,
       };
     })
     .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 
   const userRolesById = Object.fromEntries(rolesByUserId);
-  // console.log("sending data from page.js to TimeSheet component: ", data);
+  // console.log("sending data from page.js to TimeSheet component: @@@@@@@@@@@", data);
   // console.log("Details by date: ", detailsByDate);
 
   return (
     <div className="min-h-screen">
       <TimeSheet
         initialWindow={31}
-        data={data}                 // now contains per-session seconds arrays
+        data={data} // now contains per-session seconds arrays
         detailsByDate={detailsByDate}
         userRole={userRole || "Developer"}
         userId={userId}
