@@ -53,6 +53,7 @@ function formatHMS(totalSeconds) {
 function computeSeconds(row) {
   const start = parseISO(row?.task_start);
   const end = parseISO(row?.task_end);
+  console.log("Computing seconds for row:^", row);
   if (start && end && end > start) {
     return Math.floor((end.getTime() - start.getTime()) / 1000);
   }
@@ -229,7 +230,7 @@ export default async function Page() {
     .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 
   const userRolesById = Object.fromEntries(rolesByUserId);
-  // console.log("sending data from page.js to TimeSheet component: @@@@@@@@@@@", data);
+  console.log("sending data from page.js to TimeSheet component: @@@@@@@@@@@", data);
   // console.log("Details by date: ", detailsByDate);
 
   return (

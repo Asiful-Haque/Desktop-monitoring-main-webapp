@@ -1,5 +1,19 @@
 import { getDataSource } from "@/app/lib/typeorm/db/getDataSource";
 import { TimeTracking } from "@/app/lib/typeorm/entities/TimeTracking";
+import { DateTime } from "luxon";
+
+function parseUtcSql(s) {
+  if (!s) return null;
+  const dt = DateTime.fromSQL(String(s), { zone: "utc" }); // <-- IMPORTANT
+  if (!dt.isValid) throw new Error(`Invalid datetime: ${s}`);
+  return dt.toFormat("yyyy-LL-dd HH:mm:ss"); // keep as UTC SQL
+}
+
+function toSecondsDiffUtc(startSql, endSql) {
+  const s = DateTime.fromSQL(startSql, { zone: "utc" });
+  const e = DateTime.fromSQL(endSql, { zone: "utc" });
+  return Math.max(0, Math.floor(e.diff(s, "seconds").seconds));
+}
 
 // helper: seconds between start and end (clamped to >= 0)
 function toSecondsDiff(start, end) {
@@ -51,7 +65,12 @@ export class TimeTrackingService {
     });
     if (!project) throw new Error(`Invalid project_id: ${payload.project_id}`);
 
-    const duration = toSecondsDiff(payload.task_start, payload.task_end);
+    // ✅ Force UTC normalization
+    const taskStartUtc = parseUtcSql(payload.task_start);
+    const taskEndUtc = parseUtcSql(payload.task_end);
+    // ✅ Compute duration in UTC
+    const duration = toSecondsDiffUtc(taskStartUtc, taskEndUtc);
+
     console.log("Computed duration (sec):", duration);
     console.log("type of project is:", project.project_type);
 
@@ -82,8 +101,8 @@ export class TimeTrackingService {
       project_id: payload.project_id,
       developer_id: developerId,
       work_date: payload.work_date,
-      task_start: payload.task_start,
-      task_end: payload.task_end ?? null,
+      task_start: taskStartUtc,
+      task_end: taskEndUtc ?? null,
       duration,
       session_payment,
       tenant_id: payload.tenant_id ?? 0,
@@ -165,7 +184,10 @@ export class TimeTrackingService {
       const proj = projectById.get(i.project_id);
       if (!proj) throw new Error(`Invalid project_id: ${i.project_id}`);
 
-      const duration = toSecondsDiff(i.task_start, i.task_end);
+      const taskStartUtc = parseUtcSql(i.task_start);
+      const taskEndUtc = parseUtcSql(i.task_end);
+
+      const duration = toSecondsDiffUtc(taskStartUtc, taskEndUtc);
 
       let userRate = null;
       if (
@@ -182,8 +204,8 @@ export class TimeTrackingService {
         project_id: i.project_id,
         developer_id: devId,
         work_date: i.work_date,
-        task_start: i.task_start,
-        task_end: i.task_end ?? null,
+        task_start: taskStartUtc,
+        task_end: taskEndUtc ?? null,
         duration,
         session_payment,
         tenant_id: i.tenant_id ?? 0,
