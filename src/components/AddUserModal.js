@@ -19,6 +19,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { Info } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 const AddUserModal = ({ addUserModalOpen, setAddUserModalOpen }) => {
   const [formData, setFormData] = useState({
@@ -27,7 +34,8 @@ const AddUserModal = ({ addUserModalOpen, setAddUserModalOpen }) => {
     role: "",
     password: "",
     defaultRate: "",
-    paymentType: "", 
+    paymentType: "",
+    currency: "",
   });
 
   const isFreelancer = formData.role === "Freelancer";
@@ -41,26 +49,26 @@ const AddUserModal = ({ addUserModalOpen, setAddUserModalOpen }) => {
       !formData.role ||
       !formData.password ||
       !formData.defaultRate ||
-      (!isFreelancer && !formData.paymentType) 
+      (!isFreelancer && !formData.paymentType)
     ) {
       toast.error("Please fill in all required fields");
       return;
     }
 
     try {
+      const currencyTrimmed = formData.currency?.trim();
+
       const payload = {
         username: formData.name,
         email: formData.email,
         role: formData.role,
         password: formData.password,
         default_hour_rate: parseFloat(formData.defaultRate),
+        currency: currencyTrimmed ? currencyTrimmed.toUpperCase() : null,
       };
 
-      // Include salary_type only for non-freelancers
       if (!isFreelancer) {
-        payload.salary_type = formData.paymentType; // <-- send to API
-        // If your API expects `payment_type` instead:
-        // payload.payment_type = formData.paymentType;
+        payload.salary_type = formData.paymentType;
       }
 
       const res = await fetch(`${process.env.NEXT_PUBLIC_MAIN_HOST}/api/users`, {
@@ -70,7 +78,10 @@ const AddUserModal = ({ addUserModalOpen, setAddUserModalOpen }) => {
       });
 
       if (!res.ok) {
-        const errorData = await res.json();
+        let errorData = {};
+        try {
+          errorData = await res.json();
+        } catch (err) {}
         toast.error(errorData.message || "Failed to create user");
         return;
       }
@@ -78,7 +89,6 @@ const AddUserModal = ({ addUserModalOpen, setAddUserModalOpen }) => {
       const data = await res.json();
       toast.success(`User ${data.user.username} has been added successfully`);
 
-      // Reset & close
       setFormData({
         name: "",
         email: "",
@@ -86,6 +96,7 @@ const AddUserModal = ({ addUserModalOpen, setAddUserModalOpen }) => {
         password: "",
         defaultRate: "",
         paymentType: "",
+        currency: "",
       });
       setAddUserModalOpen(false);
     } catch (error) {
@@ -106,7 +117,7 @@ const AddUserModal = ({ addUserModalOpen, setAddUserModalOpen }) => {
 
         <form onSubmit={handleSubmit}>
           <div className="grid gap-4 py-4">
-            {/* Name Field */}
+            {/* Name */}
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="name" className="text-right">
                 Name
@@ -122,7 +133,7 @@ const AddUserModal = ({ addUserModalOpen, setAddUserModalOpen }) => {
               />
             </div>
 
-            {/* Email Field */}
+            {/* Email */}
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="email" className="text-right">
                 Email
@@ -139,7 +150,7 @@ const AddUserModal = ({ addUserModalOpen, setAddUserModalOpen }) => {
               />
             </div>
 
-            {/* Password Field */}
+            {/* Password */}
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="password" className="text-right">
                 Password
@@ -156,7 +167,7 @@ const AddUserModal = ({ addUserModalOpen, setAddUserModalOpen }) => {
               />
             </div>
 
-            {/* Default Hourly Rate Field */}
+            {/* Hourly Rate */}
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="defaultRate" className="text-right">
                 Hourly Rate
@@ -174,7 +185,50 @@ const AddUserModal = ({ addUserModalOpen, setAddUserModalOpen }) => {
               />
             </div>
 
-            {/* Role Dropdown */}
+            {/* Currency */}
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="currency" className="text-right">
+                Currency
+              </Label>
+
+              <div className="col-span-3 relative">
+                <Input
+                  id="currency"
+                  value={formData.currency}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      currency: (e.target.value || "").toUpperCase(),
+                    })
+                  }
+                  placeholder="e.g. USD, BDT"
+                  maxLength={3}
+                  className="pr-10"
+                  inputMode="text"
+                />
+
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        aria-label="Currency help"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                      >
+                        <Info className="h-4 w-4" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-[260px] text-sm leading-snug">
+                      Use the <b>ISO 4217</b> currency code (3 letters), e.g.{" "}
+                      <b>USD</b>, <b>EUR</b>, <b>GBP</b>, <b>BDT</b>. Don’t type
+                      country names like “USA”.
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
+            </div>
+
+            {/* Role */}
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="role" className="text-right">
                 Role
@@ -185,8 +239,8 @@ const AddUserModal = ({ addUserModalOpen, setAddUserModalOpen }) => {
                   setFormData({
                     ...formData,
                     role: value,
-                    // Clear paymentType if role becomes Freelancer
-                    paymentType: value === "Freelancer" ? "" : formData.paymentType,
+                    paymentType:
+                      value === "Freelancer" ? "" : formData.paymentType,
                   })
                 }
               >

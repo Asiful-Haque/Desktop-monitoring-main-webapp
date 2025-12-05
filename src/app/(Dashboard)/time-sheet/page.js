@@ -13,10 +13,25 @@ function ymd(d) {
   return `${y}-${m}-${dd}`;
 }
 function parseISO(v) {
+  // console.log("In parse iooo with value: ", v);
   if (!v) return null;
+
+  // If MySQL DATETIME: "YYYY-MM-DD HH:mm:ss" => treat as UTC
+  if (typeof v === "string" && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(v.trim())) {
+    const d = new Date(v.trim().replace(" ", "T") + "Z");
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+
+  // ISO without zone: "YYYY-MM-DDTHH:mm:ss" => treat as UTC
+  if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(v.trim())) {
+    const d = new Date(v.trim() + "Z");
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+
   const d = new Date(v);
   return Number.isNaN(d.getTime()) ? null : d;
 }
+
 const TZ = "Asia/Dhaka";
 function keyInTZ(d, timeZone = TZ) {
   return new Intl.DateTimeFormat("en-CA", {
@@ -53,7 +68,8 @@ function formatHMS(totalSeconds) {
 function computeSeconds(row) {
   const start = parseISO(row?.task_start);
   const end = parseISO(row?.task_end);
-  console.log("Computing seconds for row:^", row);
+  // console.log("Start and End times for row:#############", start, end);
+  // console.log("Computing seconds for row:^", row);
   if (start && end && end > start) {
     return Math.floor((end.getTime() - start.getTime()) / 1000);
   }
@@ -118,8 +134,12 @@ export default async function Page() {
   const rolesByUserId = new Map();
 
   for (const row of rows) {
+
+    console.log("start date and end date for row: ", row?.task_start, row?.task_end);
     const startDt = parseISO(row?.task_start);
     const endDt = parseISO(row?.task_end);
+    console.log("Parsed startDt and endDt: ", startDt, endDt);
+
     const anchor = startDt || endDt || parseISO(row?.work_date);
     if (!anchor) continue;
 
@@ -161,11 +181,15 @@ export default async function Page() {
       task_name ?? task_id ?? "Task?"
     } — `;
 
+      // console.log("CHK", startDt.toISOString(), endDt.toISOString());
+
     const item = {
       serial_id,
       seconds: secs,
-      startISO: startDt ? startDt.toISOString() : null,
-      endISO: endDt ? endDt.toISOString() : null,
+      startISO: startDt ? startDt.toLocaleString() : null,
+      endISO: endDt ? endDt.toLocaleString() : null,
+      // startISO: startDt ,
+      // endISO: endDt,
       line: `${contextPrefix}${leftText}........... ${formatHMS(secs)}`,
       task_id,
       project_id,
@@ -184,6 +208,7 @@ export default async function Page() {
     list.push(item);
     daySessions.set(dayKey, list);
   }
+  console.log("Days-------- and their-------- sessions: ", daySessions);
 
   const detailsByDate = {};
   const data = Array.from(daySessions.entries())
@@ -230,7 +255,7 @@ export default async function Page() {
     .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 
   const userRolesById = Object.fromEntries(rolesByUserId);
-  console.log("sending data from page.js to TimeSheet component: @@@@@@@@@@@", data);
+  // console.log("sending data from page.js to TimeSheet component: @@@@@@@@@@@", data);
   // console.log("Details by date: ", detailsByDate);
 
   return (

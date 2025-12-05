@@ -21,7 +21,8 @@ export class LoginService {
         "u.email AS email",
         "u.password AS password",
         "r.role_id AS role_id",
-        "ur.tenant_id AS tenant_id",     
+        "ur.tenant_id AS tenant_id",
+        "ur.currency AS currency",     
         "t.name AS tenant_name",          
         "r.role_name AS r_role_name",
       ])
@@ -68,6 +69,7 @@ export class LoginService {
       role: user.r_role_name || null,
       tenant_id: user.tenant_id || null,
       tenant_name: user.tenant_name || null,
+      currency: user.currency || null,
     };
   }
 }

@@ -24,6 +24,7 @@ import {
   groupCurrentMonthForPayment,
   debugLogPaymentBuckets,
 } from "@/app/lib/payment-buckets";
+import { isoToLocalHMS } from "@/app/lib/timesheet-utils";
 
 // keep using your utils (no TS)
 import {
@@ -47,7 +48,6 @@ import {
   secondsToLabel,
   roundHours2,
   buildFilteredSeries,
-  isoToLocalHMS,
   combineDateWithHMS,
   diffSecondsISO,
   parseISO2,
@@ -58,6 +58,7 @@ import {
   currentMonthKey,
   bucketForDay,
 } from "@/app/lib/timesheet-utils";
+
 
 /* ----------------- Component ----------------- */
 export default function TimeSheet({
@@ -76,6 +77,7 @@ export default function TimeSheet({
   // console.log("user id in TimeSheet component: @@@@@@@@@@@", userId);
   // console.log("user role in TimeSheet component: @@@@@@@@@@@", userRole);
   // console.log("current user in TimeSheet component: @@@@@@@@@@@", currentUser);
+  console.log("----------------->>>>>>Details by date: ", detailsByDate);
 
   // Range selection
   const [rangeMode, setRangeMode] = useState("preset");
@@ -278,6 +280,9 @@ export default function TimeSheet({
       const rows = Array.isArray(payload?.items) ? payload.items : [];
       const daySessions = new Map();
       for (const row of rows) {
+        // console.log("1111");
+        // console.log("Task start and end in custom range fetch:", row?.task_start, row?.task_end);
+        // console.log("1111");
         const startDt = parseISO2(row?.task_start);
         const endDt = parseISO2(row?.task_end);
         const anchor = startDt || endDt || parseISO2(row?.work_date);
@@ -390,8 +395,11 @@ export default function TimeSheet({
     const totalLabel =
       secondsToLabel(filtered.reduce((s, r) => s + (r.seconds || 0), 0)) || "";
     const items = filtered.map((it) => {
+      console.log("it.startISO and it.endISO in TimeSheet.js@@@-+++++++-------", it.startISO, it.endISO);
       const startHMS = isoToLocalHMS(it.startISO);
       const endHMS = isoToLocalHMS(it.endISO);
+      
+      // console.log ("startHMS and endHMS in TimeSheet.js@@@--------", startHMS, endHMS);
       return {
         ...it,
         flagger: Number(it?.flagger ?? 0),
@@ -454,7 +462,7 @@ export default function TimeSheet({
       filters: { projectId: selectedProject, userId: selectedUser },
       changes,
     };
-    console.log("Submit TimeSheet Changes payload:", payload);
+    // console.log("Submit TimeSheet Changes payload:", payload);
     alert("Payload logged in console. Wire this to your update API.");
     closeDetails();
   }
@@ -623,19 +631,19 @@ export default function TimeSheet({
         "%cPAY DEBUG → selection",
         "background:#1f2937;color:#fff;padding:2px 6px;border-radius:4px;"
       );
-      console.log("Selected freelancer:", {
-        id: selectedUser,
-        name: selectedUserName,
-      });
-      console.log("Tenant/Admin context:", { tenant_id, admin_user_id });
+      // console.log("Selected freelancer:", {
+      //   id: selectedUser,
+      //   name: selectedUserName,
+      // });
+      // console.log("Tenant/Admin context:", { tenant_id, admin_user_id });
       if (
         tenant_id === "MISSING_TENANT" ||
         admin_user_id === "MISSING_ADMIN_ID"
       ) {
         console.warn("⚠️ currentUser.tenant_id or currentUser.id is missing.");
       }
-      console.log("Daily payables:", dailyPayablesForSelected);
-      console.log("Local details snapshot:", localDetailsByDate);
+      // console.log("Daily payables:", dailyPayablesForSelected);
+      // console.log("Local details snapshot:", localDetailsByDate);
       console.groupEnd();
       if (typeof window !== "undefined") {
         window.__PAY_DEBUG__ = {
@@ -691,7 +699,7 @@ export default function TimeSheet({
         currentUser: currentUserForTxn,
         developerId: selectedUser,
       });
-      console.log("You skipped code..............uncomment it to run payment of freelancer...................................................................................................");
+      // console.log("You skipped code..............uncomment it to run payment of freelancer...................................................................................................");
     } catch (e) {
       alert(e?.message || "Could not approve timesheet");
     } finally {
@@ -783,8 +791,8 @@ export default function TimeSheet({
   async function handleStartPayment() {
     try {
       const { month, ...rest } = groupedForPayment;
-      console.log("month for payment:", month);
-      console.log("Initiating PAY RUN for month:", rest);
+      // console.log("month for payment:", month);
+      // console.log("Initiating PAY RUN for month:", rest);
       const devIds = Object.keys(rest).filter((k) => k !== "month");
 
       for (const devId of devIds) {
@@ -811,8 +819,8 @@ export default function TimeSheet({
         let rowsBag = [...rowsForDev];
 
         for (const row of rowsForDev) {
-          console.log("Row to be processed:", row);
-          console.log("Current User:", currentUser);
+          // console.log("Row to be processed:", row);
+          // console.log("Current User:", currentUser);
           await submitSinglePayment({
             id: row.id,
             date: row.date,
@@ -839,88 +847,6 @@ export default function TimeSheet({
     }
   }
 
-// async function handleStartPayment() {
-//   try {
-//     console.log("Starting call to /api/cronjob/trigger...");
-    
-//     // Trigger the API call to start the payment process
-//     const res = await fetch("/api/cronjob/trigger", {
-//       method: "POST",
-//       headers: {
-//         "Content-Type": "application/json", // Ensure the body is in JSON format
-//       },
-//       credentials: "same-origin", // Include credentials automatically (cookies, etc.)
-//     });
-
-//     if (!res.ok) {
-//       throw new Error("Failed to trigger payroll process");
-//     }
-
-//     const {data} = await res.json();
-//     console.log("Payroll process triggered successfully:", data);
-
-//     // Process the data here using groupCurrentMonthForPayment
-//     console.log("data came from api..now sending to monthforpay fun.");
-  
-    
- 
-
-//     const { month, ...rest } = groupCurrentMonthForPayment(data); // Extract month and the rest of the data
-//     console.log("month for payment:", month);
-//     console.log("Initiating PAY RUN for month:", rest);
-//     const devIds = Object.keys(rest).filter((k) => k !== "month");
-
-//     // Loop through the developers and process payments
-//     for (const devId of devIds) {
-//       // Skip freelancers from bulk payment
-//       const roleLower = String(getRoleForUser(Number(devId)) || "").toLowerCase();
-//       if (roleLower === "freelancer") {
-//         console.info(`Skipping bulk payment for freelancer userId=${devId}`);
-//         continue;
-//       }
-
-//       const devKey = String(devId);
-//       const devBuckets = rest[devKey];
-//       if (!devBuckets) continue;
-
-//       console.groupCollapsed(`%cPAY RUN → Developer ${devKey}`, "color:#059669");
-      
-//       // Build rows for the developer
-//       const rowsForDev = buildRowsForDeveloper(rest, devKey);
-
-//       let processedMap = {};
-//       let rowsBag = [...rowsForDev]; // Prepare the rows for processing
-
-//       // Step 3: Process each row (payment) for the developer
-//       for (const row of rowsForDev) {
-//         console.log("Row to be processed:", row);
-//         console.log("Current User:", currentUser);
-
-//         // Submit the payment for this row
-//         await submitSinglePayment({
-//           id: row.id,
-//           date: row.date,
-//           rows: rowsBag,
-//           setRows: (fn) => {
-//             rowsBag = typeof fn === "function" ? fn(rowsBag) : fn;
-//           },
-//           processed: processedMap,
-//           setProcessed: (fn) => {
-//             processedMap = typeof fn === "function" ? fn(processedMap) : fn;
-//           },
-//           currentUser,
-//           developerId: Number(devKey),
-//         });
-//       }
-//       console.groupEnd();
-//     }
-
-//     console.log("PAY RUN COMPLETED (freelancers were skipped; only flagger=0 sessions processed)");
-//   } catch (error) {
-//     console.error("Error triggering payroll process:", error);
-//     alert("Error triggering payroll process: " + error.message);
-//   }
-// }
 
 
 
@@ -1436,6 +1362,7 @@ export default function TimeSheet({
           </div>
         )}
       </div>
+      {console.log("details value in timesheet:",details)}
 
       {/* Modal */}
       {details && (

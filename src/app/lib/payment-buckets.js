@@ -28,7 +28,7 @@ function bucketForDay(dayNum) {
 }
 
 function ensureDev(out, devId) {
-  console.log("+++++++++++++++++++++++++++++++++Ensuring developer bucket exists for devId:", devId);
+  // console.log("+++++++++++++++++++++++++++++++++Ensuring developer bucket exists for devId:", devId);
   const k = String(devId);
   if (!out[k]) out[k] = { "1-7": [], "8-15": [], "16-23": [], "24-31": [] };
 }
@@ -169,7 +169,7 @@ function hmsLabel(totalSeconds) {
 // }
 export function groupCurrentMonthForPayment(data, timeZone = DEFAULT_TZ, now = new Date()) {
   try {
-    console.log("Grouping data function for payment buckets...", data);
+    // console.log("Grouping data function for payment buckets...", data);
 
     const monthKey = currentMonthKey(timeZone, now);
     const out = { month: monthKey };
@@ -180,16 +180,16 @@ export function groupCurrentMonthForPayment(data, timeZone = DEFAULT_TZ, now = n
     }
 
     const devSeen = new Set();
-    console.log("Seeding developers that appear in the month...");
+    // console.log("Seeding developers that appear in the month...");
 
     for (const row of data) {
       const dayKey = keyOfDate(row?.date, timeZone);
-      console.log("Processing row with dayKey:", dayKey);
+      // console.log("Processing row with dayKey:", dayKey);
 
       if (!dayKey || !dayKey.startsWith(monthKey)) continue;
 
       const uids = Array.isArray(row?.user_id) ? row.user_id : [];
-      console.log("User IDs in this row:", uids);
+      // console.log("User IDs in this row:", uids);
 
       uids.forEach((u) => u != null && devSeen.add(u)); // Add developers to the Set
     }
@@ -197,7 +197,7 @@ export function groupCurrentMonthForPayment(data, timeZone = DEFAULT_TZ, now = n
     devSeen.forEach((devId) => ensureDev(out, devId)); // Ensure developer buckets
 
     const acc = {};  // Using an object instead of Map
-    console.log("Starting to aggregate data...11");
+    // console.log("Starting to aggregate data...11");
 
     for (const row of data) {
       const dayKey = keyOfDate(row?.date, timeZone);
@@ -264,7 +264,7 @@ export function groupCurrentMonthForPayment(data, timeZone = DEFAULT_TZ, now = n
       }
     }
 
-    console.log("Aggregated data:", acc);
+    // console.log("Aggregated data:", acc);
 
     // Flush the aggregates to output buckets
     for (const k in acc) {
@@ -280,11 +280,11 @@ export function groupCurrentMonthForPayment(data, timeZone = DEFAULT_TZ, now = n
         payment: a.totalPayment,
         tenant_ids: a.tenant_ids, // Ensure tenant_ids is included in the final output
       };
-      console.log("Item to be pushed to output:", item);
+      // console.log("Item to be pushed to output:", item);
       out[String(a.devId)][a.bucket].push(item);  // Ensure the data is pushed into the correct bucket
     }
 
-    console.log("Returning grouped payment buckets:", out);
+    // console.log("Returning grouped payment buckets:", out);
     return out;
 
   } catch (error) {
@@ -299,10 +299,10 @@ export function groupCurrentMonthForPayment(data, timeZone = DEFAULT_TZ, now = n
  
 export function debugLogPaymentBuckets(grouped) {
   try {
-    console.groupCollapsed(
-      "%cCurrent Month Payment Buckets (by Developer)",
-      "background:#4f46e5;color:#fff;padding:2px 6px;border-radius:4px;"
-    );
+    // console.groupCollapsed(
+    //   "%cCurrent Month Payment Buckets (by Developer)",
+    //   "background:#4f46e5;color:#fff;padding:2px 6px;border-radius:4px;"
+    // );
     // console.log(JSON.stringify(grouped, null, 2));
     console.log(grouped);
     console.groupEnd();

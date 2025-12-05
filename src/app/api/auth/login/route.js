@@ -28,6 +28,7 @@ export async function POST(req) {
     role: user.role,
     tenant_id: user.tenant_id,
     tenant_name: user.tenant_name,
+    currency: user.currency,
   };
 
   const access  = await signToken(payload);        // 1h

@@ -11,8 +11,6 @@ import { TimeTracking } from "../entities/TimeTracking.js";
 import { Transaction } from "../entities/Transaction.js";
 import { PaymentLog } from "../entities/PaymentLog.js";
 
-
-
 export const AppDataSource = new DataSource({
   type: "mysql",
   connectorPackage: "mysql2",
@@ -23,8 +21,30 @@ export const AppDataSource = new DataSource({
   database: process.env.MYSQL_DATABASE || "task_monitor_demo",
   synchronize: false,
   logging: false,
-  entities: [User, Role, UserRoles, Project, Task, AssignedUsersToProjects, Screenshot, Tenant, TimeTracking, Transaction, PaymentLog ],
-  extra: { connectionLimit: 10, decimalNumbers: true },
+  entities: [
+    User,
+    Role,
+    UserRoles,
+    Project,
+    Task,
+    AssignedUsersToProjects,
+    Screenshot,
+    Tenant,
+    TimeTracking,
+    Transaction,
+    PaymentLog,
+  ],
+
+  // ✅ IMPORTANT: treat DB DATE/DATETIME as UTC
+  timezone: "Z",
+
+  extra: {
+    connectionLimit: 10,
+    decimalNumbers: true,
+
+    // ✅ also pass through to mysql2
+    timezone: "Z",
+  },
 });
 
 let _ds;
@@ -32,7 +52,7 @@ export async function getDataSource() {
   if (!_ds) _ds = AppDataSource;
   if (!_ds.isInitialized) {
     await _ds.initialize();
-    console.log("✅ Entities loaded:", _ds.entityMetadatas.map(m => m.name));
+    console.log("✅ Entities loaded:", _ds.entityMetadatas.map((m) => m.name));
     console.log("✅ Database connection established (singleton)");
   }
   return _ds;

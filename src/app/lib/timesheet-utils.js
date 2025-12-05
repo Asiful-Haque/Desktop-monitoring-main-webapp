@@ -4,6 +4,7 @@
 export function cn(...classes) {
   return classes.filter(Boolean).join(" ");
 }
+
 export function normalizeAndSort(src) {
   const normalized = (src ?? []).map((d) => ({
     date: d.date instanceof Date ? d.date : new Date(d.date),
@@ -13,12 +14,14 @@ export function normalizeAndSort(src) {
   normalized.sort((a, b) => +a.date - +b.date);
   return normalized;
 }
+
 export function keyOf(d) {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const dd = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${dd}`;
 }
+
 export function daysBetween(start, end) {
   const a = new Date(start);
   const b = new Date(end);
@@ -27,7 +30,9 @@ export function daysBetween(start, end) {
 }
 
 /* -------------------- Timezone + windows -------------------- */
+// keep as your app's "display timezone" (you can later wire it from client config)
 export const TZ = "Asia/Dhaka";
+
 export function todayInTZ(timeZone = TZ) {
   const now = new Date();
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -39,6 +44,7 @@ export function todayInTZ(timeZone = TZ) {
   const obj = Object.fromEntries(parts.map((p) => [p.type, p.value]));
   return new Date(`${obj.year}-${obj.month}-${obj.day}T00:00:00`);
 }
+
 export function buildFixedWindowSeries(windowDays, timeZone = TZ) {
   const anchor = todayInTZ(timeZone);
   const start = new Date(anchor);
@@ -74,6 +80,7 @@ export function getHourRangeTone(hours) {
   if (hours <= 7) return "text-amber-600 dark:text-amber-400";
   return "text-emerald-600 dark:text-emerald-400";
 }
+
 export function getCardBackground(hours) {
   if (typeof hours !== "number") return "bg-white dark:bg-neutral-900";
   if (hours <= 3)
@@ -82,12 +89,14 @@ export function getCardBackground(hours) {
     return "bg-gradient-to-br from-amber-50 to-white dark:from-amber-950/30 dark:to-neutral-900";
   return "bg-gradient-to-br from-emerald-50 to-white dark:from-emerald-950/30 dark:to-neutral-900";
 }
+
 export function getCardRibbon(hours) {
   if (typeof hours !== "number") return "bg-neutral-200 dark:bg-neutral-700";
   if (hours <= 3) return "bg-rose-500/80 dark:bg-rose-400/70";
   if (hours <= 7) return "bg-amber-500/80 dark:bg-amber-400/70";
   return "bg-emerald-500/80 dark:bg-emerald-400/70";
 }
+
 export function getCardBorder(hours) {
   if (typeof hours !== "number")
     return "border-neutral-300 dark:border-neutral-700";
@@ -95,6 +104,7 @@ export function getCardBorder(hours) {
   if (hours <= 7) return "border-amber-200 dark:border-amber-800/50";
   return "border-emerald-200 dark:border-emerald-800/50";
 }
+
 export function getBadgeClasses(hours) {
   if (typeof hours !== "number")
     return "bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300";
@@ -104,12 +114,14 @@ export function getBadgeClasses(hours) {
     return "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300";
   return "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300";
 }
+
 export function getRangeLabel(hours) {
   if (typeof hours !== "number") return "—";
   if (hours <= 3) return "Light (0–3h)";
   if (hours <= 7) return "Steady (4–7h)";
   return "Heavy (7–9+h)";
 }
+
 export function progressPercent(hours) {
   const h = typeof hours === "number" ? Math.max(0, Math.min(9, hours)) : 0;
   return Math.round((h / 9) * 100);
@@ -121,11 +133,16 @@ export function secondsToLabel(totalSec) {
   const h = Math.floor(s / 3600);
   const m = Math.floor((s % 3600) / 60);
   const sec = s % 60;
-  return `${h}h ${String(m).padStart(2, "0")}m ${String(sec).padStart(2, "0")}s`;
+  return `${h}h ${String(m).padStart(2, "0")}m ${String(sec).padStart(
+    2,
+    "0"
+  )}s`;
 }
+
 export function roundHours2(sec) {
   return Math.round((sec / 3600) * 100) / 100;
 }
+
 export function sumSecondsFor(filters, rows) {
   const { projectId, userId } = filters;
   let target = rows;
@@ -134,6 +151,7 @@ export function sumSecondsFor(filters, rows) {
   if (userId !== "all") target = target.filter((r) => r.user_id === userId);
   return target.reduce((sum, r) => sum + (r.seconds || 0), 0);
 }
+
 export function buildFilteredSeries(baseSeries, detailsByDate, projectId, userId) {
   if (!baseSeries?.length || !detailsByDate) return baseSeries ?? [];
   return baseSeries.map((d) => {
@@ -146,58 +164,63 @@ export function buildFilteredSeries(baseSeries, detailsByDate, projectId, userId
   });
 }
 
-/* -------------------- Time conversion utils -------------------- */
-export function isoToLocalHMS(iso) {
-  if (!iso) return "";
-  const d = new Date(iso);
-  const f = new Intl.DateTimeFormat("en-GB", {
-    timeZone: TZ,
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  }).formatToParts(d);
-  const obj = Object.fromEntries(f.map((p) => [p.type, p.value]));
-  return `${obj.hour ?? "00"}:${obj.minute ?? "00"}:${obj.second ?? "00"}`;
+/* -------------------- Parsing helpers (FIXED) -------------------- */
+/**
+ * Accepts:
+ * - ISO strings with Z/offset
+ * - ISO strings without timezone ("YYYY-MM-DDTHH:mm:ss") -> treated as UTC
+ * - MySQL DATETIME ("YYYY-MM-DD HH:mm:ss") -> treated as UTC
+ * - Date objects
+ */
+function coerceToDate(v) {
+  if (!v) return null;
+  if (v instanceof Date) return v;
+
+  if (typeof v === "string") {
+    const s = v.trim();
+
+    // MySQL DATETIME: "YYYY-MM-DD HH:mm:ss"  -> interpret as UTC
+    if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(s)) {
+      return new Date(s.replace(" ", "T") + "Z");
+    }
+
+    // ISO without timezone: "YYYY-MM-DDTHH:mm:ss" -> interpret as UTC
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(s)) {
+      return new Date(s + "Z");
+    }
+
+    // Normal ISO (with Z or offset) or other formats
+    return new Date(s);
+  }
+
+  return null;
 }
-export function combineDateWithHMS(isoBase, hms) {
-  if (!isoBase || !hms) return null;
-  const base = new Date(isoBase);
-  const dateParts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: TZ,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(base);
-  const objD = Object.fromEntries(dateParts.map((p) => [p.type, p.value]));
-  const ymd = `${objD.year}-${objD.month}-${objD.day}`;
-  const [HH, MM, SS] = hms.split(":").map((x) => parseInt(x || "0", 10));
-  const local = new Date(
-    `${ymd}T${String(HH).padStart(2, "0")}:${String(MM).padStart(2, "0")}:${String(SS).padStart(2, "0")}`
-  );
-  return local.toISOString();
+
+export function parseISO2(v) {
+  const d = coerceToDate(v);
+  return d && !Number.isNaN(d.getTime()) ? d : null;
 }
+
 export function diffSecondsISO(startISO, endISO) {
   if (!startISO || !endISO) return 0;
-  const a = new Date(startISO).getTime();
-  const b = new Date(endISO).getTime();
+  const a = parseISO2(startISO)?.getTime() ?? NaN;
+  const b = parseISO2(endISO)?.getTime() ?? NaN;
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return 0;
   return Math.max(0, Math.floor((b - a) / 1000));
 }
 
 /* -------------------- Admin data helpers -------------------- */
-export function parseISO2(v) {
-  if (!v) return null;
-  const d = new Date(v);
-  return Number.isNaN(d.getTime()) ? null : d;
-}
 export function keyInTZ(d, timeZone = TZ) {
+  const dt = d instanceof Date ? d : parseISO2(d);
+  if (!dt) return "";
   return new Intl.DateTimeFormat("en-CA", {
     timeZone,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-  }).format(d);
+  }).format(dt);
 }
+
 export function computeSecondsFromRow(row) {
   const start = parseISO2(row?.task_start);
   const end = parseISO2(row?.task_end);
@@ -207,11 +230,82 @@ export function computeSecondsFromRow(row) {
   const d = row?.duration;
   if (typeof d === "number" && !Number.isNaN(d)) {
     if (d >= 3600000) return Math.floor(d / 1000); // ms
-    if (d >= 3600) return Math.floor(d);          // seconds
-    if (d >= 60) return Math.floor(d * 60);       // minutes -> seconds
+    if (d >= 3600) return Math.floor(d); // seconds
+    if (d >= 60) return Math.floor(d * 60); // minutes -> seconds
     return Math.floor(d * 60);
   }
   return 0;
+}
+
+export function isoToLocalHMS(v) {
+  if (!v) return "";
+  const d = v instanceof Date ? v : new Date(v);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n) => String(n).padStart(2, "0");
+  // ✅ local (machine) time
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+
+
+/**
+ * Offset helper: returns the timezone offset (minutes) for a given Date instant
+ * when interpreted in `timeZone`.
+ */
+function tzOffsetMinutes(date, timeZone) {
+  const dtf = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hour12: false,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+  const parts = Object.fromEntries(
+    dtf.formatToParts(date).map((p) => [p.type, p.value])
+  );
+  const asUTC = Date.UTC(
+    Number(parts.year),
+    Number(parts.month) - 1,
+    Number(parts.day),
+    Number(parts.hour),
+    Number(parts.minute),
+    Number(parts.second)
+  );
+  return (asUTC - date.getTime()) / 60000;
+}
+
+/**
+ * Convert "YYYY-MM-DD" + "HH:mm:ss" as a wall-clock time in `timeZone`
+ * to a UTC ISO string.
+ */
+function zonedYmdHmsToUtcIso(ymd, hms, timeZone) {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const [HH, MM, SS] = hms.split(":").map((x) => Number(x || 0));
+
+  // Initial guess as UTC
+  let guess = new Date(Date.UTC(y, m - 1, d, HH, MM, SS));
+
+  // Two passes to stabilize (DST-safe for other zones)
+  for (let i = 0; i < 2; i++) {
+    const off = tzOffsetMinutes(guess, timeZone);
+    guess = new Date(Date.UTC(y, m - 1, d, HH, MM, SS) - off * 60000);
+  }
+
+  return guess.toISOString();
+}
+
+export function combineDateWithHMS(isoBase, hms) {
+  if (!isoBase || !hms) return null;
+
+  const base = parseISO2(isoBase); // ✅ important
+  if (!base) return null;
+
+  // Get the YYYY-MM-DD in TZ for the base timestamp (correct day in that TZ)
+  const ymd = keyInTZ(base, TZ);
+  return zonedYmdHmsToUtcIso(ymd, hms, TZ);
 }
 
 /* --------------- Old daily payroll helpers ----------------- */
@@ -228,16 +322,25 @@ export function buildDailyPayablesForUser(detailsByDate, userId) {
       (s) => Number(s?.user_id) === Number(userId) && Number(s?.flagger) === 0
     );
     if (!mine.length) continue;
-    const totalSecs = mine.reduce((acc, s) => acc + (Number(s?.seconds) || 0), 0);
+    const totalSecs = mine.reduce(
+      (acc, s) => acc + (Number(s?.seconds) || 0),
+      0
+    );
     if (totalSecs <= 0) continue;
     const hours = Math.round((totalSecs / 3600) * 100) / 100;
     const label = secondsToLabel(totalSecs);
-    const payment = mine.reduce((acc, s) => acc + (Number(s?.session_payment) || 0), 0);
-    const serial_ids = mine.map((s) => s?.serial_id).filter((x) => x != null && x !== "");
+    const payment = mine.reduce(
+      (acc, s) => acc + (Number(s?.session_payment) || 0),
+      0
+    );
+    const serial_ids = mine
+      .map((s) => s?.serial_id)
+      .filter((x) => x != null && x !== "");
     out.push({ id: runningId++, date, hours, label, payment, serial_ids });
   }
   return out;
 }
+
 export function hasAnyFlaggerZeroForUser(detailsByDate, userId) {
   if (!detailsByDate || userId == null) return false;
   for (const sessions of Object.values(detailsByDate)) {
@@ -252,6 +355,7 @@ export function hasAnyFlaggerZeroForUser(detailsByDate, userId) {
 
 /* --------------- Current-month grouping helpers -------------- */
 export const CURRENT_TZ = "Asia/Dhaka";
+
 export function currentMonthKey(timeZone = CURRENT_TZ) {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone,
@@ -261,12 +365,14 @@ export function currentMonthKey(timeZone = CURRENT_TZ) {
   const obj = Object.fromEntries(parts.map((p) => [p.type, p.value]));
   return `${obj.year}-${obj.month}`; // e.g., "2025-11"
 }
+
 export function bucketForDay(day) {
   if (day >= 1 && day <= 7) return "1-7";
   if (day >= 8 && day <= 15) return "8-15";
   if (day >= 16 && day <= 23) return "16-23";
   return "24-31";
 }
+
 /* --------------- Current-month payment grouping --------------- */
 export function groupCurrentMonthForPayment(data, timeZone = CURRENT_TZ) {
   const month = currentMonthKey(timeZone);
@@ -284,12 +390,8 @@ export function groupCurrentMonthForPayment(data, timeZone = CURRENT_TZ) {
     (day.user_id || []).forEach((uid) => devSet.add(Number(uid)));
   }
   for (const devId of devSet) {
-    out[devId] = out[devId] || {
-      "1-7": [],
-      "8-15": [],
-      "16-23": [],
-      "24-31": [],
-    };
+    out[devId] =
+      out[devId] || { "1-7": [], "8-15": [], "16-23": [], "24-31": [] };
   }
 
   // Bucket each day by developer, keeping only sessions with flagger === 0
@@ -334,8 +436,9 @@ export function groupCurrentMonthForPayment(data, timeZone = CURRENT_TZ) {
       const hours = roundHours2(devSeconds);
       const label = secondsToLabel(devSeconds);
       const payment =
-        Math.round(devPays.reduce((acc, p) => acc + (Number(p) || 0), 0) * 100) /
-        100;
+        Math.round(
+          devPays.reduce((acc, p) => acc + (Number(p) || 0), 0) * 100
+        ) / 100;
 
       const entry = {
         date: ymd,

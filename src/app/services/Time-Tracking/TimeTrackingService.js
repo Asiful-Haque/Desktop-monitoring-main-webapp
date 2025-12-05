@@ -2,16 +2,104 @@ import { getDataSource } from "@/app/lib/typeorm/db/getDataSource";
 import { TimeTracking } from "@/app/lib/typeorm/entities/TimeTracking";
 import { DateTime } from "luxon";
 
+/**
+ * Accepts:
+ *  - ISO: 2025-12-03T09:05:59Z / 2025-12-03T09:05:59+06:00
+ *  - SQL: 2025-12-03 09:05:59
+ * Returns:
+ *  - UTC SQL string: "yyyy-LL-dd HH:mm:ss"
+ */
 function parseUtcSql(s) {
   if (!s) return null;
-  const dt = DateTime.fromSQL(String(s), { zone: "utc" }); // <-- IMPORTANT
-  if (!dt.isValid) throw new Error(`Invalid datetime: ${s}`);
-  return dt.toFormat("yyyy-LL-dd HH:mm:ss"); // keep as UTC SQL
+
+  // If driver returned a JS Date, treat as UTC instant
+  if (s instanceof Date) {
+    const dt = DateTime.fromJSDate(s, { zone: "utc" }).toUTC();
+    if (!dt.isValid) throw new Error(`Invalid datetime (Date): ${String(s)}`);
+    return dt.toFormat("yyyy-LL-dd HH:mm:ss");
+  }
+
+  const str = String(s).trim();
+  let dt;
+
+  const looksIso =
+    /^\d{4}-\d{2}-\d{2}T/.test(str) ||
+    /Z$/i.test(str) ||
+    /[+-]\d{2}:\d{2}$/.test(str);
+
+  if (looksIso) {
+    // keep provided timezone, then normalize to UTC
+    dt = DateTime.fromISO(str, { setZone: true }).toUTC();
+  } else {
+    // IMPORTANT: treat SQL as UTC because your DB values are UTC
+    dt = DateTime.fromSQL(str, { zone: "utc" });
+  }
+
+  // fallback (handles some non-standard strings)
+  if (!dt.isValid) {
+    const js = new Date(str);
+    if (!Number.isNaN(js.getTime())) {
+      dt = DateTime.fromJSDate(js, { zone: "utc" }).toUTC();
+    }
+  }
+
+  if (!dt.isValid) throw new Error(`Invalid datetime: ${str}`);
+
+  return dt.toFormat("yyyy-LL-dd HH:mm:ss");
 }
 
-function toSecondsDiffUtc(startSql, endSql) {
+/**
+ * Convert DB UTC SQL ("YYYY-MM-DD HH:mm:ss") to UTC ISO ("YYYY-MM-DDTHH:mm:ss.000Z")
+ * Also normalizes ISO strings to UTC ISO with Z.
+ *
+ * KEY FIX:
+ * Your API currently returns SQL DATETIME (no timezone). Browsers parse that as LOCAL time
+ * which shifts it. Sending an ISO with 'Z' removes ambiguity.
+ */
+function toUtcIsoZ(v) {
+  if (!v) return null;
+
+  // If driver returned Date, output ISO Z
+  if (v instanceof Date) {
+    return DateTime.fromJSDate(v, { zone: "utc" })
+      .toUTC()
+      .toISO({ suppressMilliseconds: false });
+  }
+
+  const s = String(v).trim();
+
+  // MySQL DATETIME "YYYY-MM-DD HH:mm:ss" (your DB stores UTC)
+  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(s)) {
+    return s.replace(" ", "T") + ".000Z";
+  }
+
+  // ISO-like => normalize to Z
+  const iso = DateTime.fromISO(s, { setZone: true }).toUTC();
+  if (iso.isValid) return iso.toISO({ suppressMilliseconds: false });
+
+  // fallback
+  const js = new Date(s);
+  if (!Number.isNaN(js.getTime())) {
+    return DateTime.fromJSDate(js, { zone: "utc" })
+      .toUTC()
+      .toISO({ suppressMilliseconds: false });
+  }
+
+  throw new Error(`Invalid datetime: ${s}`);
+}
+
+function toSecondsDiffUtc(startAny, endAny) {
+  if (!startAny || !endAny) return 0;
+
+  const startSql = parseUtcSql(startAny);
+  const endSql = parseUtcSql(endAny);
+
   const s = DateTime.fromSQL(startSql, { zone: "utc" });
   const e = DateTime.fromSQL(endSql, { zone: "utc" });
+
+  if (!s.isValid) throw new Error(`Invalid datetime (start): ${startAny}`);
+  if (!e.isValid) throw new Error(`Invalid datetime (end): ${endAny}`);
+
   return Math.max(0, Math.floor(e.diff(s, "seconds").seconds));
 }
 
@@ -31,10 +119,9 @@ function roundMoney(n) {
 
 // compute payment for a single row given duration (sec), project record, and optional per-user rate
 function computeSessionPayment(durationSec, projectRow, userRateForProject) {
-  console.log("Its called for ");
   if (durationSec == null || durationSec <= 0) return 0;
   const hours = durationSec / 3600;
-  console.log("Computed hours:", hours);
+
   if ((projectRow?.project_type || "").toLowerCase() === "hourly") {
     const rate = Number(projectRow?.project_hour_rate || 0);
     return roundMoney(hours * rate);
@@ -42,6 +129,26 @@ function computeSessionPayment(durationSec, projectRow, userRateForProject) {
   const rate = Number(userRateForProject || 0);
   return roundMoney(hours * rate);
 }
+
+function toUtcDateForDb(v) {
+  if (!v) return null;
+  if (v instanceof Date) return v;
+
+  const s = String(v).trim();
+
+  // ISO with Z or offset (your payload is like ...Z)
+  if (/^\d{4}-\d{2}-\d{2}T/.test(s)) {
+    const dt = DateTime.fromISO(s, { setZone: true }).toUTC();
+    if (!dt.isValid) throw new Error(`Invalid ISO datetime: ${s}`);
+    return dt.toJSDate(); // ✅ Date object (UTC instant)
+  }
+
+  // SQL "YYYY-MM-DD HH:mm:ss" treat as UTC
+  const dt = DateTime.fromSQL(s, { zone: "utc" });
+  if (!dt.isValid) throw new Error(`Invalid SQL datetime: ${s}`);
+  return dt.toJSDate(); // ✅ Date object (UTC instant)
+}
+
 
 export class TimeTrackingService {
   async repo() {
@@ -54,6 +161,7 @@ export class TimeTrackingService {
       "Creating time-tracking record with payload:_______||||||_____",
       payload
     );
+
     const repo = await this.repo();
     const ds = await getDataSource();
 
@@ -65,11 +173,18 @@ export class TimeTrackingService {
     });
     if (!project) throw new Error(`Invalid project_id: ${payload.project_id}`);
 
-    // ✅ Force UTC normalization
-    const taskStartUtc = parseUtcSql(payload.task_start);
-    const taskEndUtc = parseUtcSql(payload.task_end);
-    // ✅ Compute duration in UTC
-    const duration = toSecondsDiffUtc(taskStartUtc, taskEndUtc);
+    console.log("INCOMING task_start:", payload.task_start);
+    console.log("INCOMING task_end  :", payload.task_end);
+    // ✅ Accept ISO or SQL, normalize to UTC SQL for storage
+    const taskStartDate = toUtcDateForDb(payload.task_start);
+    const taskEndDate = toUtcDateForDb(payload.task_end);
+    console.log("NORMALIZED taskStartUtc:", taskStartDate);
+    console.log("NORMALIZED taskEndUtc  :", taskEndDate);
+
+
+
+    // ✅ Compute duration in UTC (based on original inputs)
+    const duration = toSecondsDiffUtc(payload.task_start, payload.task_end);
 
     console.log("Computed duration (sec):", duration);
     console.log("type of project is:", project.project_type);
@@ -101,8 +216,8 @@ export class TimeTrackingService {
       project_id: payload.project_id,
       developer_id: developerId,
       work_date: payload.work_date,
-      task_start: taskStartUtc,
-      task_end: taskEndUtc ?? null,
+      task_start: taskStartDate, // stored as UTC SQL
+      task_end: taskEndDate ?? null,
       duration,
       session_payment,
       tenant_id: payload.tenant_id ?? 0,
@@ -110,7 +225,7 @@ export class TimeTrackingService {
 
     return repo.save(row);
   }
-
+//need fix here
   async createMany(items) {
     const repo = await this.repo();
     const ds = await getDataSource();
@@ -186,8 +301,9 @@ export class TimeTrackingService {
 
       const taskStartUtc = parseUtcSql(i.task_start);
       const taskEndUtc = parseUtcSql(i.task_end);
+      console.log("Again persing", taskStartUtc, taskEndUtc);
 
-      const duration = toSecondsDiffUtc(taskStartUtc, taskEndUtc);
+      const duration = toSecondsDiffUtc(i.task_start, i.task_end);
 
       let userRate = null;
       if (
@@ -244,7 +360,12 @@ export class TimeTrackingService {
       ])
       .getRawMany();
 
-    return rows;
+    // ✅ FIX: convert DB UTC SQL to ISO Z before returning to frontend
+    return rows.map((r) => ({
+      ...r,
+      task_start: toUtcIsoZ(r.task_start),
+      task_end: toUtcIsoZ(r.task_end),
+    }));
   }
 
   async findByUserAndDay(devId, date) {
@@ -252,6 +373,7 @@ export class TimeTrackingService {
     const startOfDay = `${date} 00:00:00`;
     const endOfDay = `${date} 23:59:59`;
     const userId = devId;
+
     const rows = await repo
       .createQueryBuilder("t")
       .where("t.work_date BETWEEN :start AND :end", {
@@ -273,7 +395,12 @@ export class TimeTrackingService {
       ])
       .getRawMany();
 
-    return rows;
+    // ✅ FIX: convert DB UTC SQL to ISO Z before returning to frontend
+    return rows.map((r) => ({
+      ...r,
+      task_start: toUtcIsoZ(r.task_start),
+      task_end: toUtcIsoZ(r.task_end),
+    }));
   }
 
   async findAllToSubmitForPayment({ userId }) {
@@ -313,7 +440,15 @@ export class TimeTrackingService {
         .getCount(),
     ]);
 
-    return { rows, total };
+    // ✅ FIX: convert DB UTC SQL to ISO Z before returning
+    return {
+      rows: rows.map((r) => ({
+        ...r,
+        task_start: toUtcIsoZ(r.task_start),
+        task_end: toUtcIsoZ(r.task_end),
+      })),
+      total,
+    };
   }
 
   async findByDateRangeAll({
@@ -368,7 +503,14 @@ export class TimeTrackingService {
       qb.andWhere("t.developer_id = :uid", { uid: userId });
     }
 
-    return qb.getRawMany();
+    const rows = await qb.getRawMany();
+
+    // ✅ FIX: convert DB UTC SQL to ISO Z before returning
+    return rows.map((r) => ({
+      ...r,
+      task_start: toUtcIsoZ(r.task_start),
+      task_end: toUtcIsoZ(r.task_end),
+    }));
   }
 
   async updateFlaggerForSerialIds(data, flagger, userId) {
@@ -406,6 +548,7 @@ export class TimeTrackingService {
         console.warn("No valid serial_ids provided.");
         return { affected: 0, raw: [], info: "No serial_ids provided" };
       }
+
       const result = await repo
         .createQueryBuilder()
         .update(TimeTracking)

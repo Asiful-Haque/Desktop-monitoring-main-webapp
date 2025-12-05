@@ -43,22 +43,18 @@ export class UsersService {
     });
   }
 
-    async getPaymentTypeByUserId(tenant_id, userId) {
+  async getPaymentTypeByUserId(tenant_id, userId) {
     const ds = await getDataSource();
     const userRepo = ds.getRepository(User);
 
     const row = await userRepo
       .createQueryBuilder("user")
       .innerJoin("user.user_roles_rel", "ur")
-      .select([
-        "user.user_id AS user_id",
-        "user.salary_type AS salary_type",
-      ])
+      .select(["user.user_id AS user_id", "user.salary_type AS salary_type"])
       .where("user.user_id = :userId", { userId })
       .andWhere("ur.tenant_id = :tenant_id", { tenant_id })
       .getRawOne();
 
-    // returns { user_id, payment_type } or undefined
     return row || null;
   }
 
@@ -69,7 +65,8 @@ export class UsersService {
     password,
     tenant_id,
     default_hour_rate,
-    salary_type
+    salary_type,
+    currency 
   ) {
     const ds = await getDataSource();
     const userRepo = ds.getRepository(User);
@@ -80,8 +77,6 @@ export class UsersService {
 
     const isFreelancer = roleName === "Freelancer";
     const timeSheetApproval = isFreelancer ? 0 : 1;
-
-    // validate/normalize rate
     let rate = 0.0;
     if (
       default_hour_rate !== undefined &&
@@ -95,7 +90,6 @@ export class UsersService {
       rate = Math.round(parsed * 100) / 100;
     }
 
-    // validate salary_type for non-freelancers
     let normalizedSalaryType = null;
     if (!isFreelancer) {
       const allowed = ["Weekly", "Monthly"];
@@ -107,13 +101,28 @@ export class UsersService {
       normalizedSalaryType = salary_type;
     }
 
+    let normalizedCurrency = null;
+    if (
+      currency !== undefined &&
+      currency !== null &&
+      String(currency).trim() !== ""
+    ) {
+      const c = String(currency).trim().toUpperCase();
+      if (!/^[A-Z]{3}$/.test(c)) {
+        throw new Error(
+          "currency must be a valid ISO 4217 code (3 letters), e.g. USD, EUR, BDT"
+        );
+      }
+      normalizedCurrency = c;
+    }
+
     const user = userRepo.create({
       username,
       email,
       password: hashedPassword,
       default_hour_rate: rate,
       time_sheet_approval: timeSheetApproval,
-      salary_type: normalizedSalaryType, // persisted
+      salary_type: normalizedSalaryType,
     });
 
     const savedUser = await userRepo.save(user);
@@ -127,13 +136,14 @@ export class UsersService {
       user_id: savedUser.user_id,
       role_id: role.role_id,
       tenant_id,
+      currency: normalizedCurrency, 
     });
+
     await userRoleRepo.save(userRole);
 
     return savedUser;
   }
 
-  //Time sheet approval status: 0 = Approved, 1 = Sent/Pending
   async setTimeSheetApproval(userId, value /* 0 | 1 | 2 */) {
     console.log(
       "setTimeSheetApproval dddddediting.............................................................................. called with:",

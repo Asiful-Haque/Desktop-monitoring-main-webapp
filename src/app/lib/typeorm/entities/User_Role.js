@@ -17,6 +17,12 @@ export const UserRoles = new EntitySchema({
       primary: true,
       type: "int",
     },
+    currency: {
+      type: "varchar",
+      length: 255,
+      nullable: true,
+      default: null,
+    },
   },
   relations: {
     tenant_rel: {
