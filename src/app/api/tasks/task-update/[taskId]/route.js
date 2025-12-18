@@ -41,11 +41,12 @@ export async function PUT(req, context) {
 
     console.log('Updating taskId:<<<<<<<<<<<<<<', taskId, 'with body:', body); // Log the taskId and body
     const { newStatus, last_timing } = body; // destructuring newStatus and last_timing from the body
+    console.log('Received------ newStatus:', newStatus, 'and last---------_timing:', last_timing); // Log the received values
 
     // Validate that either newStatus or last_timing is present in the body
-    if (!newStatus && !last_timing) {
-      return NextResponse.json({ error: 'newStatus or last_timing is required' }, { status: 400 });
-    }
+    // if (!newStatus && !last_timing) {
+    //   return NextResponse.json({ error: 'newStatus or last_timing is required' }, { status: 400 });
+    // }
 
     let taskres;
 

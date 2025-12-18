@@ -1,250 +1,430 @@
 "use client";
-import React, { useMemo, useState } from "react";
-import { useRouter } from "next/navigation"; 
 
-export default function Login() {
+import React, { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Activity,
+  Lock,
+  Mail,
+  User,
+  ArrowRight,
+  Eye,
+  EyeOff,
+} from "lucide-react";
+
+// Adjust path based on where you saved the file above
+import AnimatedBackground from "@/components/AnimatedBackground"; 
+
+async function safeReadJson(res) {
+  try {
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+export default function LoginPage() {
   const router = useRouter();
-  const nextDest = "/adminDashboard"; 
+  const nextDest = "/adminDashboard";
 
-  const THEMES = [
-    { key: "ocean", name: "Ocean", pageBg: "from-blue-500 via-blue-400 to-blue-900", panelGrad: "from-sky-500 via-blue-500 to-sky-600", buttonGrad: "from-sky-500 via-indigo-600 to-cyan-600", dot: "bg-sky-500" },
-    { key: "tropical", name: "Tropical", pageBg: "from-emerald-600 via-teal-600 to-cyan-600", panelGrad: "from-emerald-500 via-teal-500 to-cyan-500", buttonGrad: "from-emerald-500 via-teal-600 to-cyan-600", dot: "bg-emerald-500" },
-    { key: "ash", name: "Ash", pageBg: "from-neutral-900 via-slate-800 to-zinc-900", panelGrad: "from-zinc-700 via-slate-600 to-neutral-700", buttonGrad: "from-slate-800 via-zinc-700 to-neutral-800", dot: "bg-zinc-600" },
-  ];
+  const [isLogin, setIsLogin] = useState(true);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [animClass, setAnimClass] = useState("");
 
-  const [themeKey, setThemeKey] = useState(THEMES[0].key);
-  const theme = useMemo(() => THEMES.find(t => t.key === themeKey) || THEMES[0], [themeKey]);
+  // Form Fields
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [username, setUsername] = useState("");
   const [showPwd, setShowPwd] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [err, setErr] = useState("");
+  const [ok, setOk] = useState("");
 
-  async function handleLogin(e) {
-    e.preventDefault();
+  const timeoutsRef = useRef([]);
+
+  const setSafeTimeout = (fn, ms) => {
+    const id = window.setTimeout(fn, ms);
+    timeoutsRef.current.push(id);
+  };
+
+  useEffect(() => {
+    return () => {
+      timeoutsRef.current.forEach((t) => window.clearTimeout(t));
+      timeoutsRef.current = [];
+    };
+  }, []);
+
+  const handleToggle = (toLogin) => {
+    if (toLogin === isLogin || isTransitioning || isLoading) return;
+
     setErr("");
-    setLoading(true);
+    setOk("");
+    setIsTransitioning(true);
 
-    const fd = new FormData(e.target);
-    const payload = { email: fd.get("email"), password: fd.get("password") };
+    // exit animation
+    setAnimClass(toLogin ? "form-exit-right" : "form-exit-left");
+
+    setSafeTimeout(() => {
+      // swap content
+      setIsLogin(toLogin);
+
+      // enter animation
+      setAnimClass(toLogin ? "form-enter-left" : "form-enter-right");
+
+      setSafeTimeout(() => {
+        setAnimClass("");
+        setIsTransitioning(false);
+      }, 380);
+    }, 260);
+  };
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (isLoading || isTransitioning) return;
+
+    setErr("");
+    setOk("");
+    setIsLoading(true);
 
     try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
-      console.log("Login response status------------------:", res);
-      const data = await res.json();
-      if (!res.ok) {
-        setErr(data?.error || "Invalid email or password");
-        return;
-      }
+      if (isLogin) {
+        const payload = { email, password };
+        const res = await fetch("/api/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
 
-      e.target.reset();
-      console.log("Login successful:", data);
-      router.push(nextDest); // simple redirect
-      console.log("Redirecting to:", nextDest);
-    } catch {
-      setErr("Log in failed. Please try again.");
+        const data = await safeReadJson(res);
+        if (!res.ok) {
+          throw new Error(
+            data?.error || data?.message || "Invalid email or password"
+          );
+        }
+
+        router.push(nextDest);
+      } else {
+        // Validation for Register
+        if (!username.trim()) throw new Error("Username is required");
+
+        const payload = {
+          username: username.trim(),
+          email,
+          password,
+        };
+
+        const res = await fetch("/api/auth/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        const data = await safeReadJson(res);
+        if (!res.ok) {
+          throw new Error(
+            data?.error || data?.message || "Registration failed"
+          );
+        }
+
+        setOk("Registration successful! Redirecting...");
+        setTimeout(() => router.push(nextDest), 1500);
+      }
+    } catch (ex) {
+      setErr(ex?.message || "Request failed. Please try again.");
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   }
 
   return (
-    <div className={`min-h-screen w-full flex items-center justify-center px-4 bg-gradient-to-b ${theme.pageBg}`}>
-      {/* Card */}
-      <div className="relative w-full max-w-4xl rounded-2xl bg-white shadow-[0_25px_80px_rgba(0,0,0,0.35)] overflow-hidden">
-        {/* ===== Animated background layer (BEHIND both panels) ===== */}
-        <div className="absolute inset-0 z-0">
-          {/* Aurora wash */}
-          <div className="absolute -inset-20 animate-aurora opacity-[0.35]" />
-          {/* Floating blur blobs */}
-          <div className="absolute -top-12 -left-8 h-56 w-56 rounded-full bg-cyan-400 blur-3xl mix-blend-multiply animate-float-slow opacity-30" />
-          <div className="absolute bottom-0 right-0 h-64 w-64 rounded-full bg-fuchsia-400 blur-3xl mix-blend-multiply animate-float-medium opacity-25" />
-          <div className="absolute top-1/3 -right-10 h-52 w-52 rounded-full bg-emerald-400 blur-3xl mix-blend-multiply animate-float-fast opacity-20" />
-        </div>
+    <div
+      className="min-h-screen flex items-center justify-center p-4 overflow-hidden relative"
+      style={{
+        background:
+          "linear-gradient(135deg, #095cfd 0%, #0b4dd5 45%, #063aa8 100%)",
+      }}
+    >
+      {/* ================= BACKGROUND COMPONENT ================= */}
+      <AnimatedBackground />
 
-        {/* Content */}
-        <div className="relative z-10 grid grid-cols-1 md:grid-cols-2">
-          {/* Left panel */}
-          <div className={`relative p-6 md:p-8 bg-gradient-to-br ${theme.panelGrad} min-h-[520px]`}>
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.15),transparent_60%)]" />
-            <div className="relative h-full rounded-xl border border-white/20 bg-white/5 p-6 flex flex-col">
-              <div className="h-12 w-12 rounded-full bg-white/30 ring-2 ring-white/40 shadow-lg mb-6" />
-              <h2 className="text-white text-2xl md:text-3xl font-bold tracking-tight">
-                Welcome to TaskPro!
-              </h2>
-              <p className="mt-2 text-white/90 text-sm">Sign in to continue access</p>
-              <div className="mt-auto pt-10 text-white/90 text-xs">https://twinforce.net/</div>
+      {/* ================= MAIN CONTENT ================= */}
+      <div className="w-full max-w-md space-y-6 relative z-10">
+        {/* Brand */}
+        <div className="text-center space-y-3">
+          <div className="flex justify-center">
+            <div
+              className={`p-5 rounded-2xl backdrop-blur-md transition-all duration-500 hover:scale-110 hover:rotate-3 ${
+                isLogin ? "" : "rotate-6"
+              }`}
+              style={{
+                background: "rgba(255,255,255,0.15)",
+                border: "1px solid rgba(255,255,255,0.3)",
+                boxShadow:
+                  "0 8px 32px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.2)",
+              }}
+            >
+              <Activity
+                className={`h-12 w-12 text-white drop-shadow-lg transition-transform duration-500 ${
+                  isLogin ? "" : "scale-110"
+                }`}
+              />
             </div>
           </div>
 
-          {/* Right panel */}
-          <div className="p-6 md:p-8 flex flex-col justify-center min-h-[520px]">
-            <h3 className="text-3xl font-semibold text-slate-900 mb-10 text-center">Login</h3>
+          <h1 className="text-5xl font-bold text-white tracking-tight drop-shadow-lg">
+            Track Lively
+          </h1>
+          <p className="text-blue-100/90 text-lg font-light">
+            Time & Task Management System
+          </p>
+        </div>
 
-            {err ? (
-              <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
-                {err}
-              </div>
-            ) : null}
-
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div>
-                <label htmlFor="email" className="mb-1 block text-xs font-bold text-slate-800">
-                  Email
-                </label>
-                <div className="relative">
-                  <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center">
-                    <svg width="16" height="16" viewBox="0 0 24 24" className="opacity-80">
-                      <path fill="currentColor" d="M12 12a5 5 0 1 0-5-5a5 5 0 0 0 5 5M4 20a8 8 0 1 1 16 0z" />
-                    </svg>
-                  </span>
-                  <input
-                    id="email"
-                    name="email"
-                    type="email"
-                    required
-                    placeholder="you@example.com"
-                    className="w-full rounded-md border border-slate-300 bg-white px-9 py-2 text-sm  placeholder-slate-400 outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label htmlFor="password" className="mb-1 block text-xs font-bold ">
-                  Password
-                </label>
-                <div className="relative">
-                  <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center ">
-                    <svg width="16" height="16" viewBox="0 0 24 24" className="opacity-80">
-                      <path fill="currentColor" d="M17 8h-1V6a4 4 0 1 0-8 0v2H7a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2M9 6a3 3 0 1 1 6 0v2H9zm8 12H7v-8h10z" />
-                    </svg>
-                  </span>
-                  <input
-                    id="password"
-                    name="password"
-                    type={showPwd ? "text" : "password"}
-                    required
-                    placeholder="••••••••"
-                    className="w-full rounded-md border border-slate-300 bg-white px-9 py-2 pr-16 text-sm text-slate-900 placeholder-slate-400 outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPwd(v => !v)}
-                    className="absolute inset-y-0 right-2 rounded-md px-2 text-xs font-semibold text-slate-500 hover:text-slate-700"
-                    aria-label={showPwd ? "Hide password" : "Show password"}
-                    tabIndex={-1}
-                  >
-                    {showPwd ? "Hide" : "Show"}
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between text-xs">
-                <label className="flex items-center gap-2">Dont have an account?</label>
-                <a href="/admin-contact" className="text-indigo-700 hover:underline font-semibold">
-                  Contact Admin
-                </a>
-              </div>
-
-              <button
-                type="submit"
-                disabled={loading}
-                className={`w-full rounded-full bg-gradient-to-r ${theme.buttonGrad} py-2.5 text-sm font-semibold text-white shadow-md hover:opacity-95 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500`}
-              >
-                {loading ? (
-                  <span className="inline-flex items-center gap-2">
-                    <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24">
-                      <circle className="opacity-30" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                      <path className="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-                    </svg>
-                    Logging in…
-                  </span>
-                ) : (
-                  "LOGIN"
+        {/* Card */}
+        <Card
+          className="border-0 backdrop-blur-xl overflow-hidden"
+          style={{
+            background: "rgba(255,255,255,0.95)",
+            border: "1px solid rgba(9, 92, 253, 0.2)",
+            boxShadow:
+              "0 25px 50px rgba(9, 92, 253, 0.3), 0 0 0 1px rgba(255,255,255,0.1) inset",
+          }}
+        >
+          {/* Tabs */}
+          <div className="flex border-b border-blue-100 relative">
+            <div
+              className="absolute bottom-0 h-0.5 bg-gradient-to-r from-blue-500 via-blue-400 to-blue-600 transition-all duration-500 ease-out"
+              style={{
+                width: "50%",
+                left: isLogin ? "0%" : "50%",
+                boxShadow: "0 0 10px rgba(9, 92, 253, 0.5)",
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => handleToggle(true)}
+              disabled={isTransitioning || isLoading}
+              className={`flex-1 py-4 text-sm font-semibold transition-all duration-300 relative overflow-hidden group ${
+                isLogin ? "" : "text-gray-400 hover:text-gray-600"
+              }`}
+              style={{ color: isLogin ? "#0b2a72" : undefined }}
+            >
+              <span className="relative z-10 flex items-center justify-center gap-2">
+                Sign In
+                {isLogin && (
+                  <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
                 )}
-              </button>
-            </form>
+              </span>
+              <div
+                className={`absolute inset-0 bg-blue-50 transition-transform duration-300 ${
+                  isLogin ? "translate-y-0" : "translate-y-full"
+                }`}
+              />
+            </button>
 
-            <div className="mt-5 flex items-center justify-center">
-              <div className="flex items-center gap-3">
-                {THEMES.map(t => (
-                  <button
-                    key={t.key}
-                    onClick={() => setThemeKey(t.key)}
-                    aria-label={`Switch to ${t.name} theme`}
-                    className={`h-4 w-4 rounded-full ring-2 ring-white shadow ${t.dot} ${
-                      themeKey === t.key ? "outline outline-2 outline-offset-2 outline-slate-900/40" : ""
-                    }`}
-                    title={t.name}
-                  />
-                ))}
-              </div>
-            </div>
+            <button
+              type="button"
+              onClick={() => handleToggle(false)}
+              disabled={isTransitioning || isLoading}
+              className={`flex-1 py-4 text-sm font-semibold transition-all duration-300 relative overflow-hidden group ${
+                !isLogin ? "" : "text-gray-400 hover:text-gray-600"
+              }`}
+              style={{ color: !isLogin ? "#0b2a72" : undefined }}
+            >
+              <span className="relative z-10 flex items-center justify-center gap-2">
+                Register
+                {!isLogin && (
+                  <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
+                )}
+              </span>
+              <div
+                className={`absolute inset-0 bg-blue-50 transition-transform duration-300 ${
+                  !isLogin ? "translate-y-0" : "translate-y-full"
+                }`}
+              />
+            </button>
           </div>
-        </div>
+
+          <div className="overflow-hidden">
+            <CardHeader className="pb-2">
+              <CardTitle style={{ color: "#0b2a72" }} className="text-xl">
+                {isLogin ? "Welcome Back" : "Create Account"}
+              </CardTitle>
+              <CardDescription className="text-gray-500">
+                {isLogin
+                  ? "Enter your credentials to access your dashboard"
+                  : "Fill in your details to get started"}
+              </CardDescription>
+
+              {err ? (
+                <div className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                  {err}
+                </div>
+              ) : null}
+              {ok ? (
+                <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+                  {ok}
+                </div>
+              ) : null}
+            </CardHeader>
+
+            <CardContent>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className={`${animClass || ""}`}>
+                  {/* === Register-only Fields === */}
+                  {!isLogin && (
+                    <>
+                      {/* Username */}
+                      <div
+                        className="space-y-2 mt-4 field-appear"
+                        style={{ animationDelay: "100ms" }}
+                      >
+                        <Label htmlFor="username" style={{ color: "#0b2a72" }}>
+                          Username
+                        </Label>
+                        <div className="relative group w-full">
+                          <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-blue-400 group-focus-within:text-blue-600" />
+                          <Input
+                            id="username"
+                            placeholder="Enter your username"
+                            value={username}
+                            onChange={(e) => setUsername(e.target.value)}
+                            className="w-full pl-10 border-blue-200 focus:border-blue-500 focus:ring-blue-500/20"
+                            required
+                            disabled={isLoading}
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {/* Email */}
+                  <div
+                    className="space-y-2 mt-4 field-appear"
+                    style={{ animationDelay: isLogin ? "0ms" : "250ms" }}
+                  >
+                    <Label htmlFor="email" style={{ color: "#0b2a72" }}>
+                      Email
+                    </Label>
+                    <div className="relative group w-full">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-blue-400 group-focus-within:text-blue-600" />
+                      <Input
+                        id="email"
+                        type="email"
+                        placeholder="Enter your email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="w-full pl-10 border-blue-200 focus:border-blue-500 focus:ring-blue-500/20 transition-all"
+                        required
+                        disabled={isLoading || isTransitioning}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Password */}
+                  <div
+                    className="space-y-2 mt-4 field-appear"
+                    style={{ animationDelay: isLogin ? "60ms" : "300ms" }}
+                  >
+                    <Label htmlFor="password" style={{ color: "#0b2a72" }}>
+                      Password
+                    </Label>
+                    <div className="relative group w-full">
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-blue-400 group-focus-within:text-blue-600" />
+                      <Input
+                        id="password"
+                        type={showPwd ? "text" : "password"}
+                        placeholder="Enter your password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="w-full pl-10 pr-10 border-blue-200 focus:border-blue-500 focus:ring-blue-500/20 transition-all"
+                        required
+                        disabled={isLoading || isTransitioning}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPwd((v) => !v)}
+                        className="absolute inset-y-0 right-2 rounded-md px-2 text-xs font-semibold text-slate-500 hover:text-slate-700"
+                        tabIndex={-1}
+                      >
+                        {showPwd ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Footer Links */}
+                  <div
+                    className="flex items-center justify-between text-xs mt-4 field-appear"
+                    style={{
+                      animationDelay: isLogin ? "120ms" : "350ms",
+                    }}
+                  >
+                    <span className="text-slate-600">
+                      {isLogin
+                        ? "Don't have an account?"
+                        : "Already have an account?"}
+                    </span>
+                    <a
+                      href={isLogin ? "/admin-contact" : "#"}
+                      className="text-indigo-700 hover:underline font-semibold"
+                      onClick={(ev) => {
+                        if (!isLogin) {
+                          ev.preventDefault();
+                          handleToggle(true);
+                        }
+                      }}
+                    >
+                      {isLogin ? "Contact Admin" : "Sign In"}
+                    </a>
+                  </div>
+
+                  {/* Submit Button */}
+                  <Button
+                    type="submit"
+                    className="w-full text-white font-semibold py-5 mt-6 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] hover:shadow-xl group field-appear"
+                    style={{
+                      background:
+                        "linear-gradient(135deg, #095cfd 0%, #0b4dd5 45%, #063aa8 100%)",
+                      boxShadow: "0 8px 25px rgba(9, 92, 253, 0.4)",
+                      animationDelay: isLogin ? "160ms" : "400ms",
+                    }}
+                    disabled={isLoading || isTransitioning}
+                  >
+                    {isLoading ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        {isLogin ? "Logging in..." : "Creating account..."}
+                      </span>
+                    ) : (
+                      <span className="flex items-center justify-center gap-2">
+                        {isLogin ? "Sign In" : "Create Account"}
+                        <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                      </span>
+                    )}
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </div>
+        </Card>
+
+        <p className="text-center text-blue-100/60 text-sm">
+          © 2025 Track Lively. All rights reserved.
+        </p>
       </div>
-
-      {/* Local animation CSS */}
-      <style jsx>{`
-        /* Soft, slowly morphing aurora gradient */
-        .animate-aurora {
-          background: conic-gradient(
-              from 180deg at 50% 50%,
-              rgba(99, 102, 241, 0.55),
-              rgba(168, 85, 247, 0.45),
-              rgba(34, 197, 94, 0.45),
-              rgba(56, 189, 248, 0.45),
-              rgba(99, 102, 241, 0.55)
-            ),
-            radial-gradient(60% 60% at 30% 20%, rgba(255, 255, 255, 0.18), transparent 70%),
-            radial-gradient(70% 70% at 80% 90%, rgba(255, 255, 255, 0.12), transparent 80%);
-          filter: blur(40px);
-          animation: auroraShift 18s ease-in-out infinite alternate;
-        }
-        @keyframes auroraShift {
-          0% {
-            transform: translateY(-8%) scale(1.05) rotate(0deg);
-            opacity: 0.32;
-          }
-          50% {
-            transform: translateY(4%) scale(1.07) rotate(8deg);
-            opacity: 0.38;
-          }
-          100% {
-            transform: translateY(-6%) scale(1.04) rotate(-6deg);
-            opacity: 0.34;
-          }
-        }
-
-        /* Floating blobs (parallax-like speeds) */
-        .animate-float-slow {
-          animation: floatY 22s ease-in-out infinite;
-        }
-        .animate-float-medium {
-          animation: floatY 18s ease-in-out infinite reverse;
-        }
-        .animate-float-fast {
-          animation: floatY 14s ease-in-out infinite;
-        }
-        @keyframes floatY {
-          0% {
-            transform: translateY(0px) translateX(0px) scale(1);
-          }
-          25% {
-            transform: translateY(-12px) translateX(8px) scale(1.03);
-          }
-          50% {
-            transform: translateY(6px) translateX(-6px) scale(0.98);
-          }
-          75% {
-            transform: translateY(-10px) translateX(-2px) scale(1.02);
-          }
-          100% {
-            transform: translateY(0px) translateX(0px) scale(1);
-          }
-        }
-      `}</style>
     </div>
   );
 }

@@ -149,7 +149,6 @@ function toUtcDateForDb(v) {
   return dt.toJSDate(); // ✅ Date object (UTC instant)
 }
 
-
 export class TimeTrackingService {
   async repo() {
     const ds = await getDataSource();
@@ -180,8 +179,6 @@ export class TimeTrackingService {
     const taskEndDate = toUtcDateForDb(payload.task_end);
     console.log("NORMALIZED taskStartUtc:", taskStartDate);
     console.log("NORMALIZED taskEndUtc  :", taskEndDate);
-
-
 
     // ✅ Compute duration in UTC (based on original inputs)
     const duration = toSecondsDiffUtc(payload.task_start, payload.task_end);
@@ -216,7 +213,7 @@ export class TimeTrackingService {
       project_id: payload.project_id,
       developer_id: developerId,
       work_date: payload.work_date,
-      task_start: taskStartDate, // stored as UTC SQL
+      task_start: taskStartDate,
       task_end: taskEndDate ?? null,
       duration,
       session_payment,
@@ -225,7 +222,7 @@ export class TimeTrackingService {
 
     return repo.save(row);
   }
-//need fix here
+
   async createMany(items) {
     const repo = await this.repo();
     const ds = await getDataSource();
@@ -299,9 +296,14 @@ export class TimeTrackingService {
       const proj = projectById.get(i.project_id);
       if (!proj) throw new Error(`Invalid project_id: ${i.project_id}`);
 
-      const taskStartUtc = parseUtcSql(i.task_start);
-      const taskEndUtc = parseUtcSql(i.task_end);
-      console.log("Again persing", taskStartUtc, taskEndUtc);
+      console.log("INCOMING task_start:", i.task_start);
+      console.log("INCOMING task_end  :", i.task_end);
+
+      const taskStartUtc = toUtcDateForDb(i.task_start);
+      const taskEndUtc = toUtcDateForDb(i.task_end);
+
+      console.log("NORMALIZED taskStartUtc:", taskStartUtc);
+      console.log("NORMALIZED taskEndUtc  :", taskEndUtc);
 
       const duration = toSecondsDiffUtc(i.task_start, i.task_end);
 
