@@ -1,34 +1,73 @@
+import { getDataSource } from "@/app/lib/typeorm/db/getDataSource";
+import { User } from "@/app/lib/typeorm/entities/User";
+import { Tenant } from "@/app/lib/typeorm/entities/Tenant";
+import { UserRoles } from "@/app/lib/typeorm/entities/User_Role"; 
+import * as bcrypt from "bcrypt";
 
-// import { User } from "@/app/entities/User";
-// import { getDataSource } from "@/app/lib/init-db";
+export class SignupService {
+  async registerUser(data) {
+    const { 
+      username, 
+      email, 
+      password, 
+      companyName, 
+      companyType, 
+      currencyType, 
+      salaryType 
+    } = data;
 
+    console.log("Starting registration for:", email);
 
-// export class SignupService {
-//   constructor() {
-//     this.userRepo = null;
-//   }
+    const ds = await getDataSource();
+    const userRepo = ds.getRepository(User);
+    const tenantRepo = ds.getRepository(Tenant);
+    const userRolesRepo = ds.getRepository(UserRoles);
+    const existingUser = await userRepo.findOne({
+      where: { email: email },
+    });
 
-//   async getUserRepo() {
-//     if (!this.userRepo) {
-//       const dataSource = await getDataSource();
-//       this.userRepo = dataSource.getRepository("User");
-//     }
-//     return this.userRepo;
-//   }
+    if (existingUser) {
+      throw new Error("User with this email already exists");
+    }
 
-//   async findUserByEmail(email) {
-//     const repo = await this.getUserRepo();
-//     return repo.findOneBy({ email });
-//   }
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const newUser = {
+      username: username,
+      email: email,
+      password: hashedPassword,
+      salary_type: salaryType, 
+      time_sheet_approval: 1,  
+    };
 
-//   async createUser(userData) {
-//     const repo = await this.getUserRepo();
+    const savedUser = await userRepo.save(newUser);
+    const savedUserId = savedUser.user_id;
+    console.log("User saved with ID:", savedUserId);
+    const newTenant = {
+      name: companyName,
+      slug: companyType, 
+      status: "active",
+    };
 
-//     const { username, email, password, role } = userData;
-//     const safeData = { username, email, password };
+    const savedTenant = await tenantRepo.save(newTenant);
+    const savedTenantId = savedTenant.tenant_id;
+    console.log("Tenant saved with ID:", savedTenantId);
+    const newUserRole = {
+      user_id: savedUserId,
+      tenant_id: savedTenantId,
+      role_id: 1, 
+      currency: currencyType,
+    };
 
-//     console.log("Creating and saving user:", safeData);
-//     const user = repo.create(safeData);
-//     return repo.save(user);
-//   }
-// }
+    await userRolesRepo.save(newUserRole);
+    console.log("UserRole link created successfully.");
+    return {
+      user_id: savedUserId,
+      username: username,
+      email: email,
+      role: "Admin", 
+      tenant_id: savedTenantId,
+      tenant_name: companyName,
+      currency: currencyType,
+    };
+  }
+}

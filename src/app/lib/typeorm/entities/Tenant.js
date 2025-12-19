@@ -7,7 +7,7 @@ export const Tenant = new EntitySchema({
   columns: {
     tenant_id: { primary: true, type: "int", generated: true }, 
     name: { type: "varchar", length: 255 },
-    slug: { type: "varchar", length: 255, unique: true },
+    slug: { type: "varchar", length: 255 },
     status: { type: "varchar", length: 32, default: "active" },
     created_at: { type: "timestamp", default: () => "CURRENT_TIMESTAMP" },
     updated_at: {
