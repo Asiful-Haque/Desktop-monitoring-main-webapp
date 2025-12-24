@@ -58,12 +58,12 @@ import {
   currentMonthKey,
   bucketForDay,
 } from "@/app/lib/timesheet-utils";
-
+import TimeSheetApproveModal from "./TimeSheetApproveModal";
 
 /* ----------------- Component ----------------- */
 export default function TimeSheet({
   initialWindow,
-  data, 
+  data,
   detailsByDate,
   userRole = "Developer",
   userId,
@@ -395,10 +395,14 @@ export default function TimeSheet({
     const totalLabel =
       secondsToLabel(filtered.reduce((s, r) => s + (r.seconds || 0), 0)) || "";
     const items = filtered.map((it) => {
-      console.log("it.startISO and it.endISO in TimeSheet.js@@@-+++++++-------", it.startISO, it.endISO);
+      console.log(
+        "it.startISO and it.endISO in TimeSheet.js@@@-+++++++-------",
+        it.startISO,
+        it.endISO
+      );
       const startHMS = isoToLocalHMS(it.startISO);
       const endHMS = isoToLocalHMS(it.endISO);
-      
+
       // console.log ("startHMS and endHMS in TimeSheet.js@@@--------", startHMS, endHMS);
       return {
         ...it,
@@ -667,6 +671,150 @@ export default function TimeSheet({
     currentUser?.id,
   ]);
 
+  // --- Admin approve preview modal (NEW) ---
+  const [approvePreviewOpen, setApprovePreviewOpen] = useState(false);
+  const [approvePreviewData, setApprovePreviewData] = useState(null);
+
+  function closeApprovePreview() {
+    setApprovePreviewOpen(false);
+    setApprovePreviewData(null);
+  }
+
+  function buildApprovePreviewForSelectedFreelancer() {
+    if (!isAdminSelectedUserNumeric) return null;
+
+    const uid = Number(selectedUser);
+    const name = selectedUserName || `User ${uid}`;
+
+    // Use ALL currently filtered days (not just current page)
+    const days = filteredSeries || [];
+
+    const perDay = [];
+    let totalActive = 0;
+    let totalRaw = 0;
+    let totalIdle = 0;
+    let totalPayAll = 0;
+    let totalPayPayable = 0;
+    let totalSessions = 0;
+    let totalPayableSessions = 0;
+
+    // project breakdown maps
+    const projMap = new Map(); // project_id -> agg
+
+    for (const d of days) {
+      const dateObj = d?.date instanceof Date ? d.date : new Date(d.date);
+      const dateKey = keyOf(dateObj);
+
+      const all = localDetailsByDate?.[dateKey] || [];
+      const sessions = all.filter((s) => {
+        const uOK = s.user_id === uid;
+        const pOK = selectedProject === "all" || s.project_id === selectedProject;
+        return uOK && pOK;
+      });
+
+      let dayActive = 0;
+      let dayRaw = 0;
+      let dayPayAll = 0;
+      let dayPayPayable = 0;
+      let dayPayableSessions = 0;
+
+      for (const s of sessions) {
+        const activeSec = Number(s.seconds || 0); // ACTIVE (duration)
+        const rawSec = diffSecondsISO(s.startISO, s.endISO); // RAW window
+        const idleSec = Math.max(0, (rawSec || 0) - (activeSec || 0));
+        const pay = Number(s.session_payment || 0);
+        const isPayable = Number(s.flagger || 0) === 0;
+
+        dayActive += activeSec;
+        dayRaw += rawSec || 0;
+        dayPayAll += pay;
+
+        if (isPayable) {
+          dayPayPayable += pay;
+          dayPayableSessions += 1;
+        }
+
+        // project agg
+        const pid = Number(s.project_id);
+        if (Number.isFinite(pid)) {
+          const cur = projMap.get(pid) || {
+            project_id: pid,
+            project_name: s.project_name || `Project ${pid}`,
+            activeSeconds: 0,
+            rawSeconds: 0,
+            idleSeconds: 0,
+            paymentPayable: 0,
+            sessions: 0,
+          };
+          cur.activeSeconds += activeSec;
+          cur.rawSeconds += rawSec || 0;
+          cur.idleSeconds += idleSec;
+          cur.sessions += 1;
+          if (isPayable) cur.paymentPayable += pay;
+          projMap.set(pid, cur);
+        }
+      }
+
+      const dayIdle = Math.max(0, dayRaw - dayActive);
+      totalActive += dayActive;
+      totalRaw += dayRaw;
+      totalIdle += dayIdle;
+      totalPayAll += dayPayAll;
+      totalPayPayable += dayPayPayable;
+
+      totalSessions += sessions.length;
+      totalPayableSessions += dayPayableSessions;
+
+      // Only push if there is any session (keeps the modal clean)
+      if (sessions.length > 0) {
+        perDay.push({
+          dateKey,
+          dateObj,
+          activeSeconds: dayActive,
+          rawSeconds: dayRaw,
+          idleSeconds: dayIdle,
+          paymentAll: dayPayAll,
+          paymentPayable: dayPayPayable,
+          sessions: sessions.length,
+          payableSessions: dayPayableSessions,
+        });
+      }
+    }
+
+    // top projects by payable payment
+    const projects = Array.from(projMap.values())
+      .sort((a, b) => (b.paymentPayable || 0) - (a.paymentPayable || 0))
+      .slice(0, 12);
+
+    const rangeLabel =
+      rangeMode === "custom" ? "Custom range" : `Last ${windowDays} days`;
+
+    return {
+      freelancer: { id: uid, name, role: "freelancer" },
+      tzLabel: TZ,
+      rangeLabel,
+      summary: {
+        days: perDay.length,
+        sessions: totalSessions,
+        total_active_seconds: totalActive,
+        total_raw_seconds: totalRaw,
+        total_idle_seconds: totalIdle,
+        total_payment_all: totalPayAll,
+        total_payment_payable: totalPayPayable,
+        payable_sessions: totalPayableSessions,
+      },
+      series: perDay,
+      projects,
+    };
+  }
+
+  function openApprovePreview() {
+    const preview = buildApprovePreviewForSelectedFreelancer();
+    if (!preview) return;
+    setApprovePreviewData(preview);
+    setApprovePreviewOpen(true);
+  }
+
   async function handleAdminApproveSelected() {
     if (!isSelectedFreelancer) return;
     try {
@@ -680,6 +828,9 @@ export default function TimeSheet({
       if (!res.ok) throw new Error(j?.message || "Failed to approve");
       const v = Number(j?.time_sheet_approval);
       setAdminSelApproval(Number.isFinite(v) ? v : 0);
+
+      // ✅ close preview window after approve
+      closeApprovePreview();
 
       const dailyPayables = dailyPayablesForSelected;
       if (!dailyPayables.length) {
@@ -720,6 +871,9 @@ export default function TimeSheet({
       if (!res.ok) throw new Error(j?.message || "Failed to reject");
       const v = Number(j?.time_sheet_approval);
       setAdminSelApproval(Number.isFinite(v) ? v : 2);
+
+      // ✅ close preview window after reject
+      closeApprovePreview();
     } catch (e) {
       alert(e?.message || "Could not reject timesheet");
     } finally {
@@ -846,9 +1000,6 @@ export default function TimeSheet({
       alert(e?.message || "Payment run failed");
     }
   }
-
-
-
 
   return (
     <div className="p-4 md:p-6 space-y-6 bg-gradient-to-br from-blue-50 to-indigo-50 min-h-screen">
@@ -1080,13 +1231,13 @@ export default function TimeSheet({
             </div>
             <div className="flex items-center gap-2">
               <button
-                onClick={handleAdminApproveSelected}
+                onClick={openApprovePreview}
                 disabled={adminActionDisabled}
                 title={
                   adminSelLoading
                     ? "Please wait…"
                     : adminSelApproval === 1
-                    ? "Approve timesheet"
+                    ? "Review and approve timesheet"
                     : "Awaiting freelancer to send / already handled"
                 }
                 className={cn(
@@ -1233,8 +1384,7 @@ export default function TimeSheet({
               const daySessions = dayAll.filter((r) => {
                 const pOK =
                   selectedProject === "all" || r.project_id === selectedProject;
-                const uOK =
-                  selectedUser === "all" || r.user_id === selectedUser;
+                const uOK = selectedUser === "all" || r.user_id === selectedUser;
                 return pOK && uOK;
               });
               const sessionsCount = daySessions.length;
@@ -1362,7 +1512,8 @@ export default function TimeSheet({
           </div>
         )}
       </div>
-      {console.log("details value in timesheet:",details)}
+
+      {console.log("details value in timesheet:", details)}
 
       {/* Modal */}
       {details && (
@@ -1373,6 +1524,23 @@ export default function TimeSheet({
           onUpdateItemTime={updateItemTime}
           onReasonChange={onReasonChange}
           onSubmitChanges={onSubmitChanges}
+        />
+      )}
+
+      {/* Admin Approve Preview Modal (NEW) */}
+      {approvePreviewOpen && approvePreviewData && (
+        <TimeSheetApproveModal
+          open={approvePreviewOpen}
+          onClose={closeApprovePreview}
+          onApprove={handleAdminApproveSelected}
+          onReject={handleAdminRejectSelected}
+          loading={adminSelLoading}
+          tzLabel={approvePreviewData.tzLabel}
+          rangeLabel={approvePreviewData.rangeLabel}
+          freelancer={approvePreviewData.freelancer}
+          summary={approvePreviewData.summary}
+          series={approvePreviewData.series}
+          projects={approvePreviewData.projects}
         />
       )}
     </div>
