@@ -68,8 +68,8 @@ function formatHMS(totalSeconds) {
 function computeSeconds(row) {
   const start = parseISO(row?.task_start);
   const end = parseISO(row?.task_end);
-  // console.log("Start and End times for row:#############", start, end);
-  // console.log("Computing seconds for row:^", row);
+  console.log("Start and End times for row:#############", start, end);
+  console.log("Computing seconds for row:^", row);
   if (start && end && end > start) {
     return Math.floor((end.getTime() - start.getTime()) / 1000);
   }
@@ -135,16 +135,17 @@ export default async function Page() {
 
   for (const row of rows) {
 
-    console.log("start date and end date for row: ", row?.task_start, row?.task_end);
+    // console.log("start date and end date for row: ", row?.task_start, row?.task_end);
     const startDt = parseISO(row?.task_start);
     const endDt = parseISO(row?.task_end);
-    console.log("Parsed startDt and endDt: ", startDt, endDt);
+    // console.log("Parsed startDt and endDt: ", startDt, endDt);
 
     const anchor = startDt || endDt || parseISO(row?.work_date);
     if (!anchor) continue;
 
     const dayKey = keyInTZ(anchor, TZ);
-    const secs = computeSeconds(row);
+    // const secs = computeSeconds(row);
+    const secs = Number(row?.duration) || computeSeconds(row);
 
     const leftText =
       startDt && endDt
@@ -208,7 +209,7 @@ export default async function Page() {
     list.push(item);
     daySessions.set(dayKey, list);
   }
-  console.log("Days-------- and their-------- sessions: ", daySessions);
+  // console.log("Days-------- and their-------- sessions: ", daySessions);
 
   const detailsByDate = {};
   const data = Array.from(daySessions.entries())

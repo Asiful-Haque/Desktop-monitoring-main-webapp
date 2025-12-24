@@ -11,7 +11,8 @@ export function OPTIONS() {
 export async function POST(req) {
   try {
     const body = await req.json();
-    console.log("Received POST /api/time-tracking with body:<<<<<<<<<<<<<", body);
+    console.log("✅ POST /api/time-tracking body:", body);
+
     if (Array.isArray(body)) {
       if (body.length === 0) {
         return NextResponse.json({ error: "Empty array payload" }, { status: 400 });
@@ -26,7 +27,7 @@ export async function POST(req) {
       return NextResponse.json({ ok: true, item: created }, { status: 201 });
     }
   } catch (err) {
-    console.error("POST /api/time-tracking failed:", err);
+    console.log("❌ POST /api/time-tracking failed:", err);
     return NextResponse.json(
       { error: err?.message || "Failed to process request" },
       { status: 400 }
