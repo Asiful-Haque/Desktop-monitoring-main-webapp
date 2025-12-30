@@ -1,7 +1,13 @@
 "use client";
-import { toast } from "sonner";
+
 import React, { useMemo, useState } from "react";
+import moment from "moment";
+import { useRouter } from "next/navigation";
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+
 import {
   Select,
   SelectContent,
@@ -9,20 +15,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useRouter } from "next/navigation";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { CheckSquare, Clock, AlertCircle, Plus } from "lucide-react";
+
+import { CheckSquare, Clock, AlertCircle, Plus, AlignLeft } from "lucide-react";
+
 import AddTaskModal from "@/components/AddTaskModal";
-import moment from "moment";
-import {
-  groupCurrentMonthForPayment,
-  debugLogPaymentBuckets,
-} from "@/app/lib/payment-buckets";
-import {
-  submitAllVisiblePayments,
-  submitSinglePayment,
-} from "@/app/lib/PaymentCommonApi";
+import TaskDescriptionDialog from "@/components/TaskDescriptionDialog"; 
 
 // Chart.js
 import {
@@ -46,20 +43,17 @@ ChartJS.register(
   Tooltip,
   Legend
 );
-
-// Tailwind-like palette (approx. 500 shades) for charts
 const chartPalette = {
   status: {
-    pending: "#F59E0B", // amber-500
-    in_progress: "#3B82F6", // blue-500
-    completed: "#22C55E", // green-500
+    pending: "#F59E0B", 
+    in_progress: "#3B82F6", 
+    completed: "#22C55E", 
   },
   priority: {
-    HIGH: "#EF4444", // red-500
-    MEDIUM: "#F59E0B", // amber-500
-    LOW: "#6B7280", // gray-500
+    HIGH: "#EF4444",
+    MEDIUM: "#F59E0B", 
+    LOW: "#6B7280", 
   },
-  // fallback cycle for per-task bars if needed
   bars: [
     "#6366F1",
     "#22C55E",
@@ -95,16 +89,24 @@ const statusIcons = {
 const formatDeadline = (deadline) => {
   if (!deadline) return "-";
 
-  // Check if it contains time + 'T' or 'Z' → TIMESTAMP/ISO string
   if (deadline.includes("T") || deadline.endsWith("Z")) {
     return moment.utc(deadline).local().format("YYYY-MM-DD HH:mm:ss");
   } else if (deadline.includes(" ")) {
-    // DATETIME (assume stored in UTC)
     return moment.utc(deadline).local().format("YYYY-MM-DD HH:mm:ss");
   } else {
-    // DATE only
     return moment(deadline).format("YYYY-MM-DD");
   }
+};
+
+const formatSeconds = (val) => {
+  const n = Number(val || 0);
+  if (!n || n <= 0) return "0s";
+  const h = Math.floor(n / 3600);
+  const m = Math.floor((n % 3600) / 60);
+  const s = n % 60;
+  return [h ? `${h}h` : null, m ? `${m}m` : null, s ? `${s}s` : null]
+    .filter(Boolean)
+    .join(" ");
 };
 
 const Tasks = ({ tasks: initialTasks, projects, curruser, allusers }) => {
@@ -112,9 +114,16 @@ const Tasks = ({ tasks: initialTasks, projects, curruser, allusers }) => {
   const [selectedProject, setSelectedProject] = useState("ALL");
   const [addTaskModalOpen, setAddTaskModalOpen] = useState(false);
   const [tasks, setTasks] = useState(initialTasks);
+  const [descOpen, setDescOpen] = useState(false);
+  const [descTask, setDescTask] = useState(null);
 
   const handleSeeDetails = (taskId) =>
     router.push(`/task-screenshot/${taskId}`);
+
+  const handleOpenDescription = (task) => {
+    setDescTask(task);
+    setDescOpen(true);
+  };
 
   const handleSubmitForReview = async (taskId, status) => {
     try {
@@ -139,17 +148,6 @@ const Tasks = ({ tasks: initialTasks, projects, curruser, allusers }) => {
     }
   };
 
-  const formatSeconds = (val) => {
-    const n = Number(val || 0);
-    if (!n || n <= 0) return "0s";
-    const h = Math.floor(n / 3600);
-    const m = Math.floor((n % 3600) / 60);
-    const s = n % 60;
-    return [h ? `${h}h` : null, m ? `${m}m` : null, s ? `${s}s` : null]
-      .filter(Boolean)
-      .join(" ");
-  };
-
   const filteredTasks = useMemo(() => {
     return selectedProject === "ALL"
       ? tasks
@@ -157,13 +155,12 @@ const Tasks = ({ tasks: initialTasks, projects, curruser, allusers }) => {
   }, [tasks, selectedProject]);
 
   const analytics = useMemo(() => {
-    const secs = filteredTasks.map((t, i) => Number(t.last_timing || 0));
+    const secs = filteredTasks.map((t) => Number(t.last_timing || 0));
     const total = secs.reduce((a, b) => a + b, 0);
     const count = filteredTasks.length;
     const avg = count ? Math.round(total / count) : 0;
 
     const labels = filteredTasks.map((t) => t.task_name || `Task ${t.task_id}`);
-    const perTask = secs;
 
     const statusTally = { pending: 0, in_progress: 0, completed: 0 };
     filteredTasks.forEach((t) => {
@@ -171,7 +168,6 @@ const Tasks = ({ tasks: initialTasks, projects, curruser, allusers }) => {
       if (statusTally[s] !== undefined) statusTally[s] += 1;
     });
 
-    // colors for per-task bars by PRIORITY (falls back to rotating palette)
     const perTaskColors = filteredTasks.map((t, i) => {
       return (
         chartPalette.priority[t.priority] ||
@@ -185,13 +181,12 @@ const Tasks = ({ tasks: initialTasks, projects, curruser, allusers }) => {
       taskCount: count,
       completedCount: statusTally.completed,
       perTaskLabels: labels,
-      perTaskSeconds: perTask,
+      perTaskSeconds: secs,
       perStatusCounts: statusTally,
       perTaskColors,
     };
   }, [filteredTasks]);
 
-  // ----- Colored datasets -----
   const barData = useMemo(
     () => ({
       labels: analytics.perTaskLabels,
@@ -233,7 +228,6 @@ const Tasks = ({ tasks: initialTasks, projects, curruser, allusers }) => {
     [analytics.perStatusCounts]
   );
 
-  // ----- Options with nice tooltips -----
   const barOptions = useMemo(
     () => ({
       responsive: true,
@@ -295,38 +289,6 @@ const Tasks = ({ tasks: initialTasks, projects, curruser, allusers }) => {
       ? "All Projects"
       : projects.find((p) => String(p.project_id) === String(selectedProject))
           ?.project_name || "Project";
-  // --------------------------------------------------------------------------------------------------------------------
-  // async function handleStartPayment() {
-  //   try {
-  //     console.log("Starting call to /api/cronjob/trigger.111..");
-
-  //     // Trigger the API call to start the payment process
-  //     const res = await fetch("/api/cronjob/trigger", {
-  //       method: "POST",
-  //       headers: {
-  //         "Content-Type": "application/json",
-  //       },
-  //       credentials: "same-origin",
-  //     });
-
-  //     // Check if the API call was successful
-  //     if (!res.ok) {
-  //       throw new Error("Failed to call the api");
-  //     }
-
-  //     // Parse the response from the /api/cronjob/trigger API
-  //     const { data } = await res.json();
-
-  //     // console.log("Payroll process triggered successfully:", data);
-  //     toast.success(`Transaction created`);
-
-  //     // Optionally, you can handle or log the data here if needed
-  //     // e.g., process the response data or log it for verification
-  //   } catch (error) {
-  //     console.error("Error triggering payroll process:", error);
-  //     alert("Error triggering payroll process: " + error.message);
-  //   }
-  // }
 
   return (
     <div
@@ -334,8 +296,18 @@ const Tasks = ({ tasks: initialTasks, projects, curruser, allusers }) => {
         curruser.role === "Admin" ? "from-red-100" : "from-blue-50"
       } to-indigo-50 min-h-screen`}
     >
+      <TaskDescriptionDialog
+        open={descOpen}
+        onOpenChange={(v) => {
+          setDescOpen(v);
+          if (!v) setDescTask(null);
+        }}
+        task={descTask}
+      />
+
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-bold text-foreground">Tasks</h1>
+
         {curruser.role !== "Project Manager" && (
           <Button
             className="bg-primary text-primary-foreground hover:bg-primary/90"
@@ -345,16 +317,8 @@ const Tasks = ({ tasks: initialTasks, projects, curruser, allusers }) => {
             Add Task
           </Button>
         )}
-        {/* <Button
-          className="bg-primary text-primary-foreground hover:bg-primary/90"
-          onClick={handleStartPayment}
-        >
-          <Plus className="mr-2 h-4 w-4" />
-          Log payment data
-        </Button> */}
       </div>
 
-      {/* Project Filter */}
       <div className="mb-2">
         <label
           htmlFor="project-select"
@@ -383,7 +347,6 @@ const Tasks = ({ tasks: initialTasks, projects, curruser, allusers }) => {
         </Select>
       </div>
 
-      {/* Analytics: KPIs + Charts */}
       <div className="grid grid-cols-1 gap-4">
         <Card className="border-dashed">
           <CardHeader>
@@ -392,7 +355,6 @@ const Tasks = ({ tasks: initialTasks, projects, curruser, allusers }) => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {/* KPIs */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
               <div className="p-3 rounded-xl bg-white shadow-sm">
                 <div className="text-xs text-muted-foreground">Total Time</div>
@@ -420,7 +382,6 @@ const Tasks = ({ tasks: initialTasks, projects, curruser, allusers }) => {
               </div>
             </div>
 
-            {/* Charts */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="h-64 lg:col-span-2 p-3 rounded-xl bg-white shadow-sm">
                 <Bar data={barData} options={barOptions} />
@@ -433,7 +394,6 @@ const Tasks = ({ tasks: initialTasks, projects, curruser, allusers }) => {
         </Card>
       </div>
 
-      {/* Task List */}
       <div className="grid gap-4">
         {filteredTasks.length === 0 ? (
           <Card>
@@ -442,30 +402,44 @@ const Tasks = ({ tasks: initialTasks, projects, curruser, allusers }) => {
             </CardContent>
           </Card>
         ) : (
-          filteredTasks.map((task, i) => {
+          filteredTasks.map((task) => {
             const StatusIcon = statusIcons[task.status] || Clock;
+
             return (
               <Card
                 key={task.task_id}
                 className="hover:shadow-md transition-shadow"
               >
                 <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg text-foreground">
-                      {task.task_name}
-                    </CardTitle>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0 flex items-center gap-2">
+                      <CardTitle className="text-lg text-foreground truncate">
+                        {task.task_name}
+                      </CardTitle>
+
+                      <button
+                        type="button"
+                        onClick={() => handleOpenDescription(task)}
+                        className="cursor-pointer shrink-0 inline-flex h-8 w-8 items-center justify-center rounded-md border bg-white hover:bg-gray-50 transition"
+                        title="View description"
+                        aria-label="View description"
+                      >
+                        <AlignLeft className="h-4 w-4 text-muted-foreground" />
+                      </button>
+                    </div>
+
                     {["Project Manager", "CEO", "Admin", "Team Lead"].includes(
                       curruser.role
                     ) ? (
                       <button
                         type="button"
-                        className="px-3 py-1 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors text-sm font-medium"
+                        className="shrink-0 px-3 py-1 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors text-sm font-medium"
                         onClick={() => handleSeeDetails(task.task_id)}
                       >
                         See Details
                       </button>
                     ) : (
-                      <div className="flex items-center gap-2">
+                      <div className="shrink-0 flex items-center gap-2">
                         <Badge className={priorityColors[task.priority]}>
                           {(task.priority || "").toUpperCase()}
                         </Badge>
@@ -477,6 +451,7 @@ const Tasks = ({ tasks: initialTasks, projects, curruser, allusers }) => {
                     )}
                   </div>
                 </CardHeader>
+
                 <CardContent>
                   <div className="text-sm text-gray-700 mb-2">
                     Time Spent:{" "}
@@ -484,6 +459,7 @@ const Tasks = ({ tasks: initialTasks, projects, curruser, allusers }) => {
                       {formatSeconds(task.last_timing)}
                     </span>
                   </div>
+
                   <div className="flex items-center justify-between text-sm text-muted-foreground">
                     {["Project Manager", "CEO", "Team Lead", "Admin"].includes(
                       curruser.role
@@ -505,11 +481,7 @@ const Tasks = ({ tasks: initialTasks, projects, curruser, allusers }) => {
                     )}
 
                     <span className="font-medium">
-                      Due:{" "}
-                      <span>
-                        {/* {new Date(task.deadline).toISOString().split("T")[0]} */}
-                        {formatDeadline(task.deadline)}
-                      </span>
+                      Due: <span>{formatDeadline(task.deadline)}</span>
                     </span>
                   </div>
                 </CardContent>

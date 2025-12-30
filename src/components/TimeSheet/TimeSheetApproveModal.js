@@ -310,7 +310,7 @@ export default function TimeSheetApproveModal({
     const raw = Math.max(0, totals.totalRawH);
     const active = Math.max(0, totals.totalActiveH);
     const idle = Math.max(0, totals.totalIdleH);
-    const gap = Math.max(0, raw - active - idle); // should be 0, but keep safe
+    const gap = Math.max(0, raw - active - idle); 
 
     const sum = Math.max(1e-9, active + idle + gap);
 

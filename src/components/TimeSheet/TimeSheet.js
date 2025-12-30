@@ -264,6 +264,7 @@ export default function TimeSheet({
       all: true,
       userId: currentUser?.id ?? userId,
       userRole,
+      tenant_id: currentUser?.tenant_id || null,
     };
     try {
       const res = await fetch(apiUrl, {
@@ -1247,10 +1248,10 @@ export default function TimeSheet({
                     : "bg-indigo-600 text-white hover:bg-indigo-700"
                 )}
               >
-                {adminSelLoading ? "Processing…" : "Approve Timesheet"}
+                {adminSelLoading ? "Processing…" : "See Timesheet Details"}
               </button>
 
-              <button
+              {/* <button
                 onClick={handleAdminRejectSelected}
                 disabled={adminSelLoading || adminSelApproval !== 1}
                 title={
@@ -1268,7 +1269,7 @@ export default function TimeSheet({
                 )}
               >
                 {adminSelLoading ? "Processing…" : "Reject Timesheet"}
-              </button>
+              </button> */}
 
               {adminSelErr && (
                 <span className="text-xs text-rose-600 dark:text-rose-400">

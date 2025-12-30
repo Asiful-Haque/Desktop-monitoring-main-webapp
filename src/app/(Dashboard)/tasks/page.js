@@ -4,7 +4,6 @@ import jwt from "jsonwebtoken";
 import Tasks from "./TaskByProject";
 
 const TasksPage = async () => {
-  // Read token from cookie (SSR)
   const cookieStore = await cookies();
   const token = cookieStore.get("token")?.value;
   const currentUser = token ? jwt.decode(token) : null;
@@ -13,7 +12,7 @@ const TasksPage = async () => {
 
   console.log("Current User:", currentUser);
 
-  // Prepare cookie header for server-side fetch
+
   const cookieHeader = token ? `token=${token}` : "";
 
   let tasks = [];
@@ -40,7 +39,6 @@ const TasksPage = async () => {
         projects = projectsData.projects;
       }
 
-      // Team Lead / admin: fetch team tasks
       if (role === "Team Lead" || role === "Project Manager") {
         console.log("Fetching team lead tasks for userId:", userId);
         const teamTasksRes = await fetch(
@@ -56,12 +54,11 @@ const TasksPage = async () => {
         }
       }
 
-      // Team Lead / admin: fetch all users
       if (role !== "Developer") {
         console.log("Fetching all users:");
         const usersRes = await fetch(`${process.env.NEXT_PUBLIC_MAIN_HOST}/api/users`, {
           cache: "no-store",
-          headers: { Cookie: cookieHeader }, // forward cookie
+          headers: { Cookie: cookieHeader }, 
         });
 
         if (usersRes.ok) {

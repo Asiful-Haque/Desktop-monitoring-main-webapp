@@ -19,12 +19,14 @@ export async function POST(req) {
       });
     }
 
+    console.log("Dates are ===", startDate, endDate);
     if (!startDate || !endDate) {
       return NextResponse.json({ error: "startDate and endDate required (or set all=false)" }, { status: 400 });
     }
 
     console.log("Called with all=============true, returning");
     const items = await service.findByDateRangeAll({ startDate, endDate, userId, userRole, tenant_id });
+    console.log("Tenant in route.js", tenant_id);
     console.log("Item count for date range:", items.length);
     console.log("Sample item for date range:88888888888888888888888888888888888888888888888888888888888888888888", items[items.length-1]);
     return NextResponse.json({

@@ -538,7 +538,8 @@ async createMany(items) {
     userRole,
     tenant_id,
   }) {
-    console.log("Got the function for database call you called ");
+    console.log("Got the function for database call you called with dates ", startDate, endDate);
+    console.log("Tenant ID:", tenant_id, "User ID:", userId, "User Role:", userRole);
     const repo = await this.repo();
     const role = String(userRole || "")
       .trim()
@@ -584,6 +585,7 @@ async createMany(items) {
     }
 
     const rows = await qb.getRawMany();
+    console.log("Fetched items count for date range:", rows.length);
 
     // ✅ FIX: convert DB UTC SQL to ISO Z before returning
     return rows.map((r) => ({

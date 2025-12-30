@@ -9,10 +9,19 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { AlignLeft } from "lucide-react";
+
+import TaskDescriptionDialog from "@/components/TaskDescriptionDialog"; 
 
 function ProjTaskCard({ tasks: initialTasks, curruser }) {
   const [tasks, setTasks] = useState(initialTasks);
-  
+  const [descOpen, setDescOpen] = useState(false);
+  const [descTask, setDescTask] = useState(null);
+
+  const openDescription = (task) => {
+    setDescTask(task);
+    setDescOpen(true);
+  };
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -31,7 +40,7 @@ function ProjTaskCard({ tasks: initialTasks, curruser }) {
     const confirmed = window.confirm(
       "Are you sure you want to mark this task as completed?"
     );
-    if (!confirmed) return; 
+    if (!confirmed) return;
 
     try {
       const res = await fetch(`/api/tasks/task-update/${taskId}`, {
@@ -55,28 +64,52 @@ function ProjTaskCard({ tasks: initialTasks, curruser }) {
 
   return (
     <Card className="border-0 shadow-lg bg-white/70 backdrop-blur-sm">
+      <TaskDescriptionDialog
+        open={descOpen}
+        onOpenChange={(v) => {
+          setDescOpen(v);
+          if (!v) setDescTask(null);
+        }}
+        task={descTask}
+      />
+
       <CardHeader>
         <CardTitle className="text-blue-700">Project Tasks</CardTitle>
         <CardDescription>Current tasks and their status</CardDescription>
       </CardHeader>
+
       <CardContent>
         <div className="space-y-4">
-          {/* {console.log("Tasks:", tasks)} */}
           {tasks.map((task) => (
             <div
               key={task.task_id}
               className="relative p-4 border border-blue-100 rounded-lg bg-blue-50/50"
             >
-              {/* Status badge top-right */}
               <div className="absolute top-4 right-4">
                 <Badge className={getStatusColor(task.status)}>
-                  {task.status.replace("_", " ").toUpperCase()}
+                  {String(task.status || "")
+                    .replace("_", " ")
+                    .toUpperCase()}
                 </Badge>
               </div>
 
-              {/* Task info */}
-              <div className="mb-2">
-                <h4 className="font-medium text-gray-900">{task.task_name}</h4>
+              <div className="mb-2 pr-12">
+                <div className="flex items-center gap-2 min-w-0">
+                  <h4 className="font-medium text-gray-900 truncate">
+                    {task.task_name}
+                  </h4>
+
+                  <button
+                    type="button"
+                    onClick={() => openDescription(task)}
+                    className="cursor-pointer shrink-0 inline-flex h-8 w-8 items-center justify-center rounded-md border bg-white hover:bg-gray-50 transition"
+                    title="View description"
+                    aria-label="View description"
+                  >
+                    <AlignLeft className="h-4 w-4 text-gray-600" />
+                  </button>
+                </div>
+
                 <p className="text-sm text-gray-600">
                   Assigned to: {task.assigned_to_name || "N/A"}
                 </p>
@@ -85,7 +118,6 @@ function ProjTaskCard({ tasks: initialTasks, curruser }) {
                 </p>
               </div>
 
-              {/* Button below due date */}
               {task.status === "pending" && curruser.role === "Team Lead" && (
                 <div>
                   <Button
@@ -105,6 +137,3 @@ function ProjTaskCard({ tasks: initialTasks, curruser }) {
 }
 
 export default ProjTaskCard;
-
-
-
