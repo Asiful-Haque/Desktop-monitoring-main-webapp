@@ -1,4 +1,4 @@
-// app/admin/page.tsx (Server Component)
+// app/admin/page.js (Server Component)
 import AdminDashboardClient from "./AdminDashboardClient";
 import { cookies } from "next/headers";
 import jwt from "jsonwebtoken";
@@ -19,26 +19,26 @@ export default async function AdminDashboard() {
     role: raw.role,
   };
 
-  // Manually forward the token cookie in the headers
+
   const cookieHeader = `token=${tokenCookie.value}`;
 
   const [usersRes, projectsRes, allProjectsRes] = await Promise.all([
     fetch(`${process.env.NEXT_PUBLIC_MAIN_HOST}/api/users`, {
       cache: "no-store",
       headers: {
-        Cookie: cookieHeader, // <-- send cookie manually
+        Cookie: cookieHeader, 
       },
     }),
     fetch(`${process.env.NEXT_PUBLIC_MAIN_HOST}/api/projects/${userId}`, {
       cache: "no-store",
       headers: {
-        Cookie: cookieHeader, // <-- send cookie manually
+        Cookie: cookieHeader, 
       },
     }),
     fetch(`${process.env.NEXT_PUBLIC_MAIN_HOST}/api/projects`, {
       cache: "no-store",
       headers: {
-        Cookie: cookieHeader, // <-- send cookie manually
+        Cookie: cookieHeader, 
       },
     }),
   ]);

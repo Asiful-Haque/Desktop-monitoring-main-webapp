@@ -39,7 +39,6 @@ export default function AdminDashboardClient({
   const [assignModalOpen, setAssignModalOpen] = useState(false);
   const [tasks, setTasks] = useState([]);
 
-  // Helper: get today's date in LOCAL YYYY-MM-DD - avoid UTC off-by-one
   const getTodayLocal = () => {
     const d = new Date();
     const yyyy = d.getFullYear();
@@ -184,10 +183,17 @@ export default function AdminDashboardClient({
       </div>
 
       <IndGanttChart currUser={curruser} projects={projects} tasks={tasks} />
-      <ProjectActivityDashboard
+      {/* <ProjectActivityDashboard
         curruser={curruser}
         teamSupremeProjects={projects}
-      />
+      /> */}
+      {
+        curruser.role === "Admin" ? (
+          <ProjectActivityDashboard curruser={curruser} teamSupremeProjects={allprojects} />
+        ) : (
+          <ProjectActivityDashboard curruser={curruser} teamSupremeProjects={projects} />
+        )
+      }
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <UserManagementCard users={users} />
         {curruser.role === "Admin" ? (
