@@ -101,6 +101,7 @@ const ProjectActivityDashboard = ({ curruser, teamSupremeProjects }) => {
         const isTeamLead = role === "team lead";
         const isPM = role === "project manager";
         const isAdmin = role === "admin";
+        const isFreelancer = role === "freelancer";
 
         if (curruser?.tenant_id != null) {
           finalTasks = finalTasks.filter((t) => {
@@ -110,7 +111,7 @@ const ProjectActivityDashboard = ({ curruser, teamSupremeProjects }) => {
         }
 
         // ✅ Developer → only own tasks
-        if (isDeveloper) {
+        if (isDeveloper || isFreelancer) {
           finalTasks = finalTasks.filter(
             (task) => task.assigned_to_id === curruser.id
           );
