@@ -18,7 +18,7 @@ export async function getAuthFromCookie(req) {
     console.log("Its req");
     // This is for manual fetch where we forward the cookie in headers
     const cookieHeader = req.headers.get("cookie");
-    // console.log("Cookie Header received:", cookieHeader); // Log the cookie header
+    console.log("Cookie Header received:", cookieHeader); // Log the cookie header
     if (cookieHeader) {
       const token = cookieHeader
         .split("; ")

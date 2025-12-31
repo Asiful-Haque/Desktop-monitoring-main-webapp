@@ -10,6 +10,7 @@ import { Tenant } from "../entities/Tenant.js";
 import { TimeTracking } from "../entities/TimeTracking.js";
 import { Transaction } from "../entities/Transaction.js";
 import { PaymentLog } from "../entities/PaymentLog.js";
+import { AttendanceDaily } from "../entities/AttendanceDaily.js";
 
 export const AppDataSource = new DataSource({
   type: "mysql",
@@ -33,6 +34,7 @@ export const AppDataSource = new DataSource({
     TimeTracking,
     Transaction,
     PaymentLog,
+    AttendanceDaily,
   ],
 
   // ✅ IMPORTANT: treat DB DATE/DATETIME as UTC
