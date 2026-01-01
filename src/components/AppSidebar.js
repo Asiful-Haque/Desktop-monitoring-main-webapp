@@ -37,6 +37,7 @@ const navigationItems = [
   { title: "Time Sheet", url: "/time-sheet", icon: CalendarDays, roles: ["Developer","Admin", "Freelancer"] },
   { title: "Payroll", url: "/payroll", icon: DollarSign, roles: ["Developer", "Admin", "Project Manager", "CEO", "Team Lead", "Freelancer"] },
   { title: "Manual Time", url: "/manual-time", icon: Clock, roles: ["Developer", "Freelancer"] },
+  { title: "Attendance", url: "/attendance", icon: Clock, roles: ["Admin"] },
 ];
 
 export function AppSidebar({ user }) {
