@@ -40,15 +40,8 @@ export async function POST(req) {
   try {
     const token = await getAuthFromCookie(req);
     if (!token) return corsJson({ error: "Token missing or invalid" }, 401);
-
-    const tenant_id = Number(token.tenant_id ?? token.tenantId);
-    const editor_user_id = Number(token.id ?? token.user_id);
-
-    if (!tenant_id) return corsJson({ error: "tenant_id missing in token" }, 401);
-    if (!editor_user_id) return corsJson({ error: "user_id missing in token" }, 401);
-
     const body = await req.json();
-
+    console.log("Attendance POST body:", body);
     let entries = [];
     if (Array.isArray(body)) entries = body;
     else if (Array.isArray(body?.entries)) entries = body.entries;
@@ -57,8 +50,8 @@ export async function POST(req) {
     if (!entries.length) return corsJson({ error: "No attendance data provided" }, 400);
 
     const result = await attendanceService.upsertAttendance({
-      tenant_id,
-      editor_user_id,
+      tenant_id: Number(body.tenant_id ?? token.tenant_id ?? token.tenantId),
+      editor_user_id: Number(body.last_updated_by ?? token.id ?? token.user_id),
       entries,
     });
 

@@ -17,7 +17,8 @@ export default async function DashboardLayout({ children }) {
   // console.log('Current User in Layout:', currentUser);
 
   return (
-    <SidebarProvider>
+
+        <SidebarProvider>
       <div className="min-h-screen flex w-full bg-background">
         <AppSidebar user={currentUser}/>
         <div className="flex-1 flex flex-col">
@@ -33,5 +34,7 @@ export default async function DashboardLayout({ children }) {
         </div>
       </div>
     </SidebarProvider>
+
+    
   );
 }

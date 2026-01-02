@@ -1,13 +1,14 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox"; // Assuming you have a custom checkbox
-import { useToast } from "@/hooks/use-toast"; // Assuming you have a toast hook
+// import { toast } from "sonner";
+import { useToast } from "@/hooks/use-toast";
 
 import { 
   Send, 
@@ -22,18 +23,7 @@ import {
   Building2
 } from "lucide-react";
 
-// Demo users data - in real app this comes from API
-const demoUsers = [
-  { id: 1, name: 'John Smith', email: 'john@company.com', department: 'Engineering', avatar: 'JS' },
-  { id: 2, name: 'Sarah Johnson', email: 'sarah@company.com', department: 'Design', avatar: 'SJ' },
-  { id: 3, name: 'Mike Wilson', email: 'mike@company.com', department: 'Engineering', avatar: 'MW' },
-  { id: 4, name: 'Emily Davis', email: 'emily@company.com', department: 'Marketing', avatar: 'ED' },
-  { id: 5, name: 'David Brown', email: 'david@company.com', department: 'Engineering', avatar: 'DB' },
-  { id: 6, name: 'Lisa Anderson', email: 'lisa@company.com', department: 'HR', avatar: 'LA' },
-  { id: 7, name: 'James Taylor', email: 'james@company.com', department: 'Finance', avatar: 'JT' },
-  { id: 8, name: 'Emma Martinez', email: 'emma@company.com', department: 'Design', avatar: 'EM' },
-];
-
+// Assuming users data comes dynamically from the `users` prop.
 const statusOptions = [
   { value: 'present', label: 'Present', icon: CheckCircle2, color: 'text-green-500', bg: 'bg-green-500/10' },
   { value: 'absent', label: 'Absent', icon: XCircle, color: 'text-red-500', bg: 'bg-red-500/10' },
@@ -42,18 +32,22 @@ const statusOptions = [
   { value: 'leave', label: 'Leave', icon: Calendar, color: 'text-blue-500', bg: 'bg-blue-500/10' },
 ];
 
-const ManualAttendancePage = () => {
-  const { toast } = useToast();
-  const [tenantId, setTenantId] = useState('1');
+const ManualAttendancePage = ({ curruser, users }) => {
+  console.log("Current user in ManualAttendancePage:", curruser);
+  console.log("Users in ManualAttendancePage:", users);
+
+  const { addToast } = useToast();
+  
   const [attendanceDate, setAttendanceDate] = useState(new Date().toISOString().split('T')[0]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectAll, setSelectAll] = useState(false);
 
+  // Dynamic attendance data based on provided users
   const [attendanceData, setAttendanceData] = useState(
-    demoUsers.reduce((acc, u) => ({
+    users.reduce((acc, u) => ({
       ...acc,
-      [u.id]: {
-        user_id: u.id,
+      [u.user_id]: {
+        user_id: u.user_id,
         selected: false,
         status: 'present',
         check_in_time: '09:00',
@@ -99,18 +93,9 @@ const ManualAttendancePage = () => {
     const selectedEntries = Object.values(attendanceData).filter(a => a.selected);
 
     if (selectedEntries.length === 0) {
-      toast({
+      addToast({
         title: "No Users Selected",
         description: "Please select at least one user to submit attendance",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (!tenantId) {
-      toast({
-        title: "Tenant ID Required",
-        description: "Please enter a tenant ID",
         variant: "destructive",
       });
       return;
@@ -120,17 +105,17 @@ const ManualAttendancePage = () => {
 
     try {
       const payload = selectedEntries.map(entry => ({
-        tenant_id: parseInt(tenantId),
+        tenant_id: curruser.tenant_id, // Pass tenant_id as per your request
         user_id: entry.user_id,
         attendance_day: `${attendanceDate}T00:00:00`,
         status: entry.status,
         check_in_time: entry.check_in_time || null,
         check_out_time: entry.check_out_time || null,
         notes: entry.notes || null,
-        last_updated_by: user?.id ? parseInt(user.id) : 1,
+        last_updated_by: curruser?.id ? parseInt(curruser.id) : 1,
       }));
 
-      const response = await fetch(`${import.meta.env.VITE_MAIN_HOST}/api/attendance`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_MAIN_HOST}/api/attendance`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -142,10 +127,14 @@ const ManualAttendancePage = () => {
         throw new Error('Failed to submit attendance');
       }
 
-      toast({
+      addToast({
         title: "Success!",
         description: `Attendance submitted for ${selectedEntries.length} user(s)`,
       });
+      
+      // toast.success(
+      //   `Attendance has been added successfully`
+      // );
 
       // Reset selections
       setSelectAll(false);
@@ -158,7 +147,7 @@ const ManualAttendancePage = () => {
       });
     } catch (error) {
       console.error('Submission error:', error);
-      toast({
+      addToast({
         title: "Submission Failed",
         description: "Could not submit attendance records. Please try again.",
         variant: "destructive",
@@ -198,12 +187,11 @@ const ManualAttendancePage = () => {
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="space-y-2">
-              <Label className="text-sm font-medium">Tenant ID</Label>
+              <Label className="text-sm font-medium">Tenant Name</Label>
               <Input
-                type="number"
-                placeholder="Enter tenant ID"
-                value={tenantId}
-                onChange={(e) => setTenantId(e.target.value)}
+                type="text"
+                value={curruser.tenant_name} // Display tenant name from curruser
+                disabled
                 className="border-[rgba(9,92,253,0.3)] focus:border-[#095cfd]"
               />
             </div>
@@ -239,7 +227,7 @@ const ManualAttendancePage = () => {
               <div className="h-10 px-4 rounded-lg bg-gradient-to-r from-[#095cfd]/10 to-[#0b4dd5]/10 border border-[#095cfd]/20 flex items-center">
                 <Users className="w-4 h-4 text-[#095cfd] mr-2" />
                 <span className="font-bold text-[#095cfd]">{selectedCount}</span>
-                <span className="text-muted-foreground ml-1">/ {demoUsers.length}</span>
+                <span className="text-muted-foreground ml-1">/ {users.length}</span>
               </div>
             </div>
           </div>
@@ -264,11 +252,11 @@ const ManualAttendancePage = () => {
         </CardHeader>
         <CardContent className="p-0">
           <div className="divide-y divide-border">
-            {demoUsers.map((demoUser, index) => {
-              const attendance = attendanceData[demoUser.id];
+            {users.map((user, index) => {
+              const attendance = attendanceData[user.user_id];
               return (
                 <div
-                  key={demoUser.id}
+                  key={user.user_id}
                   className={`p-4 transition-all duration-200 ${attendance.selected ? 'bg-[#095cfd]/5' : 'hover:bg-muted/50'}`}
                   style={{ animationDelay: `${index * 50}ms` }}
                 >
@@ -278,15 +266,15 @@ const ManualAttendancePage = () => {
                       <input
                         type="checkbox"
                         checked={attendance.selected}
-                        onChange={(e) => updateAttendance(demoUser.id, 'selected', e.target.checked)}
+                        onChange={(e) => updateAttendance(user.user_id, 'selected', e.target.checked)}
                         className="border-[#095cfd] checked:bg-[#095cfd]"
                       />
                       <div className="w-10 h-10 rounded-full bg-gradient-to-r from-[#095cfd] to-[#0b4dd5] flex items-center justify-center text-white font-bold text-sm">
-                        {demoUser.avatar}
+                        {user.username[0]}
                       </div>
                       <div className="min-w-0">
-                        <p className="font-medium truncate">{demoUser.name}</p>
-                        <p className="text-xs text-muted-foreground truncate">{demoUser.department}</p>
+                        <p className="font-medium truncate">{user.username}</p>
+                        <p className="text-xs text-muted-foreground truncate">{user.role_name}</p>
                       </div>
                     </div>
 
@@ -294,7 +282,7 @@ const ManualAttendancePage = () => {
                     <div className="col-span-6 md:col-span-2">
                       <Select
                         value={attendance.status}
-                        onValueChange={(v) => updateAttendance(demoUser.id, 'status', v)}
+                        onValueChange={(v) => updateAttendance(user.user_id, 'status', v)}
                         disabled={!attendance.selected}
                       >
                         <SelectTrigger className={`border-[rgba(9,92,253,0.3)] h-9 ${!attendance.selected && 'opacity-50'}`}>
@@ -320,7 +308,7 @@ const ManualAttendancePage = () => {
                         <Input
                           type="time"
                           value={attendance.check_in_time}
-                          onChange={(e) => updateAttendance(demoUser.id, 'check_in_time', e.target.value)}
+                          onChange={(e) => updateAttendance(user.user_id, 'check_in_time', e.target.value)}
                           disabled={!attendance.selected}
                           className={`pl-8 h-9 border-[rgba(9,92,253,0.3)] ${!attendance.selected && 'opacity-50'}`}
                         />
@@ -334,7 +322,7 @@ const ManualAttendancePage = () => {
                         <Input
                           type="time"
                           value={attendance.check_out_time}
-                          onChange={(e) => updateAttendance(demoUser.id, 'check_out_time', e.target.value)}
+                          onChange={(e) => updateAttendance(user.user_id, 'check_out_time', e.target.value)}
                           disabled={!attendance.selected}
                           className={`pl-8 h-9 border-[rgba(9,92,253,0.3)] ${!attendance.selected && 'opacity-50'}`}
                         />
@@ -346,7 +334,7 @@ const ManualAttendancePage = () => {
                       <Input
                         placeholder="Add notes..."
                         value={attendance.notes}
-                        onChange={(e) => updateAttendance(demoUser.id, 'notes', e.target.value)}
+                        onChange={(e) => updateAttendance(user.user_id, 'notes', e.target.value)}
                         disabled={!attendance.selected}
                         className={`h-9 border-[rgba(9,92,253,0.3)] ${!attendance.selected && 'opacity-50'}`}
                       />

@@ -17,6 +17,7 @@ const PROTECTED_PAGES = [
   "/manual-time",
   "/projectDetails",
   "/profile",
+  "/attendance",
 ];
 
 function buildCorsHeaders(req) {
@@ -99,6 +100,7 @@ const ROLE_GUARDS = [
     allowed: ["Developer", "Admin", "Project Manager", "CEO", "Team Lead", "Freelancer"],
   },
   { prefix: "/manual-time", allowed: ["Developer", "Freelancer"] },
+  { prefix: "/attendance", allowed: ["Admin"] }
 ];
 function findGuard(pathname) {
   return ROLE_GUARDS.find((g) => pathname.startsWith(g.prefix)) || null;
