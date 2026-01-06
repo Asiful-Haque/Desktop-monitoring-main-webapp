@@ -55,6 +55,8 @@ export class AttendanceService {
 
     const normalized = entries.map((e) => this.normalizeEntry(e));
     if (!normalized.length) throw new Error("No entries provided");
+    console.log("Data to upsert:", normalized);
+    console.log("Total entries to upsert:", normalized.length);
 
     const cols = [
       "tenant_id",

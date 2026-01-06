@@ -100,7 +100,7 @@ const ROLE_GUARDS = [
     allowed: ["Developer", "Admin", "Project Manager", "CEO", "Team Lead", "Freelancer"],
   },
   { prefix: "/manual-time", allowed: ["Developer", "Freelancer"] },
-  { prefix: "/attendance", allowed: ["Admin"] }
+  { prefix: "/attendance", allowed: ["Admin", "Developer", "Freelancer"] }
 ];
 function findGuard(pathname) {
   return ROLE_GUARDS.find((g) => pathname.startsWith(g.prefix)) || null;
@@ -162,5 +162,6 @@ export const config = {
     "/manual-time",
     "/projectDetails/:path*",
     "/profile/:path*",
+    "/attendance"
   ],
 };

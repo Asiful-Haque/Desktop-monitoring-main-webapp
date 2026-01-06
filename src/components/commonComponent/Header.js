@@ -68,8 +68,8 @@ const Header = ({ user }) => {
             <Building2 className="h-6 w-6 text-white" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-gray-900">TaskFlow Pro</h1>
-            <p className="text-sm text-gray-500">Internal Task Monitoring</p>
+            <h1 className="text-xl font-bold text-gray-900">TrackLively</h1>
+            <p className="text-sm text-gray-500">Track Your Team Smartly</p>
           </div>
         </div>
 
