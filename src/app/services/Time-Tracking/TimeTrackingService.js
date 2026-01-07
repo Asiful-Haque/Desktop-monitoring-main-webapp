@@ -142,11 +142,26 @@ function toUtcDateForDb(v) {
   return dt.toJSDate(); // ✅ Date object (UTC instant)
 }
 
-// ✅ NEW: prefer active_seconds (your tracker) if provided
+// ✅ prefer active_seconds (your tracker) if provided
 function getActiveSecondsFromPayload(payload) {
   const n = Number(payload?.active_seconds);
   if (!Number.isFinite(n)) return null;
   return Math.max(0, Math.floor(n));
+}
+
+// ✅ NEW: idle deducted seconds (store in DB)
+function getIdleDeductedSecondsFromPayload(payload) {
+  const explicit = Number(payload?.idle_deducted_seconds);
+  if (Number.isFinite(explicit)) return Math.max(0, Math.floor(explicit));
+
+  // fallback: derive from raw_seconds and active_seconds if present
+  const raw = Number(payload?.raw_seconds);
+  const active = Number(payload?.active_seconds);
+  if (Number.isFinite(raw) && Number.isFinite(active)) {
+    return Math.max(0, Math.floor(raw - active));
+  }
+
+  return 0;
 }
 
 export class TimeTrackingService {
@@ -155,261 +170,275 @@ export class TimeTrackingService {
     return ds.getRepository(TimeTracking);
   }
 
-async createOne(payload) {
-  console.log("Creating time-tracking record with payload:", payload);
+  async createOne(payload) {
+    console.log("Creating time-tracking record with payload:", payload);
 
-  const repo = await this.repo();
-  const ds = await getDataSource();
+    const repo = await this.repo();
+    const ds = await getDataSource();
 
-  // 1) source of truth: Project
-  const projectRepo = ds.getRepository("Project");
-  const project = await projectRepo.findOne({
-    where: { project_id: payload.project_id },
-    select: ["project_id", "project_type", "project_hour_rate"],
-  });
-  if (!project) throw new Error(`Invalid project_id: ${payload.project_id}`);
-
-  // -----------------------------
-  // ✅ ACTIVE times (adjusted by idle)
-  // -----------------------------
-  const activeStartUtc = toUtcDateForDb(payload.task_start);
-  const activeEndUtc = toUtcDateForDb(payload.task_end);
-
-  // -----------------------------
-  // ✅ RAW times (actual window)
-  // -----------------------------
-  const rawStartUtc = payload.raw_task_start
-    ? toUtcDateForDb(payload.raw_task_start)
-    : null;
-
-  const rawEndUtc = payload.raw_task_end
-    ? toUtcDateForDb(payload.raw_task_end)
-    : null;
-
-  // ✅ DB start/end must use RAW (fallback to ACTIVE if raw missing)
-  const dbTaskStartUtc = rawStartUtc ?? activeStartUtc;
-  const dbTaskEndUtc = rawEndUtc ?? activeEndUtc ?? null;
-
-  console.log("INCOMING ACTIVE task_start:", payload.task_start);
-  console.log("INCOMING ACTIVE task_end  :", payload.task_end);
-  console.log("INCOMING RAW raw_task_start:", payload.raw_task_start);
-  console.log("INCOMING RAW raw_task_end  :", payload.raw_task_end);
-
-  console.log("NORMALIZED ACTIVE startUtc:", activeStartUtc);
-  console.log("NORMALIZED ACTIVE endUtc  :", activeEndUtc);
-  console.log("NORMALIZED RAW startUtc   :", rawStartUtc);
-  console.log("NORMALIZED RAW endUtc     :", rawEndUtc);
-
-  console.log("✅ DB will store task_start/task_end as RAW window:", {
-    task_start: dbTaskStartUtc,
-    task_end: dbTaskEndUtc,
-  });
-
-  // ✅ duration must remain ACTIVE worked time
-  const activeSeconds = getActiveSecondsFromPayload(payload);
-  const duration =
-    activeSeconds != null
-      ? activeSeconds
-      : toSecondsDiffUtc(payload.task_start, payload.task_end); // fallback uses ACTIVE window
-
-  console.log("✅ duration (worked seconds):", duration, {
-    active_seconds: payload.active_seconds,
-    used: activeSeconds != null ? "active_seconds" : "active_end-start_diff",
-  });
-
-  console.log("type of project is:", project.project_type);
-
-  let userRateForProject = null;
-  const developerId = payload.developer_id ?? null;
-
-  if (
-    (project.project_type || "").toLowerCase() !== "hourly" &&
-    developerId != null
-  ) {
-    const aupRepo = ds.getRepository("AssignedUsersToProjects");
-    const aupRow = await aupRepo.findOne({
-      where: { project_id: payload.project_id, user_id: developerId },
-      select: ["user_id", "project_id", "user_rate_for_this_project"],
+    // 1) source of truth: Project
+    const projectRepo = ds.getRepository("Project");
+    const project = await projectRepo.findOne({
+      where: { project_id: payload.project_id },
+      select: ["project_id", "project_type", "project_hour_rate"],
     });
-    userRateForProject = aupRow?.user_rate_for_this_project ?? null;
-  }
+    if (!project) throw new Error(`Invalid project_id: ${payload.project_id}`);
 
-  const session_payment = computeSessionPayment(
-    duration, // ✅ payment based on ACTIVE worked seconds
-    project,
-    userRateForProject
-  );
+    // -----------------------------
+    // ✅ ACTIVE times (adjusted by idle)
+    // -----------------------------
+    const activeStartUtc = toUtcDateForDb(payload.task_start);
+    const activeEndUtc = toUtcDateForDb(payload.task_end);
 
-  console.log("Computed session_payment:", session_payment);
+    // -----------------------------
+    // ✅ RAW times (actual window)
+    // -----------------------------
+    const rawStartUtc = payload.raw_task_start
+      ? toUtcDateForDb(payload.raw_task_start)
+      : null;
 
-  const row = repo.create({
-    task_id: payload.task_id,
-    project_id: payload.project_id,
-    developer_id: developerId,
-    work_date: payload.work_date,
+    const rawEndUtc = payload.raw_task_end
+      ? toUtcDateForDb(payload.raw_task_end)
+      : null;
 
-    // ✅ CHANGED: store RAW window in DB
-    task_start: dbTaskStartUtc,
-    task_end: dbTaskEndUtc,
+    // ✅ DB start/end must use RAW (fallback to ACTIVE if raw missing)
+    const dbTaskStartUtc = rawStartUtc ?? activeStartUtc;
+    const dbTaskEndUtc = rawEndUtc ?? activeEndUtc ?? null;
 
-    // ✅ keep worked time correct
-    duration,
-    session_payment,
-    tenant_id: payload.tenant_id ?? 0,
-  });
+    console.log("INCOMING ACTIVE task_start:", payload.task_start);
+    console.log("INCOMING ACTIVE task_end  :", payload.task_end);
+    console.log("INCOMING RAW raw_task_start:", payload.raw_task_start);
+    console.log("INCOMING RAW raw_task_end  :", payload.raw_task_end);
 
-  return repo.save(row);
-}
+    console.log("NORMALIZED ACTIVE startUtc:", activeStartUtc);
+    console.log("NORMALIZED ACTIVE endUtc  :", activeEndUtc);
+    console.log("NORMALIZED RAW startUtc   :", rawStartUtc);
+    console.log("NORMALIZED RAW endUtc     :", rawEndUtc);
 
+    console.log("✅ DB will store task_start/task_end as RAW window:", {
+      task_start: dbTaskStartUtc,
+      task_end: dbTaskEndUtc,
+    });
 
-async createMany(items) {
-  const repo = await this.repo();
-  const ds = await getDataSource();
+    // ✅ duration must remain ACTIVE worked time
+    const activeSeconds = getActiveSecondsFromPayload(payload);
+    const duration =
+      activeSeconds != null
+        ? activeSeconds
+        : toSecondsDiffUtc(payload.task_start, payload.task_end); // fallback uses ACTIVE window
 
-  // 1) Prefetch projects (now selecting project_type)
-  const projectIds = [...new Set(items.map((i) => i.project_id))];
+    // ✅ idle seconds to store
+    const idle_deducted_seconds = getIdleDeductedSecondsFromPayload(payload);
 
-  const projectRows = await ds
-    .getRepository("Project")
-    .createQueryBuilder("p")
-    .select([
-      "p.project_id AS project_id",
-      "p.project_type AS project_type",
-      "p.project_hour_rate AS project_hour_rate",
-    ])
-    .where("p.project_id IN (:...ids)", { ids: projectIds })
-    .getRawMany();
+    console.log("✅ duration (worked seconds):", duration, {
+      active_seconds: payload.active_seconds,
+      used: activeSeconds != null ? "active_seconds" : "active_end-start_diff",
+    });
 
-  const projectById = new Map(
-    projectRows.map((r) => [
-      r.project_id,
-      {
-        project_type: r.project_type,
-        project_hour_rate: r.project_hour_rate,
-      },
-    ])
-  );
+    console.log("✅ idle_deducted_seconds (stored):", idle_deducted_seconds);
 
-  // 2) Prefetch AssignedUsersToProjects only for non-hourly projects with a developer
-  const pairs = [];
-  for (const i of items) {
-    const devId = i.developer_id ?? null;
-    const proj = projectById.get(i.project_id);
-    if (!proj) throw new Error(`Invalid project_id: ${i.project_id}`);
-    if (devId != null && (proj.project_type || "").toLowerCase() !== "hourly") {
-      pairs.push({ project_id: i.project_id, user_id: devId });
+    console.log("type of project is:", project.project_type);
+
+    let userRateForProject = null;
+    const developerId = payload.developer_id ?? null;
+
+    if (
+      (project.project_type || "").toLowerCase() !== "hourly" &&
+      developerId != null
+    ) {
+      const aupRepo = ds.getRepository("AssignedUsersToProjects");
+      const aupRow = await aupRepo.findOne({
+        where: { project_id: payload.project_id, user_id: developerId },
+        select: ["user_id", "project_id", "user_rate_for_this_project"],
+      });
+      userRateForProject = aupRow?.user_rate_for_this_project ?? null;
     }
-  }
 
-  let rateByProjectUser = new Map();
-  if (pairs.length) {
-    const projIdsForAup = [...new Set(pairs.map((p) => p.project_id))];
-    const userIdsForAup = [...new Set(pairs.map((p) => p.user_id))];
-
-    const aupRows = await ds
-      .getRepository("AssignedUsersToProjects")
-      .createQueryBuilder("a")
-      .select([
-        "a.project_id AS project_id",
-        "a.user_id AS user_id",
-        "a.user_rate_for_this_project AS user_rate_for_this_project",
-      ])
-      .where("a.project_id IN (:...pids)", { pids: projIdsForAup })
-      .andWhere("a.user_id IN (:...uids)", { uids: userIdsForAup })
-      .getRawMany();
-
-    rateByProjectUser = new Map(
-      aupRows.map((r) => [
-        `${r.project_id}:${r.user_id}`,
-        r.user_rate_for_this_project,
-      ])
+    const session_payment = computeSessionPayment(
+      duration, // ✅ payment based on ACTIVE worked seconds
+      project,
+      userRateForProject
     );
-  }
 
-  // ✅ duration should be ACTIVE seconds (idle already deducted on client)
-  const pickActiveDurationSeconds = (i) => {
-    if (Number.isFinite(Number(i.active_seconds))) return Number(i.active_seconds);
-    // backward compatible fallback
-    return toSecondsDiffUtc(i.task_start, i.task_end);
-  };
+    console.log("Computed session_payment:", session_payment);
 
-  // 3) Build rows
-  const rows = items.map((i) => {
-    const devId = i.developer_id ?? null;
-    const proj = projectById.get(i.project_id);
-    if (!proj) throw new Error(`Invalid project_id: ${i.project_id}`);
+    const row = repo.create({
+      task_id: payload.task_id,
+      project_id: payload.project_id,
+      developer_id: developerId,
+      work_date: payload.work_date,
 
-    // Incoming ACTIVE (may be shifted) — still useful as fallback
-    const activeStartUtc = toUtcDateForDb(i.task_start);
-    const activeEndUtc = toUtcDateForDb(i.task_end);
+      // ✅ NEW: store idle deducted seconds
+      idle_deducted_seconds,
 
-    // ✅ Incoming RAW (actual window) — NOW becomes DB task_start/task_end
-    const rawStartUtc = i.raw_task_start ? toUtcDateForDb(i.raw_task_start) : null;
-    const rawEndUtc = i.raw_task_end ? toUtcDateForDb(i.raw_task_end) : null;
-
-    // ✅ DB start/end should be RAW, fallback to ACTIVE if RAW missing
-    const dbStartUtc = rawStartUtc ?? activeStartUtc;
-    const dbEndUtc = rawEndUtc ?? activeEndUtc ?? null;
-
-    // ✅ duration should stay ACTIVE time
-    const duration = pickActiveDurationSeconds(i);
-
-    console.log("✅ TIME-TRACKING SEGMENT (DB uses RAW window, duration uses ACTIVE)", {
-      task_id: i.task_id,
-      project_id: i.project_id,
-      developer_id: devId,
-      segment_index: i.segment_index,
-      work_date: i.work_date,
-
-      raw: {
-        raw_task_start: i.raw_task_start,
-        raw_task_end: i.raw_task_end,
-        db_task_start_utc: dbStartUtc,
-        db_task_end_utc: dbEndUtc,
-        raw_seconds: i.raw_seconds,
-      },
-
-      active: {
-        task_start: i.task_start,
-        task_end: i.task_end,
-        active_seconds: i.active_seconds,
-        idle_deducted_seconds: i.idle_deducted_seconds,
-      },
-
-      duration_used_seconds: duration,
-      duration_source: Number.isFinite(Number(i.active_seconds))
-        ? "active_seconds"
-        : "end-start-diff-fallback",
-    });
-
-    let userRate = null;
-    if ((proj.project_type || "").toLowerCase() !== "hourly" && devId != null) {
-      userRate = rateByProjectUser.get(`${i.project_id}:${devId}`) ?? null;
-    }
-
-    const session_payment = computeSessionPayment(duration, proj, userRate);
-
-    return repo.create({
-      task_id: i.task_id,
-      project_id: i.project_id,
-      developer_id: devId,
-      work_date: i.work_date,
-
-      // ✅ CHANGED: store RAW time in DB
-      task_start: dbStartUtc,
-      task_end: dbEndUtc,
+      // ✅ store RAW window in DB
+      task_start: dbTaskStartUtc,
+      task_end: dbTaskEndUtc,
 
       // ✅ keep worked time correct
       duration,
-
       session_payment,
-      tenant_id: i.tenant_id ?? 0,
+      tenant_id: payload.tenant_id ?? 0,
     });
-  });
 
-  return repo.save(rows);
-}
+    return repo.save(row);
+  }
 
+  async createMany(items) {
+    const repo = await this.repo();
+    const ds = await getDataSource();
+
+    // 1) Prefetch projects (now selecting project_type)
+    const projectIds = [...new Set(items.map((i) => i.project_id))];
+
+    const projectRows = await ds
+      .getRepository("Project")
+      .createQueryBuilder("p")
+      .select([
+        "p.project_id AS project_id",
+        "p.project_type AS project_type",
+        "p.project_hour_rate AS project_hour_rate",
+      ])
+      .where("p.project_id IN (:...ids)", { ids: projectIds })
+      .getRawMany();
+
+    const projectById = new Map(
+      projectRows.map((r) => [
+        r.project_id,
+        {
+          project_type: r.project_type,
+          project_hour_rate: r.project_hour_rate,
+        },
+      ])
+    );
+
+    // 2) Prefetch AssignedUsersToProjects only for non-hourly projects with a developer
+    const pairs = [];
+    for (const i of items) {
+      const devId = i.developer_id ?? null;
+      const proj = projectById.get(i.project_id);
+      if (!proj) throw new Error(`Invalid project_id: ${i.project_id}`);
+      if (devId != null && (proj.project_type || "").toLowerCase() !== "hourly") {
+        pairs.push({ project_id: i.project_id, user_id: devId });
+      }
+    }
+
+    let rateByProjectUser = new Map();
+    if (pairs.length) {
+      const projIdsForAup = [...new Set(pairs.map((p) => p.project_id))];
+      const userIdsForAup = [...new Set(pairs.map((p) => p.user_id))];
+
+      const aupRows = await ds
+        .getRepository("AssignedUsersToProjects")
+        .createQueryBuilder("a")
+        .select([
+          "a.project_id AS project_id",
+          "a.user_id AS user_id",
+          "a.user_rate_for_this_project AS user_rate_for_this_project",
+        ])
+        .where("a.project_id IN (:...pids)", { pids: projIdsForAup })
+        .andWhere("a.user_id IN (:...uids)", { uids: userIdsForAup })
+        .getRawMany();
+
+      rateByProjectUser = new Map(
+        aupRows.map((r) => [
+          `${r.project_id}:${r.user_id}`,
+          r.user_rate_for_this_project,
+        ])
+      );
+    }
+
+    // ✅ duration should be ACTIVE seconds (idle already deducted on client)
+    const pickActiveDurationSeconds = (i) => {
+      if (Number.isFinite(Number(i.active_seconds))) return Number(i.active_seconds);
+      // backward compatible fallback
+      return toSecondsDiffUtc(i.task_start, i.task_end);
+    };
+
+    // 3) Build rows
+    const rows = items.map((i) => {
+      const devId = i.developer_id ?? null;
+      const proj = projectById.get(i.project_id);
+      if (!proj) throw new Error(`Invalid project_id: ${i.project_id}`);
+
+      // Incoming ACTIVE (may be shifted) — still useful as fallback
+      const activeStartUtc = toUtcDateForDb(i.task_start);
+      const activeEndUtc = toUtcDateForDb(i.task_end);
+
+      // ✅ Incoming RAW (actual window) — NOW becomes DB task_start/task_end
+      const rawStartUtc = i.raw_task_start ? toUtcDateForDb(i.raw_task_start) : null;
+      const rawEndUtc = i.raw_task_end ? toUtcDateForDb(i.raw_task_end) : null;
+
+      // ✅ DB start/end should be RAW, fallback to ACTIVE if RAW missing
+      const dbStartUtc = rawStartUtc ?? activeStartUtc;
+      const dbEndUtc = rawEndUtc ?? activeEndUtc ?? null;
+
+      // ✅ duration should stay ACTIVE time
+      const duration = pickActiveDurationSeconds(i);
+
+      // ✅ NEW: idle seconds to store
+      const idle_deducted_seconds = getIdleDeductedSecondsFromPayload(i);
+
+      console.log("✅ TIME-TRACKING SEGMENT (DB uses RAW window, duration uses ACTIVE)", {
+        task_id: i.task_id,
+        project_id: i.project_id,
+        developer_id: devId,
+        segment_index: i.segment_index,
+        work_date: i.work_date,
+
+        raw: {
+          raw_task_start: i.raw_task_start,
+          raw_task_end: i.raw_task_end,
+          db_task_start_utc: dbStartUtc,
+          db_task_end_utc: dbEndUtc,
+          raw_seconds: i.raw_seconds,
+        },
+
+        active: {
+          task_start: i.task_start,
+          task_end: i.task_end,
+          active_seconds: i.active_seconds,
+          idle_deducted_seconds: i.idle_deducted_seconds,
+        },
+
+        duration_used_seconds: duration,
+        duration_source: Number.isFinite(Number(i.active_seconds))
+          ? "active_seconds"
+          : "end-start-diff-fallback",
+
+        idle_deducted_seconds_stored: idle_deducted_seconds,
+      });
+
+      let userRate = null;
+      if ((proj.project_type || "").toLowerCase() !== "hourly" && devId != null) {
+        userRate = rateByProjectUser.get(`${i.project_id}:${devId}`) ?? null;
+      }
+
+      const session_payment = computeSessionPayment(duration, proj, userRate);
+
+      return repo.create({
+        task_id: i.task_id,
+        project_id: i.project_id,
+        developer_id: devId,
+        work_date: i.work_date,
+
+        // ✅ NEW: store idle deducted seconds
+        idle_deducted_seconds,
+
+        // ✅ store RAW time in DB
+        task_start: dbStartUtc,
+        task_end: dbEndUtc,
+
+        // ✅ keep worked time correct
+        duration,
+
+        session_payment,
+        tenant_id: i.tenant_id ?? 0,
+      });
+    });
+
+    return repo.save(rows);
+  }
 
   async findByProjectAndDay(projectId, date) {
     const repo = await this.repo();
@@ -435,12 +464,13 @@ async createMany(items) {
         "t.work_date AS work_date",
         "t.task_start AS task_start",
         "t.task_end AS task_end",
+        "t.duration AS duration",
+        "t.idle_deducted_seconds AS idle_deducted_seconds",
         "t.created_at AS created_at",
         "t.updated_at AS updated_at",
       ])
       .getRawMany();
 
-    // ✅ FIX: convert DB UTC SQL to ISO Z before returning to frontend
     return rows.map((r) => ({
       ...r,
       task_start: toUtcIsoZ(r.task_start),
@@ -470,12 +500,13 @@ async createMany(items) {
         "t.work_date AS work_date",
         "t.task_start AS task_start",
         "t.task_end AS task_end",
+        "t.duration AS duration",
+        "t.idle_deducted_seconds AS idle_deducted_seconds",
         "t.created_at AS created_at",
         "t.updated_at AS updated_at",
       ])
       .getRawMany();
 
-    // ✅ FIX: convert DB UTC SQL to ISO Z before returning to frontend
     return rows.map((r) => ({
       ...r,
       task_start: toUtcIsoZ(r.task_start),
@@ -505,6 +536,7 @@ async createMany(items) {
         "t.task_start AS task_start",
         "t.task_end AS task_end",
         "t.duration AS duration",
+        "t.idle_deducted_seconds AS idle_deducted_seconds",
         "t.session_payment AS session_payment",
         "t.flagger AS flagger",
         "p.project_name AS project_name",
@@ -520,7 +552,6 @@ async createMany(items) {
         .getCount(),
     ]);
 
-    // ✅ FIX: convert DB UTC SQL to ISO Z before returning
     return {
       rows: rows.map((r) => ({
         ...r,
@@ -531,19 +562,11 @@ async createMany(items) {
     };
   }
 
-  async findByDateRangeAll({
-    startDate,
-    endDate,
-    userId,
-    userRole,
-    tenant_id,
-  }) {
+  async findByDateRangeAll({ startDate, endDate, userId, userRole, tenant_id }) {
     console.log("Got the function for database call you called with dates ", startDate, endDate);
     console.log("Tenant ID:", tenant_id, "User ID:", userId, "User Role:", userRole);
     const repo = await this.repo();
-    const role = String(userRole || "")
-      .trim()
-      .toLowerCase();
+    const role = String(userRole || "").trim().toLowerCase();
     const isDeveloper = role === "developer" || role === "freelancer";
 
     const qb = repo
@@ -569,6 +592,7 @@ async createMany(items) {
         "t.task_start AS task_start",
         "t.task_end AS task_end",
         "t.duration AS duration",
+        "t.idle_deducted_seconds AS idle_deducted_seconds",
         "t.session_payment AS session_payment",
         "t.flagger AS flagger",
         "t.tenant_id AS tenant_id",
@@ -587,7 +611,6 @@ async createMany(items) {
     const rows = await qb.getRawMany();
     console.log("Fetched items count for date range:", rows.length);
 
-    // ✅ FIX: convert DB UTC SQL to ISO Z before returning
     return rows.map((r) => ({
       ...r,
       task_start: toUtcIsoZ(r.task_start),

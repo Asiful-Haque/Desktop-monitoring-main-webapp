@@ -14,6 +14,10 @@ export const TimeTracking = new EntitySchema({
     task_start: { type: "datetime", nullable: false },
     task_end: { type: "datetime", nullable: true },
     duration: { type: "int", nullable: true, unsigned: true },
+
+    // NEW
+    idle_deducted_seconds: { type: "int", default: 0, nullable: false, unsigned: true },
+
     session_payment: {
       type: "decimal",
       precision: 12,

@@ -28,7 +28,7 @@ export async function POST(req) {
     const items = await service.findByDateRangeAll({ startDate, endDate, userId, userRole, tenant_id });
     console.log("Tenant in route.js", tenant_id);
     console.log("Item count for date range:", items.length);
-    console.log("Sample item for date range:88888888888888888888888888888888888888888888888888888888888888888888", items[items.length-1]);
+    console.log("Sample item for date range:8888888888888888888888888888888888888888888888888888888888888 only the first record showing 8888888", items);
     return NextResponse.json({
       ok: true,
       mode: "range-all",
