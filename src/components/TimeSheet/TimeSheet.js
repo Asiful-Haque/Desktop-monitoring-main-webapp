@@ -11,7 +11,7 @@ import {
   PlayCircle,
 } from "lucide-react";
 import { format } from "date-fns";
-import { enUS } from "date-fns/locale";
+import { enUS, te } from "date-fns/locale";
 import { useRouter } from "next/navigation";
 import TimeSheetEditModal from "../TimeSheetEditModal";
 import {
@@ -359,7 +359,7 @@ export default function TimeSheet({
       const res = await fetch("/api/tasks/busy-or-not", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ taskIdOfSerialIds }),
+        body: JSON.stringify({ taskIdOfSerialIds, tenant_id: currentUser?.tenant_id || null }),
       });
       const { any_busy, busy_serials } = await res.json();
       if (!res.ok) throw new Error("Busy check failed");

@@ -99,6 +99,13 @@ const ManualAttendancePage = ({ curruser, users }) => {
   const [isDateSubmitted, setIsDateSubmitted] = useState(false);
   const [activityByUserId, setActivityByUserId] = useState({});
 
+  // Busy lock (tenant-wide)
+  const [busyState, setBusyState] = useState({
+    checking: false,
+    anyBusy: false,
+    busySerials: []
+  });
+
   const usersRef = useRef(users);
   useEffect(() => {
     usersRef.current = users;
@@ -167,6 +174,44 @@ const ManualAttendancePage = ({ curruser, users }) => {
     });
   };
 
+  const apiBase = process.env.NEXT_PUBLIC_MAIN_HOST || "";
+
+  // Tenant-wide busy check
+  const checkTenantBusy = async (seq) => {
+    const tenantId = Number(curruser?.tenant_id);
+    if (!Number.isFinite(tenantId) || tenantId <= 0) {
+      setBusyState({ checking: false, anyBusy: false, busySerials: [] });
+      return { anyBusy: false, busySerials: [], ok: true };
+    }
+
+    setBusyState((p) => ({ ...p, checking: true }));
+
+    try {
+      const res = await fetch(`${apiBase}/api/tasks/busy-or-not`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenant_id: tenantId })
+      });
+
+      const json = await res.json();
+      if (!res.ok || json?.ok === false) throw new Error(json?.error || "Busy check failed");
+
+      const anyBusy = Boolean(json?.any_busy);
+      const busySerials = Array.isArray(json?.busy_serials)
+        ? json.busy_serials.map(Number).filter((n) => Number.isFinite(n) && n > 0)
+        : [];
+
+      if (typeof seq === "number" && seq !== loadSeqRef.current) return { anyBusy, busySerials, ok: true };
+
+      setBusyState({ checking: false, anyBusy, busySerials });
+      return { anyBusy, busySerials, ok: true };
+    } catch (e) {
+      if (typeof seq === "number" && seq !== loadSeqRef.current) return { anyBusy: false, busySerials: [], ok: false };
+      setBusyState({ checking: false, anyBusy: false, busySerials: [] });
+      return { anyBusy: false, busySerials: [], ok: false, error: e?.message || "Busy check failed" };
+    }
+  };
+
   const loadAttendanceForDate = async (dateStr, seq) => {
     const currentUsers = usersRef.current;
     if (!Array.isArray(currentUsers) || currentUsers.length === 0) return false;
@@ -175,7 +220,7 @@ const ManualAttendancePage = ({ curruser, users }) => {
     try {
       const qs = new URLSearchParams({ date: dateStr });
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_MAIN_HOST}/api/attendance?${qs.toString()}`, {
+      const res = await fetch(`${apiBase}/api/attendance?${qs.toString()}`, {
         method: "GET",
         headers: { "Content-Type": "application/json" },
         cache: "no-store"
@@ -233,9 +278,9 @@ const ManualAttendancePage = ({ curruser, users }) => {
   const buildUserResolvers = () => {
     const list = Array.isArray(usersRef.current) ? usersRef.current : [];
 
-    const byUiUserId = new Map(); 
-    const byDevId = new Map(); 
-    const byEmail = new Map(); 
+    const byUiUserId = new Map();
+    const byDevId = new Map();
+    const byEmail = new Map();
 
     for (const u of list) {
       const uiId = Number(u?.user_id);
@@ -293,9 +338,7 @@ const ManualAttendancePage = ({ curruser, users }) => {
   };
 
   const loadActivityWindowForDate = async (dateStr, submittedFlag, seq) => {
-    const apiUrl = process.env.NEXT_PUBLIC_MAIN_HOST
-      ? `${process.env.NEXT_PUBLIC_MAIN_HOST}/api/time-sheet/by-date-range`
-      : "/api/time-sheet/by-date-range";
+    const apiUrl = `${apiBase}/api/time-sheet/by-date-range`;
 
     const body = {
       startDate: dateStr,
@@ -321,64 +364,18 @@ const ManualAttendancePage = ({ curruser, users }) => {
 
       if (seq !== loadSeqRef.current) return;
 
-      const { resolveActivityToUiUserId, uiName } = buildUserResolvers();
+      const { resolveActivityToUiUserId } = buildUserResolvers();
 
       dbg("Activity fetch date:", dateStr, "items:", rows.length);
 
       const map = new Map();
 
       for (const r of rows) {
-        const { uiUserId, via } = resolveActivityToUiUserId(r);
-
-        const raw = {
-          serial_id: r?.serial_id,
-          user_id: r?.user_id,
-          dev_user_id: r?.dev_user_id,
-          developer_id: r?.developer_id,
-          employee_id: r?.employee_id,
-          developer_name: r?.developer_name,
-          developer_email: r?.developer_email,
-          task_start: r?.task_start,
-          task_end: r?.task_end
-        };
-
-        if (!uiUserId) {
-          dbg("Skip row (cannot resolve to UI user)", { via, raw });
-          continue;
-        }
+        const { uiUserId } = resolveActivityToUiUserId(r);
+        if (!uiUserId) continue;
 
         const v = validateStartEndForDate(getRowStart(r), getRowEnd(r), dateStr);
-        if (!v.ok) {
-          dbg("Skip row (strict fail)", {
-            uiUserId,
-            uiName: uiName(uiUserId),
-            via,
-            reason: v.reason,
-            raw,
-            parsed: {
-              s: v.s ? v.s.toString() : null,
-              e: v.e ? v.e.toString() : null,
-              sYmd: v.sYmd,
-              eYmd: v.eYmd,
-              expected: dateStr
-            }
-          });
-          continue;
-        }
-
-        const startHHmm = fmtHHmm(new Date(v.startMs));
-        const endHHmm = fmtHHmm(new Date(v.endMs));
-
-        dbg("Use row", {
-          uiUserId,
-          uiName: uiName(uiUserId),
-          via,
-          startLocal: new Date(v.startMs).toString(),
-          endLocal: new Date(v.endMs).toString(),
-          startHHmm,
-          endHHmm,
-          raw
-        });
+        if (!v.ok) continue;
 
         const curr = map.get(uiUserId) || {
           minStartMs: Number.POSITIVE_INFINITY,
@@ -389,7 +386,7 @@ const ManualAttendancePage = ({ curruser, users }) => {
         if (v.startMs < curr.minStartMs) curr.minStartMs = v.startMs;
         if (v.endMs > curr.maxEndMs) curr.maxEndMs = v.endMs;
 
-        curr.rows.push({ serial_id: r?.serial_id, startHHmm, endHHmm, via });
+        curr.rows.push({ serial_id: r?.serial_id });
         map.set(uiUserId, curr);
       }
 
@@ -401,20 +398,6 @@ const ManualAttendancePage = ({ curruser, users }) => {
 
         activityObj[uiUserId] = { startHHmm, endHHmm, hasTimes, rows: v.rows };
       });
-
-      dbg("Activity summary (by UI user_id)", activityObj);
-
-
-      const presentDebug = Object.entries(activityObj)
-        .filter(([, a]) => a.hasTimes)
-        .map(([uid, a]) => ({
-          uiUserId: Number(uid),
-          uiName: uiName(Number(uid)),
-          range: `${a.startHHmm} -> ${a.endHHmm}`,
-          sessions: a.rows
-        }));
-
-      dbg("Users that will be PRESENT (activity-based)", presentDebug);
 
       setActivityByUserId(activityObj);
 
@@ -437,7 +420,7 @@ const ManualAttendancePage = ({ curruser, users }) => {
             check_in_time: startHHmm,
             check_out_time: endHHmm,
             status: hasTimes ? "present" : "absent",
-            selected: (!submitted && !future && hasTimes) ? true : false
+            selected: !submitted && !future && hasTimes ? true : false
           };
         });
 
@@ -479,12 +462,27 @@ const ManualAttendancePage = ({ curruser, users }) => {
     if (seq !== loadSeqRef.current) return;
 
     await loadActivityWindowForDate(dateStr, submitted, seq);
+    if (seq !== loadSeqRef.current) return;
+
+    await checkTenantBusy(seq);
   };
 
   useEffect(() => {
     loadAllForDate(attendanceDate);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attendanceDate]);
+
+  // Optional auto-poll busy status every 10s
+  useEffect(() => {
+    if (isFuture || isDateSubmitted) return;
+
+    const t = setInterval(() => {
+      checkTenantBusy();
+    }, 10000);
+
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFuture, isDateSubmitted, curruser?.tenant_id]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -497,7 +495,7 @@ const ManualAttendancePage = ({ curruser, users }) => {
   };
 
   const postAttendance = async (payloadArray) => {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_MAIN_HOST}/api/attendance`, {
+    const res = await fetch(`${apiBase}/api/attendance`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payloadArray)
@@ -515,6 +513,27 @@ const ManualAttendancePage = ({ curruser, users }) => {
       return;
     }
     if (isDateSubmitted) return;
+
+    // Re-check right before submit
+    const busyNow = await checkTenantBusy();
+    if (busyNow?.ok === false) {
+      addToast({
+        title: "Cannot Submit",
+        description: busyNow?.error || "Could not verify ongoing tasks. Please try again.",
+        variant: "destructive"
+      });
+      return;
+    }
+    if (busyNow?.anyBusy) {
+      addToast({
+        title: "Cannot Submit",
+        description: busyNow?.busySerials?.length
+          ? `Attendance is locked because some tasks are ongoing.}`
+          : "Attendance is locked because some tasks are ongoing.",
+        variant: "destructive"
+      });
+      return;
+    }
 
     const selectedEntries = Object.values(attendanceData).filter((a) => a.selected);
 
@@ -561,6 +580,12 @@ const ManualAttendancePage = ({ curruser, users }) => {
       setIsSubmitting(false);
     }
   };
+
+  const disableSubmit =
+    isSubmitting ||
+    busyState.checking ||
+    busyState.anyBusy ||
+    selectedCount === 0;
 
   return (
     <div className="p-6 space-y-6 bg-gradient-to-br from-blue-50 to-indigo-50 min-h-screen">
@@ -647,14 +672,7 @@ const ManualAttendancePage = ({ curruser, users }) => {
           <div className="flex items-center justify-between">
             <CardTitle className="text-lg">Team Members</CardTitle>
 
-            {!lockInlineControls ? (
-              <div className="flex items-center gap-2">
-                <input type="checkbox" checked={selectAll} onChange={(e) => handleSelectAll(e.target.checked)} className="h-4 w-4" />
-                <Label className="text-sm cursor-pointer">Select All</Label>
-              </div>
-            ) : (
-              <div className="text-xs text-muted-foreground">Read only</div>
-            )}
+
           </div>
         </CardHeader>
 
@@ -759,17 +777,17 @@ const ManualAttendancePage = ({ curruser, users }) => {
       </Card>
 
       {!isFuture && !isDateSubmitted ? (
-        <div className="flex justify-end pt-2">
+        <div className="flex flex-col items-end pt-2 gap-3">
           <Button
             onClick={handleSubmitAttendance}
-            disabled={isSubmitting}
+            disabled={disableSubmit}
             size="lg"
             className="bg-gradient-to-r from-[#095cfd] to-[#0b4dd5] hover:from-[#0b4dd5] hover:to-[#063aa8] text-white shadow-xl shadow-[#095cfd]/30 px-8 py-6 text-lg font-semibold disabled:opacity-50"
           >
-            {isSubmitting ? (
+            {isSubmitting || busyState.checking ? (
               <>
                 <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                Submitting...
+                {isSubmitting ? "Submitting..." : "Checking..."}
               </>
             ) : (
               <>
@@ -778,6 +796,16 @@ const ManualAttendancePage = ({ curruser, users }) => {
               </>
             )}
           </Button>
+
+          {busyState.anyBusy ? (
+            <div className="w-full max-w-xl rounded-lg border border-yellow-300 bg-yellow-50 text-yellow-900 px-4 py-3 flex items-start gap-2">
+              <AlertCircle className="w-5 h-5 mt-0.5" />
+              <div className="text-sm">
+                <div className="font-semibold">Attendance is locked because some tasks are ongoing</div>
+
+              </div>
+            </div>
+          ) : null}
         </div>
       ) : null}
     </div>

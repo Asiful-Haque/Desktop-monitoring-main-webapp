@@ -162,11 +162,7 @@ export class TaskService {
     return qb.getRawMany();
   }
 
-  /**
-   * Make this task the only flagged task (busy=1) for the user.
-   * Clears any other flagged task(s) for that user first.
-   * Optional tenant scope supported.
-   */
+
   async flag({ userId, taskId, tenantId }) {
     const ds = await getDataSource();
     const repo = ds.getRepository(Task);
@@ -223,10 +219,6 @@ export class TaskService {
     };
   }
 
-  /**
-   * Unflag just this task (busy=0) for the user.
-   * Optional tenant scope supported (ownership is still checked).
-   */
   async unflag({ userId, taskId, tenantId }) {
     const ds = await getDataSource();
     const repo = ds.getRepository(Task);
@@ -270,9 +262,61 @@ export class TaskService {
     };
   }
 
-  async anyBusyBySerial({ taskIdOfSerialIds }) {
+  async anyBusyBySerial({ taskIdOfSerialIds, tenant_id }) {
     if (!Array.isArray(taskIdOfSerialIds) || taskIdOfSerialIds.length === 0) {
-      const err = new Error("taskIdOfSerialIds must be a non-empty array of numbers.");
+      const err = new Error(
+        "taskIdOfSerialIds must be a non-empty array of numbers."
+      );
+      err.statusCode = 400;
+      throw err;
+    }
+
+    const tenantIdNum = Number(tenant_id);
+    if (!Number.isFinite(tenantIdNum) || tenantIdNum <= 0) {
+      const err = new Error("tenant_id must be a valid number.");
+      err.statusCode = 400;
+      throw err;
+    }
+
+    const ids = taskIdOfSerialIds
+      .map((x) => Number(x))
+      .filter((n) => Number.isFinite(n) && n > 0);
+
+    if (ids.length === 0) {
+      const err = new Error(
+        "taskIdOfSerialIds must contain valid numeric ids."
+      );
+      err.statusCode = 400;
+      throw err;
+    }
+
+    const ds = await getDataSource();
+    const repo = ds.getRepository(Task);
+
+    // NOTE: your old code used alias "serial_id" but selected t.task_id.
+    // fixed to return task_id correctly.
+    const qb = repo
+      .createQueryBuilder("t")
+      .select("DISTINCT t.task_id", "task_id")
+      .where("t.task_id IN (:...ids)", { ids })
+      .andWhere("t.tenant_id = :tenantId", { tenantId: tenantIdNum })
+      .andWhere("t.busy = :busy", { busy: 1 });
+
+    const rows = await qb.getRawMany();
+    const busySerials = rows
+      .map((r) => Number(r.task_id))
+      .filter(Number.isFinite);
+
+    return {
+      anyBusy: busySerials.length > 0,
+      busySerials,
+    };
+  }
+
+  async anyBusyByTenant({ tenant_id }) {
+    const tenantIdNum = Number(tenant_id);
+    if (!Number.isFinite(tenantIdNum) || tenantIdNum <= 0) {
+      const err = new Error("tenant_id must be a valid number.");
       err.statusCode = 400;
       throw err;
     }
@@ -282,12 +326,15 @@ export class TaskService {
 
     const qb = repo
       .createQueryBuilder("t")
-      .select("DISTINCT t.task_id", "serial_id")
-      .where("t.task_id IN (:...ids)", { ids: taskIdOfSerialIds })
-      .andWhere("t.busy = 1");
+      .select("DISTINCT t.task_id", "task_id")
+      .where("t.tenant_id = :tenantId", { tenantId: tenantIdNum })
+      .andWhere("t.busy = :busy", { busy: 1 })
+      .limit(200);
 
     const rows = await qb.getRawMany();
-    const busySerials = rows.map(r => Number(r.serial_id)).filter(Number.isFinite);
+    const busySerials = rows
+      .map((r) => Number(r.task_id))
+      .filter(Number.isFinite);
 
     return {
       anyBusy: busySerials.length > 0,
