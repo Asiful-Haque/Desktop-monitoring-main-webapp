@@ -10,7 +10,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 
 import { Send, Users, Calendar, Clock, CheckCircle2, XCircle, AlertCircle, Loader2, RefreshCw } from "lucide-react";
-
 import DatePickerField from "../commonComponent/DatePickerField";
 
 const statusOptions = [
@@ -56,6 +55,23 @@ const parseDateTime = (v) => {
 
 const fmtHHmm = (d) => `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 
+// attendance API time could be "HH:mm", "HH:mm:ss", ISO string, or Date-ish
+const normalizeTimeHHmm = (v) => {
+  if (v === null || v === undefined || v === "") return "";
+  if (typeof v === "string") {
+    const s = v.trim();
+    if (!s) return "";
+    // HH:mm:ss -> HH:mm
+    if (/^\d{2}:\d{2}:\d{2}$/.test(s)) return s.slice(0, 5);
+    if (/^\d{2}:\d{2}$/.test(s)) return s;
+    // ISO -> parse and format
+    const d = parseDateTime(s);
+    return d ? fmtHHmm(d) : "";
+  }
+  const d = parseDateTime(v);
+  return d ? fmtHHmm(d) : "";
+};
+
 const validateStartEndForDate = (startVal, endVal, ymd) => {
   const s = parseDateTime(startVal);
   const e = parseDateTime(endVal);
@@ -86,13 +102,17 @@ const normEmail = (v) => {
   return String(v).trim().toLowerCase();
 };
 
+// safe getters for attendance rows (API may use different keys)
+const getAttendanceStatus = (r) => r?.status ?? r?.attendance_status ?? r?.attendanceStatus ?? null;
+const getAttendanceCheckIn = (r) => r?.check_in_time ?? r?.checkInTime ?? r?.check_in ?? r?.start_time ?? null;
+const getAttendanceCheckOut = (r) => r?.check_out_time ?? r?.checkOutTime ?? r?.check_out ?? r?.end_time ?? null;
+const getAttendanceNotes = (r) => r?.notes ?? r?.note ?? "";
+
 const ManualAttendancePage = ({ curruser, users }) => {
   const { addToast } = useToast();
 
   const [attendanceDate, setAttendanceDate] = useState(() => toYmd(new Date()));
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [selectAll, setSelectAll] = useState(false);
-
   const [isLoadingForDate, setIsLoadingForDate] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -134,7 +154,6 @@ const ManualAttendancePage = ({ curruser, users }) => {
 
   useEffect(() => {
     setAttendanceData(buildAttendanceState(users));
-    setSelectAll(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [users]);
 
@@ -146,21 +165,8 @@ const ManualAttendancePage = ({ curruser, users }) => {
     }));
   };
 
-  const handleSelectAll = (checked) => {
-    setSelectAll(checked);
-    setAttendanceData((prev) => {
-      const updated = { ...prev };
-      Object.keys(updated).forEach((key) => {
-        const uid = Number(key);
-        updated[uid] = { ...updated[uid], selected: checked };
-      });
-      return updated;
-    });
-  };
-
   const selectedCount = useMemo(() => Object.values(attendanceData).filter((a) => a.selected).length, [attendanceData]);
   const isFuture = useMemo(() => isDateInFuture(attendanceDate), [attendanceDate]);
-
   const lockInlineControls = isFuture || isDateSubmitted;
 
   const applyToAll = (field, value) => {
@@ -212,6 +218,15 @@ const ManualAttendancePage = ({ curruser, users }) => {
     }
   };
 
+  /**
+   * Load saved attendance (if any) and APPLY:
+   * - status
+   * - check_in_time
+   * - check_out_time
+   * - notes
+   *
+   * This is the missing part you asked for: users with no activity should still show their saved status.
+   */
   const loadAttendanceForDate = async (dateStr, seq) => {
     const currentUsers = usersRef.current;
     if (!Array.isArray(currentUsers) || currentUsers.length === 0) return false;
@@ -230,6 +245,7 @@ const ManualAttendancePage = ({ curruser, users }) => {
 
       const data = await res.json();
       const rows = Array.isArray(data?.rows) ? data.rows : [];
+      console.log("In attendance page - loaded attendance rows:", rows);
 
       const submitted = rows.length > 0;
       if (seq !== loadSeqRef.current) return submitted;
@@ -239,6 +255,7 @@ const ManualAttendancePage = ({ curruser, users }) => {
       setAttendanceData((prev) => {
         const base = buildAttendanceState(usersRef.current);
 
+        // keep selected state only when NOT submitted (so you can still work)
         if (!submitted) {
           Object.keys(base).forEach((k) => {
             const uid = Number(k);
@@ -246,12 +263,23 @@ const ManualAttendancePage = ({ curruser, users }) => {
           });
         }
 
+        // apply saved rows (status + times + notes)
         for (const r of rows) {
           const uid = Number(r.user_id);
           if (!uid || !base[uid]) continue;
+
+          const st = getAttendanceStatus(r);
+          const ci = normalizeTimeHHmm(getAttendanceCheckIn(r));
+          const co = normalizeTimeHHmm(getAttendanceCheckOut(r));
+          const notes = getAttendanceNotes(r);
+
           base[uid] = {
             ...base[uid],
-            notes: r.notes ?? base[uid].notes
+            status: st ? String(st) : base[uid].status,
+            check_in_time: ci || base[uid].check_in_time,
+            check_out_time: co || base[uid].check_out_time,
+            notes: notes ?? base[uid].notes,
+            selected: false // submitted rows should be read-only anyway
           };
         }
 
@@ -295,16 +323,10 @@ const ManualAttendancePage = ({ curruser, users }) => {
       }
 
       const emailCandidates = [u?.email, u?.user_email, u?.developer_email, u?.work_email].map(normEmail).filter(Boolean);
-
       for (const em of emailCandidates) {
         if (!byEmail.has(em)) byEmail.set(em, uiId);
       }
     }
-
-    const uiName = (uiId) => {
-      const u = byUiUserId.get(Number(uiId));
-      return u?.username || u?.name || u?.full_name || "";
-    };
 
     const resolveActivityToUiUserId = (row) => {
       const devIdCandidates = [row?.dev_user_id, row?.developer_id, row?.employee_id]
@@ -334,9 +356,16 @@ const ManualAttendancePage = ({ curruser, users }) => {
       return { uiUserId: null, via: "unresolved" };
     };
 
-    return { resolveActivityToUiUserId, uiName };
+    return { resolveActivityToUiUserId };
   };
 
+  /**
+   * Loads activity window for UI display.
+   * IMPORTANT FIX:
+   * - If attendance is already submitted, DO NOT overwrite the saved attendance statuses.
+   * - We only set activityByUserId (for display line) and return.
+   * - If NOT submitted, we can auto-fill present/absent from activity (your current behavior).
+   */
   const loadActivityWindowForDate = async (dateStr, submittedFlag, seq) => {
     const apiUrl = `${apiBase}/api/time-sheet/by-date-range`;
 
@@ -361,6 +390,7 @@ const ManualAttendancePage = ({ curruser, users }) => {
 
       const payload = await res.json();
       const rows = Array.isArray(payload?.items) ? payload.items : [];
+      console.log("From timesheet API - loaded activity rows:", rows);
 
       if (seq !== loadSeqRef.current) return;
 
@@ -401,8 +431,14 @@ const ManualAttendancePage = ({ curruser, users }) => {
 
       setActivityByUserId(activityObj);
 
-      const future = isDateInFuture(dateStr);
       const submitted = Boolean(submittedFlag);
+      if (submitted) {
+        // ✅ DO NOT override saved attendance status/times when attendance exists.
+        return;
+      }
+
+      // not submitted -> auto-fill based on activity (your desired behavior)
+      const future = isDateInFuture(dateStr);
 
       setAttendanceData((prev) => {
         const updated = { ...prev };
@@ -420,28 +456,30 @@ const ManualAttendancePage = ({ curruser, users }) => {
             check_in_time: startHHmm,
             check_out_time: endHHmm,
             status: hasTimes ? "present" : "absent",
-            selected: !submitted && !future && hasTimes ? true : false
+            selected: !future && hasTimes ? true : false
           };
         });
 
         return updated;
       });
-
-      setSelectAll(false);
     } catch (e) {
       console.error("Load activity error:", e);
       if (seq !== loadSeqRef.current) return;
 
       setActivityByUserId({});
 
-      setAttendanceData((prev) => {
-        const updated = { ...prev };
-        Object.keys(updated).forEach((k) => {
-          const uid = Number(k);
-          updated[uid] = { ...updated[uid], check_in_time: "", check_out_time: "", selected: false, status: "absent" };
+      // If not submitted, fallback to clearing auto fields.
+      // If submitted, attendanceData already comes from attendance API and we should not wipe it.
+      if (!submittedFlag) {
+        setAttendanceData((prev) => {
+          const updated = { ...prev };
+          Object.keys(updated).forEach((k) => {
+            const uid = Number(k);
+            updated[uid] = { ...updated[uid], check_in_time: "", check_out_time: "", selected: false, status: "absent" };
+          });
+          return updated;
         });
-        return updated;
-      });
+      }
 
       addToast({
         title: "Activity Load Failed",
@@ -454,7 +492,6 @@ const ManualAttendancePage = ({ curruser, users }) => {
   const loadAllForDate = async (dateStr) => {
     const seq = ++loadSeqRef.current;
 
-    setSelectAll(false);
     setActivityByUserId({});
     setAttendanceData(buildAttendanceState(usersRef.current));
 
@@ -527,9 +564,7 @@ const ManualAttendancePage = ({ curruser, users }) => {
     if (busyNow?.anyBusy) {
       addToast({
         title: "Cannot Submit",
-        description: busyNow?.busySerials?.length
-          ? `Attendance is locked because some tasks are ongoing.}`
-          : "Attendance is locked because some tasks are ongoing.",
+        description: "Attendance is locked because some tasks are ongoing.",
         variant: "destructive"
       });
       return;
@@ -556,7 +591,7 @@ const ManualAttendancePage = ({ curruser, users }) => {
         check_in_time: entry.check_in_time || null,
         check_out_time: entry.check_out_time || null,
         notes: entry.notes || null,
-        last_updated_by: curruser?.id ? parseInt(curruser.id) : 1
+        last_updated_by: curruser?.id ? parseInt(curruser.id, 10) : 1
       }));
 
       await postAttendance(payload);
@@ -567,7 +602,6 @@ const ManualAttendancePage = ({ curruser, users }) => {
         variant: "success"
       });
 
-      setSelectAll(false);
       await loadAllForDate(attendanceDate);
     } catch (error) {
       console.error("Submission error:", error);
@@ -581,11 +615,7 @@ const ManualAttendancePage = ({ curruser, users }) => {
     }
   };
 
-  const disableSubmit =
-    isSubmitting ||
-    busyState.checking ||
-    busyState.anyBusy ||
-    selectedCount === 0;
+  const disableSubmit = isSubmitting || busyState.checking || busyState.anyBusy || selectedCount === 0;
 
   return (
     <div className="p-6 space-y-6 bg-gradient-to-br from-blue-50 to-indigo-50 min-h-screen">
@@ -671,8 +701,7 @@ const ManualAttendancePage = ({ curruser, users }) => {
         <CardHeader className="bg-gradient-to-r from-[#095cfd]/5 to-transparent border-b border-[rgba(9,92,253,0.1)]">
           <div className="flex items-center justify-between">
             <CardTitle className="text-lg">Team Members</CardTitle>
-
-
+            <div className="text-xs text-muted-foreground">{lockInlineControls ? "Read only" : "Select users and submit"}</div>
           </div>
         </CardHeader>
 
@@ -802,7 +831,6 @@ const ManualAttendancePage = ({ curruser, users }) => {
               <AlertCircle className="w-5 h-5 mt-0.5" />
               <div className="text-sm">
                 <div className="font-semibold">Attendance is locked because some tasks are ongoing</div>
-
               </div>
             </div>
           ) : null}

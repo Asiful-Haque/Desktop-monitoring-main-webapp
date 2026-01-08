@@ -18,6 +18,7 @@ const PROTECTED_PAGES = [
   "/projectDetails",
   "/profile",
   "/attendance",
+  "/leave",
 ];
 
 function buildCorsHeaders(req) {
@@ -100,7 +101,11 @@ const ROLE_GUARDS = [
     allowed: ["Developer", "Admin", "Project Manager", "CEO", "Team Lead", "Freelancer"],
   },
   { prefix: "/manual-time", allowed: ["Developer", "Freelancer"] },
-  { prefix: "/attendance", allowed: ["Admin", "Developer", "Freelancer"] }
+  { prefix: "/attendance", allowed: ["Admin", "Developer", "Freelancer"] },
+  {
+    prefix: "/leave",
+    allowed: ["Developer", "Admin", "Project Manager", "CEO", "Team Lead", "Freelancer"],
+  },
 ];
 function findGuard(pathname) {
   return ROLE_GUARDS.find((g) => pathname.startsWith(g.prefix)) || null;
@@ -162,6 +167,7 @@ export const config = {
     "/manual-time",
     "/projectDetails/:path*",
     "/profile/:path*",
-    "/attendance"
+    "/attendance",
+    "/leave",
   ],
 };
