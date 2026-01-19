@@ -42,6 +42,9 @@ export async function POST(req) {
     if (!token) return corsJson({ error: "Token missing or invalid" }, 401);
     const body = await req.json();
     console.log("Attendance POST body:", body);
+
+console.log("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAttendance POST body:", body);
+
     let entries = [];
     if (Array.isArray(body)) entries = body;
     else if (Array.isArray(body?.entries)) entries = body.entries;
@@ -53,6 +56,7 @@ export async function POST(req) {
       tenant_id: Number(body.tenant_id ?? token.tenant_id ?? token.tenantId),
       editor_user_id: Number(body.last_updated_by ?? token.id ?? token.user_id),
       entries,
+      userRole: token.role || token.userRole,
     });
 
     return corsJson(

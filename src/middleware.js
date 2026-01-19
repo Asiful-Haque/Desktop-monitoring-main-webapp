@@ -19,6 +19,7 @@ const PROTECTED_PAGES = [
   "/profile",
   "/attendance",
   "/leave",
+  "/urlTracking",
 ];
 
 function buildCorsHeaders(req) {
@@ -106,6 +107,7 @@ const ROLE_GUARDS = [
     prefix: "/leave",
     allowed: ["Developer", "Admin", "Project Manager", "CEO", "Team Lead", "Freelancer"],
   },
+  { prefix: "/urlTracking", allowed: ["Developer", "Admin", "Project Manager", "CEO", "Team Lead"] },
 ];
 function findGuard(pathname) {
   return ROLE_GUARDS.find((g) => pathname.startsWith(g.prefix)) || null;
@@ -169,5 +171,6 @@ export const config = {
     "/profile/:path*",
     "/attendance",
     "/leave",
+    "/urlTracking",
   ],
 };

@@ -13,6 +13,7 @@ import {
   CalendarDays,
   DollarSign,
   Clock,
+  Globe,
 } from "lucide-react";
 import {
   Sidebar,
@@ -39,6 +40,7 @@ const navigationItems = [
   { title: "Manual Time", url: "/manual-time", icon: Clock, roles: ["Developer", "Freelancer"] },
   { title: "Attendance", url: "/attendance", icon: Clock, roles: ["Admin", "Developer", "Freelancer"] },
   { title: "Leave", url: "/leave", icon: CalendarDays, roles: ["Developer", "Admin", "Project Manager", "CEO", "Team Lead", "Freelancer"] },
+  { title: "URL Tracking", url: "/urlTracking", icon: Globe, roles: ["Developer", "Admin", "Project Manager", "CEO", "Team Lead"] },
 ];
 
 export function AppSidebar({ user }) {

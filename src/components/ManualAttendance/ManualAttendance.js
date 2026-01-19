@@ -180,6 +180,7 @@ const ManualAttendancePage = ({ curruser, users }) => {
     });
   };
 
+  // console.log("Attendancfasdgfsdfgasdfghadfhae data state:", attendanceData);
   const apiBase = process.env.NEXT_PUBLIC_MAIN_HOST || "";
 
   // Tenant-wide busy check
@@ -218,15 +219,7 @@ const ManualAttendancePage = ({ curruser, users }) => {
     }
   };
 
-  /**
-   * Load saved attendance (if any) and APPLY:
-   * - status
-   * - check_in_time
-   * - check_out_time
-   * - notes
-   *
-   * This is the missing part you asked for: users with no activity should still show their saved status.
-   */
+
   const loadAttendanceForDate = async (dateStr, seq) => {
     const currentUsers = usersRef.current;
     if (!Array.isArray(currentUsers) || currentUsers.length === 0) return false;
@@ -359,13 +352,7 @@ const ManualAttendancePage = ({ curruser, users }) => {
     return { resolveActivityToUiUserId };
   };
 
-  /**
-   * Loads activity window for UI display.
-   * IMPORTANT FIX:
-   * - If attendance is already submitted, DO NOT overwrite the saved attendance statuses.
-   * - We only set activityByUserId (for display line) and return.
-   * - If NOT submitted, we can auto-fill present/absent from activity (your current behavior).
-   */
+
   const loadActivityWindowForDate = async (dateStr, submittedFlag, seq) => {
     const apiUrl = `${apiBase}/api/time-sheet/by-date-range`;
 
@@ -431,6 +418,8 @@ const ManualAttendancePage = ({ curruser, users }) => {
 
       setActivityByUserId(activityObj);
 
+      console.log("Resolved activity bhjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjkly user ID:", activityObj);
+
       const submitted = Boolean(submittedFlag);
       if (submitted) {
         // ✅ DO NOT override saved attendance status/times when attendance exists.
@@ -468,8 +457,6 @@ const ManualAttendancePage = ({ curruser, users }) => {
 
       setActivityByUserId({});
 
-      // If not submitted, fallback to clearing auto fields.
-      // If submitted, attendanceData already comes from attendance API and we should not wipe it.
       if (!submittedFlag) {
         setAttendanceData((prev) => {
           const updated = { ...prev };
@@ -709,6 +696,7 @@ const ManualAttendancePage = ({ curruser, users }) => {
           <div className="divide-y divide-border">
             {(Array.isArray(users) ? users : []).map((user) => {
               const uid = Number(user.user_id);
+
               const attendance = attendanceData?.[uid];
               if (!attendance) return null;
 
@@ -773,14 +761,14 @@ const ManualAttendancePage = ({ curruser, users }) => {
                     <div className="col-span-6 md:col-span-2">
                       <div className="relative">
                         <Clock className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                        <Input type="time" value={attendance.check_in_time || ""} disabled className="pl-8 h-9 border-[rgba(9,92,253,0.3)] opacity-70" />
+                        <Input type="time" value={activity?.hasTimes && activity?.startHHmm && activity?.endHHmm ? activity.startHHmm : ""} disabled className="pl-8 h-9 border-[rgba(9,92,253,0.3)] opacity-70" />
                       </div>
                     </div>
 
                     <div className="col-span-6 md:col-span-2">
                       <div className="relative">
                         <Clock className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                        <Input type="time" value={attendance.check_out_time || ""} disabled className="pl-8 h-9 border-[rgba(9,92,253,0.3)] opacity-70" />
+                        <Input type="time" value={activity?.hasTimes && activity?.startHHmm && activity?.endHHmm ? activity.endHHmm : ""} disabled className="pl-8 h-9 border-[rgba(9,92,253,0.3)] opacity-70" />
                       </div>
                     </div>
 
