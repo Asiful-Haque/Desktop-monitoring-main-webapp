@@ -9,6 +9,25 @@ export const Tenant = new EntitySchema({
     name: { type: "varchar", length: 255 },
     slug: { type: "varchar", length: 255 },
     status: { type: "varchar", length: 32, default: "active" },
+    // --- ADDED FOR JIRA INTEGRATION ---
+    jira_cloud_id: { 
+      type: "varchar", 
+      length: 255, 
+      nullable: true 
+    },
+    jira_access_token: { 
+      type: "text", 
+      nullable: true 
+    },
+    jira_refresh_token: { 
+      type: "text", 
+      nullable: true 
+    },
+    jira_token_expires: { 
+      type: "timestamp", 
+      nullable: true 
+    },
+    // ----------------------------------
     created_at: { type: "timestamp", default: () => "CURRENT_TIMESTAMP" },
     updated_at: {
       type: "timestamp",

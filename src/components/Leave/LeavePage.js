@@ -7,15 +7,34 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Users, Calendar, Clock, CheckCircle2, XCircle, AlertCircle, Loader2, RefreshCw, Search, ChevronDown, ChevronUp } from "lucide-react";
+import {
+  Users,
+  Calendar,
+  Clock,
+  CheckCircle2,
+  XCircle,
+  AlertCircle,
+  Loader2,
+  RefreshCw,
+  Search,
+  ChevronDown,
+  ChevronUp,
+} from "lucide-react";
 
 import DatePickerField from "../commonComponent/DatePickerField";
 import LeaveCharts from "./LeaveCharts";
 
 const pad2 = (n) => String(n).padStart(2, "0");
-const toYmd = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+const toYmd = (d) =>
+  `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 
 const isDateInFuture = (yyyyMmDd) => {
   const now = new Date();
@@ -35,7 +54,9 @@ const parseDateTime = (v) => {
   const s = String(v).trim();
   if (!s) return null;
 
-  const mysqlLike = /^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}(:\d{2})?(\.\d+)?$/.test(s);
+  const mysqlLike = /^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}(:\d{2})?(\.\d+)?$/.test(
+    s,
+  );
   const normalized = mysqlLike ? s.replace(/\s+/, "T") : s;
 
   const d = new Date(normalized);
@@ -60,16 +81,33 @@ const validateStartEndForDate = (startVal, endVal, ymd) => {
   return { ok: true, startMs: Math.min(sMs, eMs), endMs: Math.max(sMs, eMs) };
 };
 
-const getRowStart = (r) => r?.task_start ?? r?.start_time ?? r?.started_at ?? r?.check_in ?? r?.start ?? r?.begin ?? null;
-const getRowEnd = (r) => r?.task_end ?? r?.end_time ?? r?.ended_at ?? r?.check_out ?? r?.end ?? r?.finish ?? null;
+const getRowStart = (r) =>
+  r?.task_start ??
+  r?.start_time ??
+  r?.started_at ??
+  r?.check_in ??
+  r?.start ??
+  r?.begin ??
+  null;
+const getRowEnd = (r) =>
+  r?.task_end ??
+  r?.end_time ??
+  r?.ended_at ??
+  r?.check_out ??
+  r?.end ??
+  r?.finish ??
+  null;
 
 const normEmail = (v) => (!v ? "" : String(v).trim().toLowerCase());
 
-const getAttendanceStatus = (r) => r?.status ?? r?.attendance_status ?? r?.attendanceStatus ?? null;
+const getAttendanceStatus = (r) =>
+  r?.status ?? r?.attendance_status ?? r?.attendanceStatus ?? null;
 const getAttendanceNotes = (r) => r?.notes ?? r?.note ?? "";
 
 const normalizeStatus = (rawStatus) => {
-  const s = String(rawStatus || "").trim().toLowerCase();
+  const s = String(rawStatus || "")
+    .trim()
+    .toLowerCase();
   if (!s) return "absent";
   if (s === "leave") return "leave";
   if (s === "present") return "present";
@@ -80,11 +118,31 @@ const normalizeStatus = (rawStatus) => {
 };
 
 const STATUS_META = {
-  present: { label: "Present", icon: CheckCircle2, pill: "bg-green-100 text-green-800 border-green-200" },
-  leave: { label: "Leave", icon: Calendar, pill: "bg-blue-100 text-blue-800 border-blue-200" },
-  late: { label: "Late", icon: AlertCircle, pill: "bg-yellow-100 text-yellow-800 border-yellow-200" },
-  half_day: { label: "Half Day", icon: Clock, pill: "bg-orange-100 text-orange-800 border-orange-200" },
-  absent: { label: "Absent", icon: XCircle, pill: "bg-red-100 text-red-800 border-red-200" }
+  present: {
+    label: "Present",
+    icon: CheckCircle2,
+    pill: "bg-green-100 text-green-800 border-green-200",
+  },
+  leave: {
+    label: "Leave",
+    icon: Calendar,
+    pill: "bg-blue-100 text-blue-800 border-blue-200",
+  },
+  late: {
+    label: "Late",
+    icon: AlertCircle,
+    pill: "bg-yellow-100 text-yellow-800 border-yellow-200",
+  },
+  half_day: {
+    label: "Half Day",
+    icon: Clock,
+    pill: "bg-orange-100 text-orange-800 border-orange-200",
+  },
+  absent: {
+    label: "Absent",
+    icon: XCircle,
+    pill: "bg-red-100 text-red-800 border-red-200",
+  },
 };
 
 const STATUS_ORDER = ["present", "leave", "late", "half_day", "absent"];
@@ -95,7 +153,7 @@ const statusOptions = [
   { value: "leave", label: "Leave" },
   { value: "late", label: "Late" },
   { value: "half_day", label: "Half Day" },
-  { value: "absent", label: "Absent" }
+  { value: "absent", label: "Absent" },
 ];
 
 const niceNum = (n) => (Number.isFinite(Number(n)) ? Number(n) : 0);
@@ -111,7 +169,13 @@ const buildUserResolvers = (users) => {
     const uiId = Number(u?.user_id);
     if (Number.isFinite(uiId) && uiId > 0) byUiUserId.set(uiId, u);
 
-    const devIdCandidates = [u?.dev_user_id, u?.developer_id, u?.employee_id, u?.developerId, u?.devUserId]
+    const devIdCandidates = [
+      u?.dev_user_id,
+      u?.developer_id,
+      u?.employee_id,
+      u?.developerId,
+      u?.devUserId,
+    ]
       .map((x) => Number(x))
       .filter((x) => Number.isFinite(x) && x > 0);
 
@@ -119,18 +183,31 @@ const buildUserResolvers = (users) => {
       if (!byDevId.has(devId)) byDevId.set(devId, uiId);
     }
 
-    const emailCandidates = [u?.email, u?.user_email, u?.developer_email, u?.work_email].map(normEmail).filter(Boolean);
+    const emailCandidates = [
+      u?.email,
+      u?.user_email,
+      u?.developer_email,
+      u?.work_email,
+    ]
+      .map(normEmail)
+      .filter(Boolean);
     for (const em of emailCandidates) {
       if (!byEmail.has(em)) byEmail.set(em, uiId);
     }
   }
 
   const resolveActivityToUiUserId = (row) => {
-    const devIdCandidates = [row?.dev_user_id, row?.developer_id, row?.employee_id]
+    const devIdCandidates = [
+      row?.dev_user_id,
+      row?.developer_id,
+      row?.employee_id,
+    ]
       .map((x) => Number(x))
       .filter((x) => Number.isFinite(x) && x > 0);
 
-    const emailCandidates = [row?.developer_email, row?.email].map(normEmail).filter(Boolean);
+    const emailCandidates = [row?.developer_email, row?.email]
+      .map(normEmail)
+      .filter(Boolean);
 
     const uiIdCandidates = [row?.user_id, row?.userId]
       .map((x) => Number(x))
@@ -167,7 +244,7 @@ const buildBaseRows = (users) => {
       notes: "",
       check_in_time: "",
       check_out_time: "",
-      source: "default"
+      source: "default",
     };
   }
   return base;
@@ -211,7 +288,7 @@ export default function LeaveDashboard({ curruser, users, canPickDate }) {
     const res = await fetch(`${apiBase}/api/attendance?${qs.toString()}`, {
       method: "GET",
       headers: { "Content-Type": "application/json" },
-      cache: "no-store"
+      cache: "no-store",
     });
     if (!res.ok) throw new Error("Failed to load attendance");
     const json = await res.json();
@@ -224,15 +301,19 @@ export default function LeaveDashboard({ curruser, users, canPickDate }) {
       endDate: dateStr,
       all: true,
       userId: curruser?.id ?? null,
-      userRole: curruser?.role || curruser?.user_role || curruser?.role_name || "Developer",
-      tenant_id: curruser?.tenant_id ?? null
+      userRole:
+        curruser?.role ||
+        curruser?.user_role ||
+        curruser?.role_name ||
+        "Developer",
+      tenant_id: curruser?.tenant_id ?? null,
     };
 
     const res = await fetch(`${apiBase}/api/time-sheet/by-date-range`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
-      cache: "no-store"
+      cache: "no-store",
     });
 
     if (!res.ok) throw new Error(`Failed to load activity (${res.status})`);
@@ -248,7 +329,10 @@ export default function LeaveDashboard({ curruser, users, canPickDate }) {
       return;
     }
 
-    const [attendanceRows, activityRows] = await Promise.all([loadAttendanceRows(dateStr), loadActivityRows(dateStr)]);
+    const [attendanceRows, activityRows] = await Promise.all([
+      loadAttendanceRows(dateStr),
+      loadActivityRows(dateStr),
+    ]);
     if (seq !== loadSeqRef.current) return;
 
     const base = buildBaseRows(list);
@@ -262,7 +346,7 @@ export default function LeaveDashboard({ curruser, users, canPickDate }) {
         ...base[uid],
         status: normalizeStatus(getAttendanceStatus(r)),
         notes: getAttendanceNotes(r) || "",
-        source: "attendance"
+        source: "attendance",
       };
     }
 
@@ -279,7 +363,7 @@ export default function LeaveDashboard({ curruser, users, canPickDate }) {
 
       const curr = activityMap.get(uiUserId) || {
         minStartMs: Number.POSITIVE_INFINITY,
-        maxEndMs: Number.NEGATIVE_INFINITY
+        maxEndMs: Number.NEGATIVE_INFINITY,
       };
 
       if (v.startMs < curr.minStartMs) curr.minStartMs = v.startMs;
@@ -292,8 +376,12 @@ export default function LeaveDashboard({ curruser, users, canPickDate }) {
       if (!base[uid]) return;
       if (base[uid].source === "attendance") return;
 
-      const startHHmm = Number.isFinite(v.minStartMs) ? fmtHHmm(new Date(v.minStartMs)) : "";
-      const endHHmm = Number.isFinite(v.maxEndMs) ? fmtHHmm(new Date(v.maxEndMs)) : "";
+      const startHHmm = Number.isFinite(v.minStartMs)
+        ? fmtHHmm(new Date(v.minStartMs))
+        : "";
+      const endHHmm = Number.isFinite(v.maxEndMs)
+        ? fmtHHmm(new Date(v.maxEndMs))
+        : "";
 
       if (startHHmm && endHHmm) {
         base[uid] = {
@@ -301,7 +389,7 @@ export default function LeaveDashboard({ curruser, users, canPickDate }) {
           status: "present",
           check_in_time: startHHmm,
           check_out_time: endHHmm,
-          source: "activity"
+          source: "activity",
         };
       }
     });
@@ -321,7 +409,7 @@ export default function LeaveDashboard({ curruser, users, canPickDate }) {
       addToast({
         title: "Load Failed",
         description: e?.message || "Could not load leave data",
-        variant: "destructive"
+        variant: "destructive",
       });
     } finally {
       if (seq === loadSeqRef.current) setIsLoading(false);
@@ -337,13 +425,20 @@ export default function LeaveDashboard({ curruser, users, canPickDate }) {
     setIsRefreshing(true);
     try {
       await loadAll();
-      addToast({ title: "Refreshed", description: "Latest day status loaded.", variant: "success" });
+      addToast({
+        title: "Refreshed",
+        description: "Latest day status loaded.",
+        variant: "success",
+      });
     } finally {
       setIsRefreshing(false);
     }
   };
 
-  const isFuture = useMemo(() => isDateInFuture(effectiveDate), [effectiveDate]);
+  const isFuture = useMemo(
+    () => isDateInFuture(effectiveDate),
+    [effectiveDate],
+  );
 
   const summary = useMemo(() => {
     const all = Object.values(rowsByUserId || {});
@@ -353,7 +448,7 @@ export default function LeaveDashboard({ curruser, users, canPickDate }) {
       leave: 0,
       late: 0,
       half_day: 0,
-      absent: 0
+      absent: 0,
     };
     for (const r of all) {
       const st = normalizeStatus(r?.status);
@@ -378,21 +473,36 @@ export default function LeaveDashboard({ curruser, users, canPickDate }) {
     const all = Object.values(rowsByUserId || {});
     const f = String(filterStatus || "all");
 
-    const s = String(searchText || "").trim().toLowerCase();
+    const s = String(searchText || "")
+      .trim()
+      .toLowerCase();
 
-    let list = f === "all" ? all : all.filter((r) => normalizeStatus(r?.status) === f);
+    let list =
+      f === "all" ? all : all.filter((r) => normalizeStatus(r?.status) === f);
 
     if (s) {
-      list = list.filter((r) => String(r?.username || "").toLowerCase().includes(s));
+      list = list.filter((r) =>
+        String(r?.username || "")
+          .toLowerCase()
+          .includes(s),
+      );
     }
 
     if (sortBy === "name_desc") {
-      list = list.sort((a, b) => String(b?.username || "").localeCompare(String(a?.username || "")));
+      list = list.sort((a, b) =>
+        String(b?.username || "").localeCompare(String(a?.username || "")),
+      );
     } else if (sortBy === "status") {
       const rank = new Map(STATUS_ORDER.map((k, i) => [k, i]));
-      list = list.sort((a, b) => (rank.get(normalizeStatus(a?.status)) ?? 99) - (rank.get(normalizeStatus(b?.status)) ?? 99));
+      list = list.sort(
+        (a, b) =>
+          (rank.get(normalizeStatus(a?.status)) ?? 99) -
+          (rank.get(normalizeStatus(b?.status)) ?? 99),
+      );
     } else {
-      list = list.sort((a, b) => String(a?.username || "").localeCompare(String(b?.username || "")));
+      list = list.sort((a, b) =>
+        String(a?.username || "").localeCompare(String(b?.username || "")),
+      );
     }
 
     return list;
@@ -400,14 +510,66 @@ export default function LeaveDashboard({ curruser, users, canPickDate }) {
 
   const quickCards = useMemo(() => {
     const items = [
-      { k: "present", label: "Present", icon: CheckCircle2, count: niceNum(summary.present), pill: STATUS_META.present.pill },
-      { k: "leave", label: "Leave", icon: Calendar, count: niceNum(summary.leave), pill: STATUS_META.leave.pill },
-      { k: "late", label: "Late", icon: AlertCircle, count: niceNum(summary.late), pill: STATUS_META.late.pill },
-      { k: "half_day", label: "Half Day", icon: Clock, count: niceNum(summary.half_day), pill: STATUS_META.half_day.pill },
-      { k: "absent", label: "Absent", icon: XCircle, count: niceNum(summary.absent), pill: STATUS_META.absent.pill }
+      {
+        k: "present",
+        label: "Present",
+        icon: CheckCircle2,
+        count: niceNum(summary.present),
+        pill: STATUS_META.present.pill,
+      },
+      {
+        k: "leave",
+        label: "Leave",
+        icon: Calendar,
+        count: niceNum(summary.leave),
+        pill: STATUS_META.leave.pill,
+      },
+      {
+        k: "late",
+        label: "Late",
+        icon: AlertCircle,
+        count: niceNum(summary.late),
+        pill: STATUS_META.late.pill,
+      },
+      {
+        k: "half_day",
+        label: "Half Day",
+        icon: Clock,
+        count: niceNum(summary.half_day),
+        pill: STATUS_META.half_day.pill,
+      },
+      {
+        k: "absent",
+        label: "Absent",
+        icon: XCircle,
+        count: niceNum(summary.absent),
+        pill: STATUS_META.absent.pill,
+      },
     ];
     return items;
   }, [summary]);
+
+  // ------------------------------------------------------------------------------------------------
+  const handleConnectJira = () => {
+    const tenantId = "1"; // This is your 'state' (YOUR_USER_BOUND_VALUE)
+    const clientId = "gl4JMOZ9UV7vpO8LNBnM8XIviGSNEwhe";
+
+    // 1. MUST MATCH the Atlassian Console exactly
+    const redirectUri = encodeURIComponent(
+      "http://localhost:5500/api/auth/jira/callback",
+    );
+
+    // 2. Added all the scopes you provided + offline_access (to get the refresh_token)
+    const scopes = encodeURIComponent(
+      "read:jira-work read:jira-user manage:jira-project write:jira-work manage:jira-webhook offline_access",
+    );
+
+    const authUrl = `https://auth.atlassian.com/authorize?audience=api.atlassian.com&client_id=${clientId}&scope=${scopes}&redirect_uri=${redirectUri}&state=${tenantId}&response_type=code&prompt=consent`;
+
+    // 3. Send the user to Atlassian
+    window.location.href = authUrl;
+  };
+  // ------------------------------------------------------------------------------------------------
 
   return (
     <div className="p-6 space-y-6 bg-gradient-to-br from-blue-50 via-indigo-50 to-slate-50 min-h-screen">
@@ -418,8 +580,23 @@ export default function LeaveDashboard({ curruser, users, canPickDate }) {
             Your Company: {curruser?.tenant_name || ""}
           </div>
 
+          {/* ---------------------------------------------------------------------------------- */}
+          <Button
+            type="button"
+            variant="outline"
+            className="gap-2 bg-white/70"
+            onClick={handleConnectJira} // Calling the Jira connection function
+          >
+            Integrate Jira
+          </Button>
+          {/* ---------------------------------------------------------------------------------- */}
+
           <h1 className="text-3xl font-bold text-gray-900 mt-3">Leave</h1>
-          <p className="text-gray-600 mt-1">{canPickDate ? "Day wise view with filters and charts" : "Today view only"}</p>
+          <p className="text-gray-600 mt-1">
+            {canPickDate
+              ? "Day wise view with filters and charts"
+              : "Today view only"}
+          </p>
 
           <div className="flex items-center gap-3 mt-2">
             {isLoading ? (
@@ -430,17 +607,32 @@ export default function LeaveDashboard({ curruser, users, canPickDate }) {
             ) : null}
 
             {isFuture ? (
-              <span className="text-xs text-blue-700 font-semibold bg-blue-100 px-2 py-1 rounded-full">Future date</span>
+              <span className="text-xs text-blue-700 font-semibold bg-blue-100 px-2 py-1 rounded-full">
+                Future date
+              </span>
             ) : null}
 
             <span className="text-xs text-muted-foreground">
-              Showing: <span className="font-semibold text-slate-900">{effectiveDate}</span>
+              Showing:{" "}
+              <span className="font-semibold text-slate-900">
+                {effectiveDate}
+              </span>
             </span>
           </div>
         </div>
 
-        <Button type="button" variant="outline" onClick={handleRefresh} disabled={isRefreshing} className="gap-2 bg-white/70">
-          {isRefreshing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+        <Button
+          type="button"
+          variant="outline"
+          onClick={handleRefresh}
+          disabled={isRefreshing}
+          className="gap-2 bg-white/70"
+        >
+          {isRefreshing ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <RefreshCw className="w-4 h-4" />
+          )}
           Refresh
         </Button>
       </div>
@@ -461,13 +653,21 @@ export default function LeaveDashboard({ curruser, users, canPickDate }) {
                   inputClassName="border-[rgba(9,92,253,0.3)]"
                 />
               ) : (
-                <Input type="text" value={effectiveDate} disabled className="border-[rgba(9,92,253,0.3)]" />
+                <Input
+                  type="text"
+                  value={effectiveDate}
+                  disabled
+                  className="border-[rgba(9,92,253,0.3)]"
+                />
               )}
             </div>
 
             <div className="space-y-2">
               <Label className="text-sm font-medium">Filter Status</Label>
-              <Select value={filterStatus} onValueChange={(v) => setFilterStatus(v)}>
+              <Select
+                value={filterStatus}
+                onValueChange={(v) => setFilterStatus(v)}
+              >
                 <SelectTrigger className="border-[rgba(9,92,253,0.3)]">
                   <SelectValue />
                 </SelectTrigger>
@@ -512,8 +712,12 @@ export default function LeaveDashboard({ curruser, users, canPickDate }) {
               <Label className="text-sm font-medium">Result</Label>
               <div className="h-10 px-4 rounded-lg bg-gradient-to-r from-[#095cfd]/10 to-[#0b4dd5]/10 border border-[#095cfd]/20 flex items-center">
                 <Users className="w-4 h-4 text-[#095cfd] mr-2" />
-                <span className="font-bold text-[#095cfd]">{filteredList.length}</span>
-                <span className="text-muted-foreground ml-1">/ {summary.total}</span>
+                <span className="font-bold text-[#095cfd]">
+                  {filteredList.length}
+                </span>
+                <span className="text-muted-foreground ml-1">
+                  / {summary.total}
+                </span>
               </div>
             </div>
           </div>
@@ -529,17 +733,25 @@ export default function LeaveDashboard({ curruser, users, canPickDate }) {
                   type="button"
                   onClick={() => setFilterStatus(active ? "all" : c.k)}
                   className={`text-left rounded-xl border shadow-sm bg-white/70 px-4 py-3 transition hover:shadow-md ${
-                    active ? "border-slate-900 ring-2 ring-slate-900/20" : "border-slate-200"
+                    active
+                      ? "border-slate-900 ring-2 ring-slate-900/20"
+                      : "border-slate-200"
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <div className={`inline-flex items-center gap-2 rounded-full border px-2 py-1 text-xs font-semibold ${c.pill}`}>
+                    <div
+                      className={`inline-flex items-center gap-2 rounded-full border px-2 py-1 text-xs font-semibold ${c.pill}`}
+                    >
                       <Icon className="w-3.5 h-3.5" />
                       {c.label}
                     </div>
-                    <span className="text-2xl font-bold text-slate-900">{c.count}</span>
+                    <span className="text-2xl font-bold text-slate-900">
+                      {c.count}
+                    </span>
                   </div>
-                  <div className="mt-2 text-xs text-muted-foreground">{active ? "Click to clear" : "Click to filter"}</div>
+                  <div className="mt-2 text-xs text-muted-foreground">
+                    {active ? "Click to clear" : "Click to filter"}
+                  </div>
                 </button>
               );
             })}
@@ -559,7 +771,9 @@ export default function LeaveDashboard({ curruser, users, canPickDate }) {
           <div className="flex items-center justify-between">
             <CardTitle className="text-lg">Team Status</CardTitle>
             <div className="text-xs text-muted-foreground">
-              {filterStatus === "all" ? "All statuses" : `Filtered: ${STATUS_META[filterStatus]?.label || filterStatus}`}
+              {filterStatus === "all"
+                ? "All statuses"
+                : `Filtered: ${STATUS_META[filterStatus]?.label || filterStatus}`}
             </div>
           </div>
         </CardHeader>
@@ -573,7 +787,10 @@ export default function LeaveDashboard({ curruser, users, canPickDate }) {
                 const Meta = STATUS_META[st] || STATUS_META.absent;
                 const Icon = Meta.icon;
                 const open = expandedUserId === r.user_id;
-                const activityLabel = r?.check_in_time && r?.check_out_time ? `${r.check_in_time} to ${r.check_out_time}` : "";
+                const activityLabel =
+                  r?.check_in_time && r?.check_out_time
+                    ? `${r.check_in_time} to ${r.check_out_time}`
+                    : "";
 
                 return (
                   <motion.div
@@ -591,30 +808,41 @@ export default function LeaveDashboard({ curruser, users, canPickDate }) {
                         </div>
 
                         <div className="min-w-0">
-                          <p className="font-semibold truncate text-slate-900">{r.username}</p>
-                          <p className="text-xs text-muted-foreground truncate">{r.role_name || ""}</p>
+                          <p className="font-semibold truncate text-slate-900">
+                            {r.username}
+                          </p>
+                          <p className="text-xs text-muted-foreground truncate">
+                            {r.role_name || ""}
+                          </p>
 
                           {activityLabel ? (
                             <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
                               <Clock className="w-3 h-3" />
-                              Activity: <span className="font-medium">{activityLabel}</span>
+                              Activity:{" "}
+                              <span className="font-medium">
+                                {activityLabel}
+                              </span>
                             </p>
                           ) : null}
                         </div>
                       </div>
 
                       <div className="col-span-6 md:col-span-3">
-                        <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border text-xs font-semibold ${Meta.pill}`}>
+                        <div
+                          className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border text-xs font-semibold ${Meta.pill}`}
+                        >
                           <Icon className="w-4 h-4" />
                           {Meta.label}
                         </div>
-
-
                       </div>
 
                       <div className="col-span-6 md:col-span-4">
-                        <div className="text-xs text-muted-foreground">Notes</div>
-                        <div className="text-sm text-slate-800 truncate">{r?.notes ? r.notes : "No notes"}</div>
+                        <div className="text-xs text-muted-foreground">
+                          Notes
+                        </div>
+                        <div className="text-sm text-slate-800 truncate">
+                          {r?.notes ? r.notes : "No notes"}
+                        </div>
                       </div>
 
                       <div className="col-span-12 md:col-span-2 flex justify-end">
@@ -622,7 +850,9 @@ export default function LeaveDashboard({ curruser, users, canPickDate }) {
                           type="button"
                           variant="outline"
                           className="bg-white/70"
-                          onClick={() => setExpandedUserId(open ? null : r.user_id)}
+                          onClick={() =>
+                            setExpandedUserId(open ? null : r.user_id)
+                          }
                         >
                           {open ? (
                             <span className="inline-flex items-center gap-2">
@@ -648,18 +878,30 @@ export default function LeaveDashboard({ curruser, users, canPickDate }) {
                         >
                           <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
                             <div className="rounded-xl border bg-white/70 p-4">
-                              <div className="text-xs text-muted-foreground">Status</div>
-                              <div className="mt-1 text-base font-bold text-slate-900">{Meta.label}</div>
+                              <div className="text-xs text-muted-foreground">
+                                Status
+                              </div>
+                              <div className="mt-1 text-base font-bold text-slate-900">
+                                {Meta.label}
+                              </div>
                             </div>
 
                             <div className="rounded-xl border bg-white/70 p-4">
-                              <div className="text-xs text-muted-foreground">Activity window</div>
-                              <div className="mt-1 text-base font-bold text-slate-900">{activityLabel || "No activity"}</div>
+                              <div className="text-xs text-muted-foreground">
+                                Activity window
+                              </div>
+                              <div className="mt-1 text-base font-bold text-slate-900">
+                                {activityLabel || "No activity"}
+                              </div>
                             </div>
 
                             <div className="rounded-xl border bg-white/70 p-4">
-                              <div className="text-xs text-muted-foreground">Notes</div>
-                              <div className="mt-1 text-sm text-slate-800 whitespace-pre-wrap">{r?.notes || "No notes"}</div>
+                              <div className="text-xs text-muted-foreground">
+                                Notes
+                              </div>
+                              <div className="mt-1 text-sm text-slate-800 whitespace-pre-wrap">
+                                {r?.notes || "No notes"}
+                              </div>
                             </div>
                           </div>
                         </motion.div>
@@ -671,14 +913,17 @@ export default function LeaveDashboard({ curruser, users, canPickDate }) {
             </AnimatePresence>
 
             {!isLoading && filteredList.length === 0 ? (
-              <div className="p-6 text-sm text-muted-foreground">No users found for this filter.</div>
+              <div className="p-6 text-sm text-muted-foreground">
+                No users found for this filter.
+              </div>
             ) : null}
           </div>
         </CardContent>
       </Card>
 
       <div className="text-xs text-muted-foreground">
-        Tip: Click any chart segment or quick card to filter. Click again to reset.
+        Tip: Click any chart segment or quick card to filter. Click again to
+        reset.
       </div>
     </div>
   );
