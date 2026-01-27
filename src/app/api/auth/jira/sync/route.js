@@ -6,35 +6,22 @@ import { JiraService } from "@/app/services/jiraRelatedServices/jiraService";
 const jiraService = new JiraService();
 
 export async function POST(request) {
+  console.log("=== JIRA SYNC POST REQUEST RECEIVED ===");
   try {
     const cookieStore = await cookies();
     const tokenCookie = cookieStore.get("token");
+    if (!tokenCookie?.value) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    if (!tokenCookie?.value) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // 1. Decode JWT to get tenant_id
     const decoded = jwt.decode(tokenCookie.value);
     const tenantId = decoded?.tenant_id;
+    if (!tenantId) return NextResponse.json({ error: "Invalid Token" }, { status: 401 });
 
-    if (!tenantId) {
-      return NextResponse.json({ error: "Invalid Token" }, { status: 401 });
-    }
-
-    // 2. Refresh token if needed (This uses your refreshIfNeeded logic)
-    // This returns the plain-text access token
     const accessToken = await jiraService.refreshIfNeeded(tenantId);
-    
-    // 3. Get the Cloud ID (This uses your getCredentials logic)
     const credentials = await jiraService.getCredentials(tenantId);
 
-    if (!credentials?.cloudId) {
-      return NextResponse.json({ error: "Jira Cloud ID not found in DB" }, { status: 404 });
-    }
+    await jiraService.mapTenantUsers(tenantId, accessToken, credentials.cloudId);
 
-    // 4. Fetch from Jira API
-    const jiraResponse = await fetch(
+    const response = await fetch(
       `https://api.atlassian.com/ex/jira/${credentials.cloudId}/rest/api/3/search/jql`,
       {
         method: "POST",
@@ -44,36 +31,24 @@ export async function POST(request) {
         },
         body: JSON.stringify({
           jql: "project IS NOT EMPTY ORDER BY updated DESC",
-          maxResults: 50,
-          fields: ["summary", "status", "project", "assignee", "updated"],
+          maxResults: 100,
+          fields: ["summary", "status", "project", "assignee", "description", "priority", "duedate", "created"],
         }),
       }
     );
 
-    const jiraData = await jiraResponse.json();
+    const jiraData = await response.json();
+    if (!response.ok) throw new Error("Jira Fetch Failed");
 
-    if (!jiraResponse.ok) {
-      throw new Error(jiraData.errorMessages?.[0] || "Jira API Failed");
-    }
+    // This now returns { syncedCount, unmappedProjects, requiresMapping }
+    const syncResult = await jiraService.syncJiraDataToDb(tenantId, jiraData.issues);
 
-    // 5. Format issues for the frontend console
-    const formattedData = jiraData.issues.map((issue) => ({
-      jira_id: issue.id,
-      key: issue.key,
-      summary: issue.fields.summary,
-      project: issue.fields.project.name,
-      status: issue.fields.status.name,
-      assignee: issue.fields.assignee?.displayName || "Unassigned"
-    }));
-
-    return NextResponse.json({
-      success: true,
-      count: formattedData.length,
-      data: formattedData // This will appear in your browser console log
+    return NextResponse.json({ 
+      success: true, 
+      ...syncResult // Spreads all fields into the response
     });
 
   } catch (error) {
-    console.error("Sync Route Error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

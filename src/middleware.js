@@ -74,7 +74,7 @@ if (token) {
 
   return null;
 }
-console.log("Middleware initialized. Protected pages:", PROTECTED_PAGES);
+// console.log("Middleware initialized. Protected pages:", PROTECTED_PAGES);
 
 const ROLE_GUARDS = [
   {

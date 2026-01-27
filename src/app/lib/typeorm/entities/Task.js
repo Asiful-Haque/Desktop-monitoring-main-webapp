@@ -18,6 +18,22 @@ export const Task = new EntitySchema({
       length: 1000,
       nullable: true,
     },
+    external_jira_id: { 
+      type: "varchar", 
+      length: 255, 
+      nullable: true,
+      unique: true 
+    },
+    jira_key: { 
+      type: "varchar", 
+      length: 50, 
+      nullable: true 
+    },
+    jira_worklog_id: { 
+      type: "varchar", 
+      length: 100, 
+      nullable: true 
+    },
     assigned_to: {
       type: "int",
     },

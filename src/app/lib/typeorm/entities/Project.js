@@ -22,6 +22,17 @@ export const Project = new EntitySchema({
       type: "varchar",
       length: 50,
     },
+    external_jira_id: {
+      type: "varchar",
+      length: 255,
+      nullable: true,
+      unique: true,
+    },
+    jira_project_key: {
+      type: "varchar",
+      length: 50,
+      nullable: true,
+    },
     created_at: {
       type: "datetime",
     },

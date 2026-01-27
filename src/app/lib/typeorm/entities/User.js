@@ -24,6 +24,12 @@ export const User = new EntitySchema({
       type: "varchar",
       length: 255,
     },
+    jira_account_id: {
+      type: "varchar",
+      length: 128,
+      nullable: true,
+      unique: true,
+    },
     default_hour_rate: {
       type: "decimal",
       precision: 10,
