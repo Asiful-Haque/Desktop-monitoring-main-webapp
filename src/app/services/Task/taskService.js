@@ -99,6 +99,8 @@ export class TaskService {
         "task.deadline          AS deadline",
         "task.end_date          AS end_date",
         "task.last_timing       AS last_timing",
+        "task.external_jira_id  AS external_jira_id",
+        "task.jira_key          AS jira_key",
         "user.user_id           AS assigned_to",
         "user.username          AS assigned_to_name",
         "task.project_id        AS project_id",

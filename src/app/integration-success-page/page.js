@@ -65,7 +65,7 @@ export default function IntegrationSuccess() {
     if (nextQueue.length === 0) {
       setSyncStatus("syncing");
       try {
-        const res = await fetch("/api/projects/map-bulk", {
+        const res = await fetch("/api/projects/map", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ mappings: updatedPending }),

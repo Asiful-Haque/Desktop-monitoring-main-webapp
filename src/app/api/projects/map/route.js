@@ -27,7 +27,7 @@ export async function POST(request) {
             created_at: new Date(),
             updated_at: new Date(),
           });
-          await transactionalEntityManager.save(newProj);
+          await transactionalEntityManager.save(Project, newProj);
         } else {
           await transactionalEntityManager.update(
             Project,
